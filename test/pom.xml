@@ -9,7 +9,7 @@
         <version>0.0.1</version>
     </parent>
 
-    <artifactId>common</artifactId>
+    <artifactId>test</artifactId>
 
     <properties>
         <maven.compiler.source>11</maven.compiler.source>
@@ -18,24 +18,24 @@
     </properties>
     <dependencies>
         <dependency>
-            <groupId>org.slf4j</groupId>
-            <artifactId>slf4j-api</artifactId>
+            <groupId>${project.groupId}</groupId>
+            <artifactId>common</artifactId>
+            <version>${project.version}</version>
         </dependency>
         <dependency>
-            <groupId>org.slf4j</groupId>
-            <artifactId>slf4j-simple</artifactId>
+            <groupId>${project.groupId}</groupId>
+            <artifactId>consumer</artifactId>
+            <version>${project.version}</version>
         </dependency>
         <dependency>
-            <groupId>org.projectlombok</groupId>
-            <artifactId>lombok</artifactId>
+            <groupId>${project.groupId}</groupId>
+            <artifactId>producer</artifactId>
+            <version>${project.version}</version>
         </dependency>
         <dependency>
-            <groupId>io.netty</groupId>
-            <artifactId>netty-all</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>com.caucho</groupId>
-            <artifactId>hessian</artifactId>
+            <groupId>${project.groupId}</groupId>
+            <artifactId>broker</artifactId>
+            <version>${project.version}</version>
         </dependency>
     </dependencies>
 </project>
