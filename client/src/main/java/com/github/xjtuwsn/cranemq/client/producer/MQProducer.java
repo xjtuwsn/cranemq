@@ -1,0 +1,25 @@
+package com.github.xjtuwsn.cranemq.client.producer;
+
+import com.github.xjtuwsn.cranemq.client.hook.SendCallback;
+import com.github.xjtuwsn.cranemq.common.entity.Message;
+
+import java.util.List;
+
+/**
+ * @project:cranemq
+ * @file:MQProducer
+ * @author:wsn
+ * @create:2023/09/27-11:10
+ */
+public interface MQProducer {
+    void start();
+
+    void shutdown();
+    SendResult send(Message message);
+    void send(Message message, boolean oneWay);
+    SendResult send(Message message, SendCallback callback);
+
+    SendResult send(List<Message> messages);
+    void send(List<Message> messages, boolean oneWay);
+    SendCallback send(List<Message> messages, SendCallback callback);
+}

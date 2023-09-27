@@ -4,16 +4,15 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
-    <groupId>xjtu.wsn</groupId>
+    <groupId>com.github.xjtuwsn</groupId>
     <artifactId>cranemq</artifactId>
     <version>0.0.1</version>
     <packaging>pom</packaging>
     <modules>
         <module>common</module>
-        <module>producer</module>
-        <module>consumer</module>
         <module>broker</module>
         <module>test</module>
+        <module>client</module>
     </modules>
 
     <properties>
@@ -25,7 +24,8 @@
         <project.lombok.version>1.18.24</project.lombok.version>
         <project.slf4j-api.version>2.0.7</project.slf4j-api.version>
         <project.hessian.version>4.0.66</project.hessian.version>
-        <project.slf4j-simple.bersion>2.0.7</project.slf4j-simple.bersion>
+        <project.slf4j-simple.version>2.0.7</project.slf4j-simple.version>
+        <project.hutool.version>5.8.20</project.hutool.version>
     </properties>
     <dependencyManagement>
         <dependencies>
@@ -36,12 +36,7 @@
             </dependency>
             <dependency>
                 <groupId>${project.groupId}</groupId>
-                <artifactId>consumer</artifactId>
-                <version>${project.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>${project.groupId}</groupId>
-                <artifactId>producer</artifactId>
+                <artifactId>client</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>
@@ -77,13 +72,17 @@
                 <artifactId>hessian</artifactId>
                 <version>${project.hessian.version}</version>
             </dependency>
-            <!-- https://mvnrepository.com/artifact/org.slf4j/slf4j-log4j12 -->
             <dependency>
                 <groupId>org.slf4j</groupId>
                 <artifactId>slf4j-simple</artifactId>
-                <version>${project.slf4j-simple.bersion}</version>
-
+                <version>${project.slf4j-simple.version}</version>
             </dependency>
+            <dependency>
+                <groupId>cn.hutool</groupId>
+                <artifactId>hutool-all</artifactId>
+                <version>${project.hutool.version}</version>
+            </dependency>
+
 
         </dependencies>
     </dependencyManagement>
