@@ -1,5 +1,7 @@
 package com.github.xjtuwsn.cranemq.client.remote;
 
+import com.github.xjtuwsn.cranemq.client.producer.impl.DefaultMQProducerImpl;
+import com.github.xjtuwsn.cranemq.common.command.types.RpcType;
 import io.netty.bootstrap.Bootstrap;
 import io.netty.channel.*;
 import io.netty.channel.nio.NioEventLoopGroup;
@@ -24,14 +26,16 @@ public class RemoteClient implements RemoteService {
 
     private static final Logger log= LoggerFactory.getLogger(RemoteClient.class);
     private RemoteAddress broker;
+    private DefaultMQProducerImpl defaultMQProducer;
     private EventLoopGroup workerGroup;
     private Bootstrap bootstrap;
     private ChannelFuture channelFuture;
     private RemoteHook hook;
 
 
-    public RemoteClient(RemoteAddress broker) {
-        this.broker = broker;
+    public RemoteClient(DefaultMQProducerImpl impl) {
+        this.defaultMQProducer = impl;
+        this.broker = this.defaultMQProducer.getAddress();
     }
 
     @Override

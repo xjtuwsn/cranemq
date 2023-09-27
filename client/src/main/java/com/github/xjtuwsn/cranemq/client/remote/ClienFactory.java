@@ -1,5 +1,6 @@
 package com.github.xjtuwsn.cranemq.client.remote;
 
+import com.github.xjtuwsn.cranemq.client.producer.impl.DefaultMQProducerImpl;
 import com.github.xjtuwsn.cranemq.common.exception.CraneClientException;
 import com.github.xjtuwsn.cranemq.common.net.RemoteAddress;
 
@@ -20,10 +21,10 @@ public class ClienFactory {
         return instance;
     }
 
-    public RemoteClient getOrCreate(String key, RemoteAddress address) throws CraneClientException {
+    public RemoteClient getOrCreate(String key, DefaultMQProducerImpl impl) throws CraneClientException {
         RemoteClient client = null;
         if (!cache.containsKey(key)) {
-            client = new RemoteClient(address);
+            client = new RemoteClient(impl);
             cache.putIfAbsent(key, client);
         }
         client = cache.get(key);

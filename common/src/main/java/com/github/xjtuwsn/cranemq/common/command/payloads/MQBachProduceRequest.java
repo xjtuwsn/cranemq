@@ -1,5 +1,6 @@
 package com.github.xjtuwsn.cranemq.common.command.payloads;
 
+import com.github.xjtuwsn.cranemq.common.command.PayLoad;
 import lombok.*;
 import com.github.xjtuwsn.cranemq.common.entity.Message;
 
@@ -16,6 +17,6 @@ import java.util.List;
 @NoArgsConstructor
 @Getter
 @Setter
-public class MQBachProduceRequest {
+public class MQBachProduceRequest implements PayLoad {
     private List<Message> messages;
 }
