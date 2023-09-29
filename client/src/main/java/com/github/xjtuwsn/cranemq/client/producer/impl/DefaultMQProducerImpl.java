@@ -3,6 +3,7 @@ package com.github.xjtuwsn.cranemq.client.producer.impl;
 import cn.hutool.core.collection.ConcurrentHashSet;
 import cn.hutool.core.util.StrUtil;
 import com.github.xjtuwsn.cranemq.client.hook.SendCallback;
+import com.github.xjtuwsn.cranemq.client.producer.balance.LoadBalanceStrategy;
 import com.github.xjtuwsn.cranemq.client.producer.result.SendResult;
 import com.github.xjtuwsn.cranemq.client.producer.result.SendResultType;
 import com.github.xjtuwsn.cranemq.common.command.*;
@@ -45,7 +46,9 @@ public class DefaultMQProducerImpl implements MQProducerInner {
 
     private ClientInstance clientInstance;
     private RemoteAddress address;
+    private String registryAddress;
     private String clientID;
+    LoadBalanceStrategy loadBalanceStrategy;
     private ConcurrentHashSet<String> topicSet = new ConcurrentHashSet<>();
     /**
      * 0: created
@@ -53,13 +56,20 @@ public class DefaultMQProducerImpl implements MQProducerInner {
      * 2: failed
      */
     private volatile AtomicInteger state;
+    public DefaultMQProducerImpl(DefaultMQProducer defaultMQProducer,
+                                 RemoteHook hook, String registryAddress) {
+        this(defaultMQProducer, hook, registryAddress, null);
+    }
 
 
-    public DefaultMQProducerImpl(DefaultMQProducer defaultMQProducer, RemoteHook hook) {
+    public DefaultMQProducerImpl(DefaultMQProducer defaultMQProducer,
+                                 RemoteHook hook, String registryAddress,
+                                 LoadBalanceStrategy loadBalanceStrategy) {
         this.defaultMQProducer = defaultMQProducer;
         this.hook = hook;
-
-        state = new AtomicInteger(0);
+        this.registryAddress = registryAddress;
+        this.state = new AtomicInteger(0);
+        this.loadBalanceStrategy = loadBalanceStrategy;
     }
 
     public void start() throws CraneClientException {
@@ -70,6 +80,9 @@ public class DefaultMQProducerImpl implements MQProducerInner {
         this.checkConfig();
         this.address = this.defaultMQProducer.getBrokerAddress();
         this.clientID = buildClientID();
+        if (this.loadBalanceStrategy != null) {
+            this.clientInstance.setLoadBalanceStrategy(this.loadBalanceStrategy);
+        }
         this.clientInstance = ClienFactory.newInstance().getOrCreate(this.clientID, this);
         this.clientInstance.registerHook(hook);
 //        this.remoteClient.start();
@@ -90,9 +103,7 @@ public class DefaultMQProducerImpl implements MQProducerInner {
             throw new CraneClientException("Create Request error!");
         }
         FutureCommand futureCommand = wrappered.getFutureCommand();
-        if (this.hook != null) {
-            this.hook.beforeMessage();
-        }
+
         return this.clientInstance.sendMessageSync(wrappered, isOneWay);
     }
 
@@ -104,9 +115,7 @@ public class DefaultMQProducerImpl implements MQProducerInner {
         if (remoteCommand == null) {
             throw new CraneClientException("Create Request error!");
         }
-        if (this.hook != null) {
-            this.hook.beforeMessage();
-        }
+
         this.clientInstance.sendMessateAsync(remoteCommand);
     }
 
@@ -165,7 +174,7 @@ public class DefaultMQProducerImpl implements MQProducerInner {
         if (StrUtil.isEmpty(this.defaultMQProducer.getGroup())) {
             throw new CraneClientException("Group name cannot be null");
         }
-        if (StrUtil.isEmpty(this.defaultMQProducer.getBrokerAddress().getAddress())) {
+        if (StrUtil.isEmpty(this.defaultMQProducer.getRegistryAddr())) {
             throw new CraneClientException("Brokder address cannot be null");
         }
         if (this.defaultMQProducer.getMaxRetryTime() < 0) {
@@ -200,5 +209,17 @@ public class DefaultMQProducerImpl implements MQProducerInner {
     }
     public Set<String> getTopics() {
         return this.topicSet;
+    }
+
+    public String getRegisteryAddress() {
+        return registryAddress;
+    }
+
+    public void setRegistryAddress(String registryAddress) {
+        this.registryAddress = registryAddress;
+    }
+
+    public void setLoadBalanceStrategy(LoadBalanceStrategy loadBalanceStrategy) {
+        this.loadBalanceStrategy = loadBalanceStrategy;
     }
 }

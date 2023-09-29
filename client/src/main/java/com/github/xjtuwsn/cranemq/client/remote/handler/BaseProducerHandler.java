@@ -37,7 +37,7 @@ public class BaseProducerHandler extends SimpleChannelInboundHandler<RemoteComma
                 maxSize,
                 60L,
                 TimeUnit.SECONDS,
-                new LinkedBlockingDeque<>(100),
+                new LinkedBlockingDeque<>(1000),
                 new ThreadFactory() {
                     AtomicInteger count = new AtomicInteger(0);
                     @Override
@@ -61,13 +61,14 @@ public class BaseProducerHandler extends SimpleChannelInboundHandler<RemoteComma
             log.error("Receive wrong type response, {}", type);
             return;
         }
-
         switch ((ResponseType) type) {
             case PRODUCE_MESSAGE_RESPONSE:
                 doProduceProcessor(remoteCommand);
                 break;
             case QUERY_BROKER_RESPONSE:
                 break;
+            case UPDATE_TOPIC_RESPONSE:
+                doUpdateTopicProcessor(remoteCommand);
             default:
                 break;
         }
@@ -75,6 +76,9 @@ public class BaseProducerHandler extends SimpleChannelInboundHandler<RemoteComma
     }
     private void doProduceProcessor(RemoteCommand remoteCommand) {
         processor.processMessageProduceResopnse(remoteCommand, this.asyncCallBackService, this.hook);
+    }
+    private void doUpdateTopicProcessor(RemoteCommand remoteCommand) {
+        processor.processUpdateTopicResponse(remoteCommand, this.asyncCallBackService);
     }
     private void doQueryBrokerProcessor(RemoteCommand remoteCommand) {
 

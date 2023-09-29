@@ -1,38 +1,28 @@
 package com.github.xjtuwsn.cranemq.common.route;
 
+import lombok.*;
+
+import java.io.Serializable;
+
 /**
  * @project:cranemq
  * @file:QueueData
  * @author:wsn
  * @create:2023/09/28-20:09
  */
-public class QueueData {
-    private String brokerName;
+@ToString
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@Getter
+@Data
+public class QueueData implements Serializable {
+    private String broker;
     private int readQueueNums;
     private int writeQueueNums;
 
-    public QueueData() {
-    }
 
-    public QueueData(String brokerName) {
-        this.brokerName = brokerName;
-    }
 
-    public QueueData(String brokerName, int readQueueNums, int writeQueueNums) {
-        this.brokerName = brokerName;
-        this.readQueueNums = readQueueNums;
-        this.writeQueueNums = writeQueueNums;
-    }
 
-    public String getBrokerName() {
-        return brokerName;
-    }
 
-    public int getReadQueueNums() {
-        return readQueueNums;
-    }
-
-    public int getWriteQueueNums() {
-        return writeQueueNums;
-    }
 }

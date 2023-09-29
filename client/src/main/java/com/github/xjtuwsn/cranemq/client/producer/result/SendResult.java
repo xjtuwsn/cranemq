@@ -1,5 +1,6 @@
 package com.github.xjtuwsn.cranemq.client.producer.result;
 
+import com.github.xjtuwsn.cranemq.common.route.TopicRouteInfo;
 import lombok.*;
 
 /**
@@ -16,5 +17,11 @@ import lombok.*;
 public class SendResult {
     private SendResultType resultType;
     private String correlationID;
+    private TopicRouteInfo topicRouteInfo;
+    private String topic;
 
+    public SendResult(SendResultType resultType, String correlationID) {
+        this.resultType = resultType;
+        this.correlationID = correlationID;
+    }
 }

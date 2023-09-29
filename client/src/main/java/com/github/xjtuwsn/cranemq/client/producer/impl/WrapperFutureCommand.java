@@ -3,6 +3,7 @@ package com.github.xjtuwsn.cranemq.client.producer.impl;
 import com.github.xjtuwsn.cranemq.client.hook.SendCallback;
 import com.github.xjtuwsn.cranemq.common.command.FutureCommand;
 import com.github.xjtuwsn.cranemq.common.command.RemoteCommand;
+import lombok.ToString;
 
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -13,10 +14,12 @@ import java.util.concurrent.atomic.AtomicLong;
  * @author:wsn
  * @create:2023/09/27-21:06
  */
+@ToString
 public class WrapperFutureCommand {
 
     private FutureCommand futureCommand;
     private String topic;
+    private boolean toRegistery;
     private int maxRetryTime;
     private long timeout;
     private AtomicLong startTime;
@@ -72,5 +75,13 @@ public class WrapperFutureCommand {
 
     public String getTopic() {
         return topic;
+    }
+
+    public boolean isToRegistery() {
+        return toRegistery;
+    }
+
+    public void setToRegistery(boolean toRegistery) {
+        this.toRegistery = toRegistery;
     }
 }

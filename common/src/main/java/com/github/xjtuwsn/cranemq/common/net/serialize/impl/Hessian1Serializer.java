@@ -1,13 +1,13 @@
 package com.github.xjtuwsn.cranemq.common.net.serialize.impl;
 
-import com.caucho.hessian.io.HessianInput;
-import com.caucho.hessian.io.HessianOutput;
+import com.caucho.hessian.io.*;
 import com.github.xjtuwsn.cranemq.common.net.serialize.Serializer;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 public class Hessian1Serializer extends Serializer {
+    SerializerFactory serializerFactory = new SerializerFactory();
     /**
      * 进行序列化
      * @param obj
@@ -17,14 +17,15 @@ public class Hessian1Serializer extends Serializer {
     @Override
     public <T> byte[] serialize(T obj){
         ByteArrayOutputStream os = new ByteArrayOutputStream();
-        HessianOutput ho = new HessianOutput(os);
+        Hessian2Output ho = new Hessian2Output(os);
+        ho.setSerializerFactory(serializerFactory);
         try {
-
             ho.writeObject(obj);
 
             ho.flush();
 
             byte[] result = os.toByteArray();
+
             return result;
         } catch (IOException e) {
             e.printStackTrace();
@@ -53,7 +54,8 @@ public class Hessian1Serializer extends Serializer {
     @Override
     public <T> Object deserialize(byte[] bytes, Class<T> clazz) {
         ByteArrayInputStream is = new ByteArrayInputStream(bytes);
-        HessianInput hi = new HessianInput(is);
+        Hessian2Input hi = new Hessian2Input(is);
+        hi.setSerializerFactory(serializerFactory);
         try {
             Object result = hi.readObject();
             return result;

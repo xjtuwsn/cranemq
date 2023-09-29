@@ -1,5 +1,7 @@
 package com.github.xjtuwsn.cranemq.client.producer;
 
+import cn.hutool.core.util.StrUtil;
+import com.github.xjtuwsn.cranemq.client.producer.balance.LoadBalanceStrategy;
 import com.github.xjtuwsn.cranemq.client.producer.result.SendResult;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -32,21 +34,34 @@ public class DefaultMQProducer implements MQProducer {
     private List<MessageQueue> availableQueue;
 
     private RemoteAddress brokerAddress;
+    private String registryAddr;
     // 响应超时时间，ms
     private long responseTimeoutMills = ProducerConstant.RESPONSE_TIMEOUT_MILLS;
     // 默认重试次数
     private int maxRetryTime = ProducerConstant.MAX_RETRY_TIMES;
     private DefaultMQProducerImpl defaultMQProducerImpl;
+    private LoadBalanceStrategy loadBalanceStrategy;
 
     public DefaultMQProducer(String group) {
-        this(group, null);
+        this(group, null, null);
     }
     public DefaultMQProducer(String group, RemoteHook hook) {
+        this(group, hook, null);
+    }
+    public DefaultMQProducer(String group, RemoteHook hook, String registryAddr) {
         this.group = group;
-        this.defaultMQProducerImpl = new DefaultMQProducerImpl(this, hook);
+        this.registryAddr = registryAddr;
+        this.defaultMQProducerImpl = new DefaultMQProducerImpl(this, hook, this.registryAddr);
     }
     @Override
     public void start() throws CraneClientException {
+        if (StrUtil.isEmpty(this.registryAddr)) {
+            throw new CraneClientException("Registery address canot be null or empty");
+        }
+        if (this.loadBalanceStrategy != null) {
+            this.defaultMQProducerImpl.setLoadBalanceStrategy(this.loadBalanceStrategy);
+        }
+        this.defaultMQProducerImpl.setRegistryAddress(this.registryAddr);
         this.defaultMQProducerImpl.start();
     }
 
@@ -132,7 +147,12 @@ public class DefaultMQProducer implements MQProducer {
     public void send(List<Message> messages, SendCallback callback) throws CraneClientException {
         this.defaultMQProducerImpl.sendAsync(callback, this.responseTimeoutMills, messages.toArray(new Message[0]));
     }
-
+    public void bindRegistery(String registryAddr) {
+        if (StrUtil.isEmpty(registryAddr)) {
+            throw new CraneClientException("Registery address canot be null or empty");
+        }
+        this.registryAddr = registryAddr;
+    }
     public String getTopic() {
         return topic;
     }
@@ -187,5 +207,13 @@ public class DefaultMQProducer implements MQProducer {
 
     public void setGroup(String group) {
         this.group = group;
+    }
+
+    public String getRegistryAddr() {
+        return registryAddr;
+    }
+
+    public void setLoadBalanceStrategy(LoadBalanceStrategy loadBalanceStrategy) {
+        this.loadBalanceStrategy = loadBalanceStrategy;
     }
 }

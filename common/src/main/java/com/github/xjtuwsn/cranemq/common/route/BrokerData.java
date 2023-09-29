@@ -1,5 +1,10 @@
 package com.github.xjtuwsn.cranemq.common.route;
 
+import lombok.NoArgsConstructor;
+import lombok.Setter;
+import lombok.ToString;
+
+import java.io.Serializable;
 import java.util.List;
 
 /**
@@ -8,7 +13,10 @@ import java.util.List;
  * @author:wsn
  * @create:2023/09/28-20:05
  */
-public class BrokerData {
+@ToString
+@NoArgsConstructor
+@Setter
+public class BrokerData implements Serializable {
     // TODO 在集群时需要改很多
     private String brokerName;
     private String brokerAddress;

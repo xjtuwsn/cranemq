@@ -7,6 +7,7 @@ import com.github.xjtuwsn.cranemq.client.producer.DefaultMQProducer;
 import com.github.xjtuwsn.cranemq.client.producer.result.SendResult;
 import com.github.xjtuwsn.cranemq.common.entity.Message;
 import com.github.xjtuwsn.cranemq.common.net.RemoteAddress;
+import com.github.xjtuwsn.cranemq.registry.core.Registry;
 
 import java.util.Arrays;
 
@@ -21,7 +22,8 @@ public class TestMain {
     public static void main(String[] args) {
         MqBroker broker = new MqBroker();
         broker.start();
-
+        Registry registry = new Registry();
+        registry.start();
         Thread t = new Thread(() -> {
 
             RemoteAddress remoteAddress = new RemoteAddress("127.0.0.1", 9999);
@@ -36,7 +38,8 @@ public class TestMain {
                     System.out.println("response come");
                 }
             });
-            producer.setBrokerAddress(remoteAddress);
+            // producer.setBrokerAddress(remoteAddress);
+            producer.bindRegistery("127.0.0.1:11111");
             producer.start();
             Message message1 = new Message("topic1", "hhhh".getBytes());
             Message message2 = new Message("topic1", "hhhh111".getBytes());
@@ -55,8 +58,8 @@ public class TestMain {
                     System.out.println("-----------------------");
                 }
             });
-            producer.shutdown();
+//            producer.shutdown();
         });
-//        t.start();
+        t.start();
     }
 }

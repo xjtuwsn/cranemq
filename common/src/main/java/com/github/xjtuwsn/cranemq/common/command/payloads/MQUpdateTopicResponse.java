@@ -1,5 +1,6 @@
 package com.github.xjtuwsn.cranemq.common.command.payloads;
 
+import com.github.xjtuwsn.cranemq.common.command.PayLoad;
 import com.github.xjtuwsn.cranemq.common.route.TopicRouteInfo;
 import lombok.*;
 
@@ -16,7 +17,8 @@ import java.util.List;
 @NoArgsConstructor
 @Getter
 @Setter
-public class MQUpdateTopicResponse {
+@ToString
+public class MQUpdateTopicResponse implements PayLoad {
     private String topic;
     private TopicRouteInfo routeInfo;
 }

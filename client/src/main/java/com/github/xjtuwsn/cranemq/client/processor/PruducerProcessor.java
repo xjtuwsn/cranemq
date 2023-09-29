@@ -1,5 +1,6 @@
 package com.github.xjtuwsn.cranemq.client.processor;
 
+import com.github.xjtuwsn.cranemq.client.hook.InnerCallback;
 import com.github.xjtuwsn.cranemq.client.hook.RemoteHook;
 import com.github.xjtuwsn.cranemq.client.producer.impl.DefaultMQProducerImpl;
 import com.github.xjtuwsn.cranemq.client.producer.impl.WrapperFutureCommand;
@@ -82,6 +83,29 @@ public class PruducerProcessor implements Processor {
                 asyncHookService.execute(hook::afterMessage);
             } else {
                 hook.afterMessage();
+            }
+        }
+    }
+    public void processUpdateTopicResponse(RemoteCommand remoteCommand, ExecutorService asyncHookService) {
+        RpcType rpcType = remoteCommand.getHeader().getRpcType();
+        int responseCode = remoteCommand.getHeader().getStatus();
+        String correlationID = remoteCommand.getHeader().getCorrelationId();
+        WrapperFutureCommand wrappered = this.mqProducerImpl.getWrapperFuture(correlationID);
+        if (wrappered == null) {
+            log.error("Update topic request has been deleted wrongly");
+            return;
+        }
+        if (rpcType == RpcType.SYNC) {
+            wrappered.setResponse(remoteCommand);
+        } else {
+            InnerCallback innerCallback = (InnerCallback) wrappered.getCallback();
+            if (asyncHookService != null) {
+                asyncHookService.execute(() -> {
+                    log.info("Async execute update topic callback");
+                    innerCallback.onResponse(remoteCommand);
+                });
+            } else {
+                innerCallback.onResponse(remoteCommand);
             }
         }
     }

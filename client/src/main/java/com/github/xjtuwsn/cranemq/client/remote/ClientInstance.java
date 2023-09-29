@@ -2,11 +2,14 @@ package com.github.xjtuwsn.cranemq.client.remote;
 
 import com.github.xjtuwsn.cranemq.client.hook.InnerCallback;
 import com.github.xjtuwsn.cranemq.client.hook.SendCallback;
+import com.github.xjtuwsn.cranemq.client.producer.balance.LoadBalanceStrategy;
+import com.github.xjtuwsn.cranemq.client.producer.balance.RandomLoadBalance;
 import com.github.xjtuwsn.cranemq.client.producer.impl.DefaultMQProducerImpl;
 import com.github.xjtuwsn.cranemq.client.producer.impl.WrapperFutureCommand;
 import com.github.xjtuwsn.cranemq.client.producer.result.SendResult;
 import com.github.xjtuwsn.cranemq.client.producer.result.SendResultType;
 import com.github.xjtuwsn.cranemq.common.command.payloads.MQUpdateTopicResponse;
+import com.github.xjtuwsn.cranemq.common.command.types.ResponseType;
 import com.github.xjtuwsn.cranemq.common.route.TopicRouteInfo;
 import com.github.xjtuwsn.cranemq.common.command.FutureCommand;
 import com.github.xjtuwsn.cranemq.common.command.Header;
@@ -35,6 +38,7 @@ public class ClientInstance {
 
     private static final Logger log= LoggerFactory.getLogger(ClientInstance.class);
     private DefaultMQProducerImpl defaultMQProducer;
+    private LoadBalanceStrategy loadBalanceStrategy = new RandomLoadBalance();
 
     private RemoteHook hook;
     private RemoteClent remoteClent;
@@ -56,13 +60,16 @@ public class ClientInstance {
 
     public ClientInstance(DefaultMQProducerImpl impl) {
         this.defaultMQProducer = impl;
+
     }
 
     public void start() {
-        this.remoteClent = new RemoteClent();
+        this.remoteClent = new RemoteClent(this.defaultMQProducer);
+        this.remoteClent.registerHook(hook);
         this.remoteClent.start();
         this.clinetNumber = new AtomicInteger(0);
-        this.registryAddress = "127.0.0.1:11111";
+        this.registryAddress = this.defaultMQProducer.getRegisteryAddress();
+        // 异步发送消息的线程池
         this.asyncSendThreadPool = new ThreadPoolExecutor(coreSize,
                 maxSize,
                 60L,
@@ -76,6 +83,7 @@ public class ClientInstance {
                     }
                 },
                 new ThreadPoolExecutor.AbortPolicy());
+        // 对于每一个消息，定时判断是否删除的线程池
         this.retryService = Executors.newScheduledThreadPool(2, new ThreadFactory() {
             AtomicInteger count = new AtomicInteger(0);
             @Override
@@ -83,6 +91,7 @@ public class ClientInstance {
                 return new Thread(r, "ScheduledThreadPool no." + count.getAndIncrement());
             }
         });
+        // 定时向registry更新路由的线程池
         this.timerService = Executors.newScheduledThreadPool(4, new ThreadFactory() {
             AtomicInteger count = new AtomicInteger(0);
             @Override
@@ -93,24 +102,39 @@ public class ClientInstance {
         this.startScheduleTast();
     }
     private void startScheduleTast() {
+        // 每30s向注册中心更新路由
         this.timerService.scheduleAtFixedRate(() -> {
             log.info("Fetech topic router info from registery");
             this.fetchRouteInfo();
         }, 30, 1000 * 30, TimeUnit.MILLISECONDS);
+        this.timerService.scheduleAtFixedRate(() -> {
+            log.info("Clean expired remote broker");
+            this.cleanExpired();
+        }, 30, 1000 * 60, TimeUnit.MILLISECONDS);
     }
-    public void invoke(String topic, RemoteCommand command) throws CraneClientException {
 
-        TopicRouteInfo routeInfo = this.topicTable.get(topic);
-        if (routeInfo == null) {
-            this.fetchRouteInfo();
-            routeInfo = this.topicTable.get(topic);
+    public void invoke(String topic, WrapperFutureCommand wrappered) throws CraneClientException {
+        RemoteCommand command = wrappered.getFutureCommand().getRequest();
+        String address = "";
+        if (wrappered.isToRegistery()) {
+            address = this.registryAddress;
+        } else {
+            TopicRouteInfo routeInfo = this.topicTable.get(topic);
+            if (routeInfo == null) {
+                this.getTopicInfoSync(topic);
+                routeInfo = this.topicTable.get(topic);
+            }
+            if (routeInfo == null) {
+                throw new CraneClientException("Registery or network error");
+            }
+            address = routeInfo.getBrokerData().get(0).getBrokerAddress();
         }
-        String address = routeInfo.getBrokerData().get(0).getBrokerAddress();
+
         this.remoteClent.invoke(address, command);
     }
     public SendResult sendMessageSync(final WrapperFutureCommand wrappered, boolean isOneWay) {
         FutureCommand futureCommand = wrappered.getFutureCommand();
-        if (this.hook != null) {
+        if (this.hook != null && !wrappered.isToRegistery()) {
             this.hook.beforeMessage();
         }
         this.asyncSendThreadPool.execute(() -> {
@@ -118,16 +142,16 @@ public class ClientInstance {
         });
         if (isOneWay) return null;
         SendResult result = null;
+        RemoteCommand response = null;
         try {
-            RemoteCommand response = futureCommand.get();
+            response = futureCommand.get();
             log.info("Sync method get response: {}", response);
         } catch (InterruptedException | ExecutionException | CraneClientException e) {
             result = new SendResult(SendResultType.SERVER_ERROR, futureCommand.getRequest().getHeader().getCorrelationId());
             log.warn("Sync Request has retred for max time");
         }
         if (result == null) {
-
-            result = new SendResult(SendResultType.SEDN_OK, futureCommand.getRequest().getHeader().getCorrelationId());
+            result = this.buildSendResult(response, futureCommand.getRequest().getHeader().getCorrelationId());
         }
         // TODO 返回SendResult根据结果设置 DONE
         return result;
@@ -136,6 +160,24 @@ public class ClientInstance {
         this.asyncSendThreadPool.execute(() -> {
             sendCore(wrappered, wrappered.getCallback());
         });
+    }
+    private SendResult buildSendResult(RemoteCommand reponse, String correlationID) {
+        if (reponse == null) {
+            log.error("Receive empty response, id is {}", correlationID);
+            return new SendResult(SendResultType.SERVER_ERROR, correlationID);
+        }
+        SendResult result = new SendResult(SendResultType.SEDN_OK, correlationID);
+        if (reponse.getHeader().getCommandType() == ResponseType.UPDATE_TOPIC_RESPONSE) {
+            MQUpdateTopicResponse mqUpdateTopicResponse = (MQUpdateTopicResponse) reponse.getPayLoad();
+            if (mqUpdateTopicResponse == null) {
+                result.setResultType(SendResultType.SERVER_ERROR);
+            } else {
+
+                result.setTopic(mqUpdateTopicResponse.getTopic());
+                result.setTopicRouteInfo(mqUpdateTopicResponse.getRouteInfo());
+            }
+        }
+        return result;
     }
     private void sendCore(final WrapperFutureCommand wrappered, SendCallback callback) {
         RemoteCommand remoteCommand = wrappered.getFutureCommand().getRequest();
@@ -182,7 +224,7 @@ public class ClientInstance {
                 }, wrappered.getTimeout(), TimeUnit.MILLISECONDS);
             }
         }
-        this.invoke(wrappered.getTopic(), remoteCommand);
+        this.invoke(wrappered.getTopic(), wrappered);
 
     }
 
@@ -194,6 +236,9 @@ public class ClientInstance {
         requestTable.remove(correlationID);
     }
 
+    /**
+     * 定期抓取注册中心数据，异步
+     */
     private void fetchRouteInfo() {
         Set<String> topicList = new HashSet<>();
         for (Map.Entry<String, DefaultMQProducerImpl> entry : this.producerRegister.entrySet()) {
@@ -206,8 +251,37 @@ public class ClientInstance {
             this.updateTopicInfo(topic);
         }
     }
+    // TODO 检查发往注册中心更新路由的逻辑，启动一个简单注册中心验证
+    /**
+     * 缺少当前topic数据时，同步的从注册中心取得数据
+     * @param topic
+     */
     private void getTopicInfoSync(String topic) {
-
+        Header header = new Header(RequestType.UPDATE_TOPIC_REQUEST,
+                RpcType.SYNC, TopicUtil.generateUniqueID());
+        PayLoad payLoad = new MQUpdateTopicRequest(topic);
+        RemoteCommand remoteCommand = new RemoteCommand(header, payLoad);
+        FutureCommand futureCommand = new FutureCommand();
+        futureCommand.setRequest(remoteCommand);
+        WrapperFutureCommand wrappered = new WrapperFutureCommand(futureCommand, topic, -1, null);
+        wrappered.setToRegistery(true);
+        SendResult result = this.sendMessageSync(wrappered, false);
+        if (result.getResultType() == SendResultType.SERVER_ERROR || result.getTopicRouteInfo() == null) {
+            log.error("Topic {} cannot find correct broker", topic);
+        }
+        TopicRouteInfo old = this.topicTable.get(topic);
+        this.markExpiredBroker(result.getTopicRouteInfo(), old);
+        this.topicTable.put(topic, result.getTopicRouteInfo());
+    }
+    private void markExpiredBroker(TopicRouteInfo newInfo, TopicRouteInfo oldInfo) {
+        if (oldInfo == null) {
+            return;
+        }
+        List<String> expired = oldInfo.getExpiredBrokerAddress(newInfo);
+        this.remoteClent.markExpired(expired);
+    }
+    private void cleanExpired() {
+        this.remoteClent.cleanExpired();
     }
     // TODO 更新topic信息，从注册中心，创建响应信息，设置回调，更新结果
     private void updateTopicInfo(String topic) {
@@ -222,6 +296,8 @@ public class ClientInstance {
             public void onResponse(RemoteCommand remoteCommand) {
                 MQUpdateTopicResponse response = (MQUpdateTopicResponse) remoteCommand.getPayLoad();
                 TopicRouteInfo info = response.getRouteInfo();
+                TopicRouteInfo old = topicTable.get(topic);
+                markExpiredBroker(response.getRouteInfo(), old);
                 if (info == null) {
                     log.error("Cannot find route info {} from registery", topic);
                     return;
@@ -229,12 +305,21 @@ public class ClientInstance {
                 topicTable.put(topic, info);
             }
         });
+        wrappered.setToRegistery(true);
         this.sendMessateAsync(wrappered);
-
-
     }
     public void shutdown() {
         this.remoteClent.shutdown();
+        if (this.asyncSendThreadPool != null) {
+            this.asyncSendThreadPool.shutdown();
+        }
+        if (this.retryService != null) {
+            this.retryService.shutdown();
+        }
+        if (this.timerService != null) {
+            this.timerService.shutdown();
+        }
+
     }
 
 
@@ -244,5 +329,9 @@ public class ClientInstance {
     public void registerProducer(DefaultMQProducerImpl defaultMQProducer) {
         int order = this.clinetNumber.getAndIncrement();
         this.producerRegister.put("produer-" + order, defaultMQProducer);
+    }
+
+    public void setLoadBalanceStrategy(LoadBalanceStrategy loadBalanceStrategy) {
+        this.loadBalanceStrategy = loadBalanceStrategy;
     }
 }

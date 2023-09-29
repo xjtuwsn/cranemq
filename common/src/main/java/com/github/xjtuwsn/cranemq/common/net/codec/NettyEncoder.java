@@ -27,6 +27,7 @@ public class NettyEncoder extends MessageToByteEncoder<Object> {
 
         if (genericClass.isInstance(in)) {
             byte[] data = serializer.serialize(in);
+
             out.writeInt(data.length);
             out.writeBytes(data);
 
