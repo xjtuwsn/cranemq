@@ -1,17 +1,20 @@
 package com.github.xjtuwsn.cranemq.client.producer.impl;
 
+import cn.hutool.core.collection.ConcurrentHashSet;
 import cn.hutool.core.util.StrUtil;
 import com.github.xjtuwsn.cranemq.client.hook.SendCallback;
-import com.github.xjtuwsn.cranemq.client.producer.SendResult;
+import com.github.xjtuwsn.cranemq.client.producer.result.SendResult;
+import com.github.xjtuwsn.cranemq.client.producer.result.SendResultType;
 import com.github.xjtuwsn.cranemq.common.command.*;
 import com.github.xjtuwsn.cranemq.common.command.payloads.MQBachProduceRequest;
+import com.github.xjtuwsn.cranemq.common.utils.TopicUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import com.github.xjtuwsn.cranemq.client.hook.RemoteHook;
 import com.github.xjtuwsn.cranemq.client.producer.DefaultMQProducer;
 import com.github.xjtuwsn.cranemq.client.producer.MQProducerInner;
 import com.github.xjtuwsn.cranemq.client.remote.ClienFactory;
-import com.github.xjtuwsn.cranemq.client.remote.RemoteClient;
+import com.github.xjtuwsn.cranemq.client.remote.ClientInstance;
 import com.github.xjtuwsn.cranemq.common.command.payloads.MQProduceRequest;
 import com.github.xjtuwsn.cranemq.common.command.types.RequestType;
 import com.github.xjtuwsn.cranemq.common.command.types.RpcType;
@@ -38,16 +41,12 @@ public class DefaultMQProducerImpl implements MQProducerInner {
 
     private RemoteHook hook;
 
-    private ExecutorService asyncSendThreadPool;
 
-    private ScheduledExecutorService timerService;
 
-    private RemoteClient remoteClient;
+    private ClientInstance clientInstance;
     private RemoteAddress address;
     private String clientID;
-    private int coreSize = 3;
-
-    private int maxSize = 5;
+    private ConcurrentHashSet<String> topicSet = new ConcurrentHashSet<>();
     /**
      * 0: created
      * 1: started
@@ -55,7 +54,6 @@ public class DefaultMQProducerImpl implements MQProducerInner {
      */
     private volatile AtomicInteger state;
 
-    private static volatile ConcurrentHashMap<String, WrapperFutureCommand> requestTable = new ConcurrentHashMap<>();
 
     public DefaultMQProducerImpl(DefaultMQProducer defaultMQProducer, RemoteHook hook) {
         this.defaultMQProducer = defaultMQProducer;
@@ -72,44 +70,19 @@ public class DefaultMQProducerImpl implements MQProducerInner {
         this.checkConfig();
         this.address = this.defaultMQProducer.getBrokerAddress();
         this.clientID = buildClientID();
-        this.remoteClient = ClienFactory.newInstance().getOrCreate(this.clientID, this);
-        this.remoteClient.registerHook(hook);
-        this.remoteClient.start();
-        this.asyncSendThreadPool = new ThreadPoolExecutor(coreSize,
-                maxSize,
-                60L,
-                TimeUnit.SECONDS,
-                new LinkedBlockingDeque<>(100),
-                new ThreadFactory() {
-                    AtomicInteger count = new AtomicInteger(0);
-                    @Override
-                    public Thread newThread(Runnable r) {
-                        return new Thread(r, "AsyncSendThreadPool no." + count.getAndIncrement());
-                    }
-                },
-                new ThreadPoolExecutor.AbortPolicy());
-        this.timerService = Executors.newScheduledThreadPool(2, new ThreadFactory() {
-            AtomicInteger count = new AtomicInteger(0);
-            @Override
-            public Thread newThread(Runnable r) {
-                return new Thread(r, "ScheduledThreadPool no." + count.getAndIncrement());
-            }
-        });
+        this.clientInstance = ClienFactory.newInstance().getOrCreate(this.clientID, this);
+        this.clientInstance.registerHook(hook);
+//        this.remoteClient.start();
 
-    }
 
-    public void send(Message message) {
-        Header header = new Header(RequestType.MESSAGE_PRODUCE_REQUEST, RpcType.ASYNC, "121212");
-        PayLoad payLoad = new MQProduceRequest(message);
-        RemoteCommand remoteCommand = new RemoteCommand(header, payLoad);
-//        this.remoteClient.invoke(remoteCommand);
     }
 
     public SendResult sendSync(long timeout, boolean isOneWay, Message... messages) throws CraneClientException {
         if (messages == null || messages.length == 0) {
             throw new CraneClientException("Message cannot be empty!");
         }
-        WrapperFutureCommand wrappered = buildRequest(RpcType.SYNC, null, timeout,  messages);
+        WrapperFutureCommand wrappered = buildRequest(RpcType.SYNC, null, timeout, messages);
+        String correlationID = wrappered.getFutureCommand().getRequest().getHeader().getCorrelationId();
         if (isOneWay) {
             wrappered.getFutureCommand().getRequest().getHeader().setRpcType(RpcType.ONE_WAY);
         }
@@ -117,17 +90,10 @@ public class DefaultMQProducerImpl implements MQProducerInner {
             throw new CraneClientException("Create Request error!");
         }
         FutureCommand futureCommand = wrappered.getFutureCommand();
-        this.asyncSendThreadPool.execute(() -> {
-            sendCore(wrappered, null);
-        });
-        if (isOneWay) return null;
-        try {
-            RemoteCommand response = futureCommand.get();
-            log.info("Sync method get response: {}", response);
-        } catch (InterruptedException | ExecutionException e) {
-            throw new CraneClientException("Request timeout, has retry for max time");
+        if (this.hook != null) {
+            this.hook.beforeMessage();
         }
-        return null;
+        return this.clientInstance.sendMessageSync(wrappered, isOneWay);
     }
 
     public void sendAsync(SendCallback callback, long timeout, Message... messages) {
@@ -138,45 +104,31 @@ public class DefaultMQProducerImpl implements MQProducerInner {
         if (remoteCommand == null) {
             throw new CraneClientException("Create Request error!");
         }
-        this.asyncSendThreadPool.execute(() -> {
-            sendCore(remoteCommand, callback);
-        });
-    }
-    private void sendCore(final WrapperFutureCommand wrappered, SendCallback callback) {
-        RemoteCommand remoteCommand = wrappered.getFutureCommand().getRequest();
-        RpcType rpcType = remoteCommand.getHeader().getRpcType();
-        String correlationID = remoteCommand.getHeader().getCorrelationId();
-        if (rpcType != RpcType.ONE_WAY) {
-            requestTable.putIfAbsent(correlationID, wrappered);
-            if (wrappered.getTimeout() > 0) {
-                this.timerService.schedule(() -> {
-                    if (wrappered.isDone()) {
-                        log.info("{} has aready done, wont do timeout", correlationID);
-                        requestTable.remove(correlationID);
-                        return;
-                    }
-                    log.warn("Request {} has timeout", correlationID);
-                    if (!wrappered.isNeedRetry()) {
-                        log.warn("Request {} has timeout for max retry time", correlationID);
-                        wrappered.cancel();
-                        wrappered.getCallback().onFailure(new TimeoutException("Timeout"));
-                        throw new CraneClientException("Request timeout, has retry for max time");
-                    }
-                    wrappered.increaseRetryTime();
-                    this.asyncSendThreadPool.execute(() -> {
-                        log.info("Request {} do retry", correlationID);
-                        sendCore(wrappered, callback);
-                    });
-
-                }, wrappered.getTimeout(), TimeUnit.MILLISECONDS);
-            }
+        if (this.hook != null) {
+            this.hook.beforeMessage();
         }
-        this.remoteClient.invoke(remoteCommand);
-
+        this.clientInstance.sendMessateAsync(remoteCommand);
     }
 
+
+    /**
+     * TODO 未添加响应消息处理，超时错误Failure设置
+     * @param rpcType
+     * @param callback
+     * @param timeout
+     * @param messages
+     * @return
+     */
     private WrapperFutureCommand buildRequest(RpcType rpcType, SendCallback callback, long timeout, Message... messages) {
-        String correlationID = generateUniqueID();
+        String topic = messages[0].getTopic();
+        if (StrUtil.isEmpty(topic)) {
+            throw new CraneClientException("Topic cannot be null");
+        }
+        if (!TopicUtil.checkTopic(topic)) {
+            throw new CraneClientException("Topic name is invalid!");
+        }
+        this.topicSet.add(topic);
+        String correlationID = TopicUtil.generateUniqueID();
         Header header = new Header(RequestType.MESSAGE_PRODUCE_REQUEST, RpcType.SYNC, correlationID);
         PayLoad payLoad = null;
         if (messages.length == 1) {
@@ -188,17 +140,14 @@ public class DefaultMQProducerImpl implements MQProducerInner {
         FutureCommand futureCommand = new FutureCommand();
         futureCommand.setRequest(remoteCommand);
         WrapperFutureCommand wrappered = new WrapperFutureCommand(futureCommand,
-                this.defaultMQProducer.getMaxRetryTime(), timeout, callback);
+                                        this.defaultMQProducer.getMaxRetryTime(),
+                                        timeout, callback, messages[0].getTopic());
         return wrappered;
     }
 
-    private String generateUniqueID() {
-        String id = UUID.randomUUID().toString().replaceAll("-", "").substring(0, 16);
-        return id;
-    }
+
     public void close() throws CraneClientException {
-        this.asyncSendThreadPool.shutdown();
-        this.remoteClient.shutdown();
+        this.clientInstance.shutdown();
     }
 
     private String buildClientID() {
@@ -223,7 +172,15 @@ public class DefaultMQProducerImpl implements MQProducerInner {
             throw new CraneClientException("Max Retry Time cannot be negtive");
         }
     }
-
+    public WrapperFutureCommand getWrapperFuture(String correlationID) {
+        return this.clientInstance.getWrapperFuture(correlationID);
+    }
+    public void removeWrapperFuture(String correlationID) {
+        this.clientInstance.removeWrapperFuture(correlationID);
+    }
+    public void asyncSend(WrapperFutureCommand wrapperFutureCommand) {
+        this.clientInstance.sendMessateAsync(wrapperFutureCommand);
+    }
     public RemoteAddress getAddress() {
         return address;
     }
@@ -240,5 +197,8 @@ public class DefaultMQProducerImpl implements MQProducerInner {
     @Override
     public String fetechOrCreateTopic(int queueNumber) {
         return null;
+    }
+    public Set<String> getTopics() {
+        return this.topicSet;
     }
 }

@@ -1,6 +1,6 @@
 package com.github.xjtuwsn.cranemq.client.hook;
 
-import com.github.xjtuwsn.cranemq.client.producer.SendResult;
+import com.github.xjtuwsn.cranemq.client.producer.result.SendResult;
 
 /**
  * @project:cranemq

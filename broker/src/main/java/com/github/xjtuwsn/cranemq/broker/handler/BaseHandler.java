@@ -1,5 +1,6 @@
 package com.github.xjtuwsn.cranemq.broker.handler;
 
+import com.github.xjtuwsn.cranemq.common.command.types.ResponseCode;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.SimpleChannelInboundHandler;
 import com.github.xjtuwsn.cranemq.common.command.Header;
@@ -8,6 +9,8 @@ import com.github.xjtuwsn.cranemq.common.command.types.RequestType;
 import com.github.xjtuwsn.cranemq.common.command.payloads.MQProduceRequest;
 import com.github.xjtuwsn.cranemq.common.command.types.ResponseType;
 import com.github.xjtuwsn.cranemq.common.entity.Message;
+
+import java.util.Random;
 
 /**
  * @project:cranemq
@@ -22,8 +25,11 @@ public class BaseHandler extends SimpleChannelInboundHandler<RemoteCommand> {
             System.out.println(request);
             MQProduceRequest messageProduceRequest = (MQProduceRequest) request.getPayLoad();
             System.out.println(messageProduceRequest);
-            Header header = new Header(ResponseType.RESPONSE_SUCCESS,
+            Header header = new Header(ResponseType.PRODUCE_MESSAGE_RESPONSE,
                     request.getHeader().getRpcType(), request.getHeader().getCorrelationId());
+            int right = 10000;
+            int rand = new Random().nextInt(right);
+//            if (rand > 99990) header.onFailure(ResponseCode.DEFAULT_ERROR);
             RemoteCommand command = new RemoteCommand(header, new MQProduceRequest(new Message()));
             channelHandlerContext.writeAndFlush(command);
         }

@@ -2,9 +2,13 @@ package com.github.xjtuwsn.cranemq.test;
 
 import com.github.xjtuwsn.cranemq.broker.core.MqBroker;
 import com.github.xjtuwsn.cranemq.client.hook.RemoteHook;
+import com.github.xjtuwsn.cranemq.client.hook.SendCallback;
 import com.github.xjtuwsn.cranemq.client.producer.DefaultMQProducer;
+import com.github.xjtuwsn.cranemq.client.producer.result.SendResult;
 import com.github.xjtuwsn.cranemq.common.entity.Message;
 import com.github.xjtuwsn.cranemq.common.net.RemoteAddress;
+
+import java.util.Arrays;
 
 /**
  * @project:cranemq
@@ -34,9 +38,25 @@ public class TestMain {
             });
             producer.setBrokerAddress(remoteAddress);
             producer.start();
-            Message message = new Message("topic1", "hhhh".getBytes());
-            producer.send(message);
+            Message message1 = new Message("topic1", "hhhh".getBytes());
+            Message message2 = new Message("topic1", "hhhh111".getBytes());
+            producer.send(message1, new SendCallback() {
+                @Override
+                public void onSuccess(SendResult result) {
+                    System.out.println("-----------------------");
+                    System.out.println("success, " + result);
+                    System.out.println("-----------------------");
+                }
+
+                @Override
+                public void onFailure(Throwable reason) {
+                    System.out.println("-----------------------");
+                    System.out.println("Failure, " + reason);
+                    System.out.println("-----------------------");
+                }
+            });
+            producer.shutdown();
         });
-        t.start();
+//        t.start();
     }
 }

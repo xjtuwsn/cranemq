@@ -7,6 +7,9 @@ package com.github.xjtuwsn.cranemq.common.command.types;
  * @create:2023/09/27-10:32
  */
 public enum ResponseType implements Type {
-    RESPONSE_SUCCESS,
+    PRODUCE_MESSAGE_RESPONSE,
+    UPDATE_TOPIC_RESPONSE,
+
+    QUERY_BROKER_RESPONSE,
     RESPONSE_FAILED
 }

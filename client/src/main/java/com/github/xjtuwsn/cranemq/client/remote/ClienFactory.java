@@ -2,7 +2,6 @@ package com.github.xjtuwsn.cranemq.client.remote;
 
 import com.github.xjtuwsn.cranemq.client.producer.impl.DefaultMQProducerImpl;
 import com.github.xjtuwsn.cranemq.common.exception.CraneClientException;
-import com.github.xjtuwsn.cranemq.common.net.RemoteAddress;
 
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -15,17 +14,18 @@ import java.util.concurrent.ConcurrentHashMap;
 public class ClienFactory {
 
     private static ClienFactory instance = new ClienFactory();
-    private ConcurrentHashMap<String, RemoteClient> cache = new ConcurrentHashMap<>();
+    private ConcurrentHashMap<String, ClientInstance> cache = new ConcurrentHashMap<>();
 
     public static ClienFactory newInstance() {
         return instance;
     }
 
-    public RemoteClient getOrCreate(String key, DefaultMQProducerImpl impl) throws CraneClientException {
-        RemoteClient client = null;
+    public synchronized ClientInstance getOrCreate(String key, DefaultMQProducerImpl impl) throws CraneClientException {
+        ClientInstance client = null;
         if (!cache.containsKey(key)) {
-            client = new RemoteClient(impl);
+            client = new ClientInstance(impl);
             cache.putIfAbsent(key, client);
+            client.start();
         }
         client = cache.get(key);
         if (client == null) {

@@ -13,6 +13,7 @@
         <module>broker</module>
         <module>test</module>
         <module>client</module>
+        <module>registery</module>
     </modules>
 
     <properties>

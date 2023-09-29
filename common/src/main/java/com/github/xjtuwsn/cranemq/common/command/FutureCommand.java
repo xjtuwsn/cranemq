@@ -28,6 +28,13 @@ public class FutureCommand implements Future<RemoteCommand> {
         return request;
     }
 
+    public FutureCommand() {
+    }
+
+    public FutureCommand(RemoteCommand request) {
+        this.request = request;
+    }
+
     public void setRequest(RemoteCommand request) {
         this.request = request;
     }

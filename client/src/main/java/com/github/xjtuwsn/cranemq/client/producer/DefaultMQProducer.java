@@ -1,5 +1,6 @@
 package com.github.xjtuwsn.cranemq.client.producer;
 
+import com.github.xjtuwsn.cranemq.client.producer.result.SendResult;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import com.github.xjtuwsn.cranemq.broker.core.MessageQueue;
@@ -54,38 +55,82 @@ public class DefaultMQProducer implements MQProducer {
         this.defaultMQProducerImpl.close();
     }
 
+    /**
+     * 同步发送单条
+     * @param message
+     * @return
+     * @throws CraneClientException
+     */
+
     @Override
-    public SendResult send(Message message) {
-        if (message == null) {
-            throw new CraneClientException("Message cannot be null");
+    public SendResult send(Message message) throws CraneClientException {
+
+
+        return this.defaultMQProducerImpl.sendSync(this.responseTimeoutMills, false, message);
+    }
+
+    /**
+     * 单向发送单条
+     * @param message
+     * @param oneWay
+     * @throws CraneClientException
+     */
+    @Override
+    public void send(Message message, boolean oneWay) throws CraneClientException {
+        if (!oneWay) {
+            throw new CraneClientException("Call oneWay Method but flag is false");
         }
-        this.defaultMQProducerImpl.send(message);
-        return null;
+        this.defaultMQProducerImpl.sendSync(this.responseTimeoutMills, true, message);
     }
 
+    /**
+     * 异步发送单条消息
+     * @param message
+     * @param callback
+     * @return
+     * @throws CraneClientException
+     */
     @Override
-    public void send(Message message, boolean oneWay) {
-
+    public void send(Message message, SendCallback callback) throws CraneClientException {
+        this.defaultMQProducerImpl.sendAsync(callback, this.responseTimeoutMills, message);
     }
 
+    /**
+     * 同步批量消息
+     * @param messages
+     * @return
+     * @throws CraneClientException
+     */
     @Override
-    public SendResult send(Message message, SendCallback callback) {
-        return null;
+    public SendResult send(List<Message> messages) throws CraneClientException {
+        return this.defaultMQProducerImpl.sendSync(this.responseTimeoutMills,
+                false, messages.toArray(new Message[0]));
     }
 
+    /**
+     * 单向批量消息
+     * @param messages
+     * @param oneWay
+     * @throws CraneClientException
+     */
     @Override
-    public SendResult send(List<Message> messages) {
-        return null;
+    public void send(List<Message> messages, boolean oneWay) throws CraneClientException {
+        if (!oneWay) {
+            throw new CraneClientException("Call oneWay Method but flag is false");
+        }
+        this.defaultMQProducerImpl.sendSync(this.responseTimeoutMills,
+                true, messages.toArray(new Message[0]));
     }
 
+    /**
+     * 异步批量消息
+     * @param messages
+     * @param callback
+     * @throws CraneClientException
+     */
     @Override
-    public void send(List<Message> messages, boolean oneWay) {
-
-    }
-
-    @Override
-    public SendCallback send(List<Message> messages, SendCallback callback) {
-        return null;
+    public void send(List<Message> messages, SendCallback callback) throws CraneClientException {
+        this.defaultMQProducerImpl.sendAsync(callback, this.responseTimeoutMills, messages.toArray(new Message[0]));
     }
 
     public String getTopic() {

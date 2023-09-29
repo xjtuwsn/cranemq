@@ -1,5 +1,8 @@
 package com.github.xjtuwsn.cranemq.client.remote.handler;
 
+import com.github.xjtuwsn.cranemq.client.processor.Processor;
+import com.github.xjtuwsn.cranemq.client.processor.PruducerProcessor;
+import com.github.xjtuwsn.cranemq.client.producer.impl.DefaultMQProducerImpl;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.SimpleChannelInboundHandler;
 import org.slf4j.Logger;
@@ -24,10 +27,12 @@ public class BaseProducerHandler extends SimpleChannelInboundHandler<RemoteComma
     private RemoteHook hook;
 
     private ExecutorService asyncCallBackService;
+    private PruducerProcessor processor;
     private int coreSize = 3;
     private int maxSize = 5;
-    public BaseProducerHandler(RemoteHook hook) {
+    public BaseProducerHandler(RemoteHook hook, PruducerProcessor processor) {
         this.hook = hook;
+        this.processor = processor;
         this.asyncCallBackService = new ThreadPoolExecutor(coreSize,
                 maxSize,
                 60L,
@@ -43,27 +48,35 @@ public class BaseProducerHandler extends SimpleChannelInboundHandler<RemoteComma
                 },
                 new ThreadPoolExecutor.AbortPolicy());
     }
+    // TODO 响应解析
     @Override
     protected void channelRead0(ChannelHandlerContext channelHandlerContext, RemoteCommand remoteCommand) throws Exception {
-        System.out.println(23232);
         if (remoteCommand == null) {
             log.error("Receive null message from broker");
             return;
         }
+
         Type type = remoteCommand.getHeader().getCommandType();
         if (!(type instanceof ResponseType)) {
             log.error("Receive wrong type response, {}", type);
             return;
         }
-        RpcType rpcType = remoteCommand.getHeader().getRpcType();
-        if (rpcType == RpcType.ASYNC) {
-            if (hook != null) {
-                asyncCallBackService.execute(() -> {
-                    hook.afterMessage();
-                    log.info("Finish handle after message hook");
-                });
-            }
 
+        switch ((ResponseType) type) {
+            case PRODUCE_MESSAGE_RESPONSE:
+                doProduceProcessor(remoteCommand);
+                break;
+            case QUERY_BROKER_RESPONSE:
+                break;
+            default:
+                break;
         }
+
+    }
+    private void doProduceProcessor(RemoteCommand remoteCommand) {
+        processor.processMessageProduceResopnse(remoteCommand, this.asyncCallBackService, this.hook);
+    }
+    private void doQueryBrokerProcessor(RemoteCommand remoteCommand) {
+
     }
 }

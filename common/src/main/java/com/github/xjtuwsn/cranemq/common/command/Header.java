@@ -1,5 +1,6 @@
 package com.github.xjtuwsn.cranemq.common.command;
 
+import com.github.xjtuwsn.cranemq.common.command.types.ResponseCode;
 import lombok.*;
 import com.github.xjtuwsn.cranemq.common.command.types.RpcType;
 import com.github.xjtuwsn.cranemq.common.command.types.Type;
@@ -24,6 +25,8 @@ public class Header implements Serializable {
     private RpcType rpcType;
     // 消息唯一标识id
     private String correlationId;
+    // 响应状态码
+    private int status = ResponseCode.SUCCESS;
 
     private int version = 1;
 
@@ -31,5 +34,11 @@ public class Header implements Serializable {
         this.commandType = commandType;
         this.rpcType = rpcType;
         this.correlationId = correlationId;
+    }
+    public void onFailure(int code) {
+        if (code == ResponseCode.SUCCESS) {
+            code = ResponseCode.DEFAULT_ERROR;
+        }
+        this.status = code;
     }
 }
