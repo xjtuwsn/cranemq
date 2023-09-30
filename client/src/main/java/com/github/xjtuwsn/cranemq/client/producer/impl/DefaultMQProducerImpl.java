@@ -80,11 +80,13 @@ public class DefaultMQProducerImpl implements MQProducerInner {
         this.checkConfig();
         this.address = this.defaultMQProducer.getBrokerAddress();
         this.clientID = buildClientID();
+
+        this.clientInstance = ClienFactory.newInstance().getOrCreate(this.clientID, this, this.hook);
         if (this.loadBalanceStrategy != null) {
             this.clientInstance.setLoadBalanceStrategy(this.loadBalanceStrategy);
         }
-        this.clientInstance = ClienFactory.newInstance().getOrCreate(this.clientID, this);
         this.clientInstance.registerHook(hook);
+        this.state.set(1);
 //        this.remoteClient.start();
 
 
@@ -116,7 +118,7 @@ public class DefaultMQProducerImpl implements MQProducerInner {
             throw new CraneClientException("Create Request error!");
         }
 
-        this.clientInstance.sendMessateAsync(remoteCommand);
+        this.clientInstance.sendMessageAsync(remoteCommand);
     }
 
 
@@ -138,7 +140,7 @@ public class DefaultMQProducerImpl implements MQProducerInner {
         }
         this.topicSet.add(topic);
         String correlationID = TopicUtil.generateUniqueID();
-        Header header = new Header(RequestType.MESSAGE_PRODUCE_REQUEST, RpcType.SYNC, correlationID);
+        Header header = new Header(RequestType.MESSAGE_PRODUCE_REQUEST, rpcType, correlationID);
         PayLoad payLoad = null;
         if (messages.length == 1) {
             payLoad = new MQProduceRequest(messages[0]);
@@ -188,7 +190,7 @@ public class DefaultMQProducerImpl implements MQProducerInner {
         this.clientInstance.removeWrapperFuture(correlationID);
     }
     public void asyncSend(WrapperFutureCommand wrapperFutureCommand) {
-        this.clientInstance.sendMessateAsync(wrapperFutureCommand);
+        this.clientInstance.sendMessageAsync(wrapperFutureCommand);
     }
     public RemoteAddress getAddress() {
         return address;

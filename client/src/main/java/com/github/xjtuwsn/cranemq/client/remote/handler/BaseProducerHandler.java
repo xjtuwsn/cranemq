@@ -28,8 +28,8 @@ public class BaseProducerHandler extends SimpleChannelInboundHandler<RemoteComma
 
     private ExecutorService asyncCallBackService;
     private PruducerProcessor processor;
-    private int coreSize = 3;
-    private int maxSize = 5;
+    private int coreSize = 8;
+    private int maxSize = 16;
     public BaseProducerHandler(RemoteHook hook, PruducerProcessor processor) {
         this.hook = hook;
         this.processor = processor;
@@ -69,6 +69,10 @@ public class BaseProducerHandler extends SimpleChannelInboundHandler<RemoteComma
                 break;
             case UPDATE_TOPIC_RESPONSE:
                 doUpdateTopicProcessor(remoteCommand);
+                break;
+            case CREATE_TOPIC_RESPONSE:
+                doCreateTopicProcessor(remoteCommand);
+                break;
             default:
                 break;
         }
@@ -79,6 +83,9 @@ public class BaseProducerHandler extends SimpleChannelInboundHandler<RemoteComma
     }
     private void doUpdateTopicProcessor(RemoteCommand remoteCommand) {
         processor.processUpdateTopicResponse(remoteCommand, this.asyncCallBackService);
+    }
+    private void doCreateTopicProcessor(RemoteCommand remoteCommand) {
+        processor.processCreateTopicResponse(remoteCommand, this.asyncCallBackService);
     }
     private void doQueryBrokerProcessor(RemoteCommand remoteCommand) {
 

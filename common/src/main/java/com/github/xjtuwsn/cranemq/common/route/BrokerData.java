@@ -1,11 +1,12 @@
 package com.github.xjtuwsn.cranemq.common.route;
 
-import lombok.NoArgsConstructor;
-import lombok.Setter;
-import lombok.ToString;
+import com.github.xjtuwsn.cranemq.common.constant.MQConstant;
+import lombok.*;
 
 import java.io.Serializable;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * @project:cranemq
@@ -16,25 +17,30 @@ import java.util.List;
 @ToString
 @NoArgsConstructor
 @Setter
+@Getter
+@AllArgsConstructor
 public class BrokerData implements Serializable {
     // TODO 在集群时需要改很多
     private String brokerName;
-    private String brokerAddress;
+    private HashMap<Integer, String> brokerAddressMap;
+    private HashMap<Integer, QueueData> queueDataMap;
 
     public BrokerData(String brokerName) {
         this.brokerName = brokerName;
+        this.brokerAddressMap = new HashMap<>();
+        this.queueDataMap = new HashMap<>();
+    }
+    public void putAddress(int brokerId, String address) {
+        this.brokerAddressMap.put(brokerId, address);
     }
 
-    public BrokerData(String brokerName, String brokerAddress) {
-        this.brokerName = brokerName;
-        this.brokerAddress = brokerAddress;
+    public void putQueueData(int brokerId, QueueData queueData) {
+        this.queueDataMap.put(brokerId, queueData);
     }
-
-    public String getBrokerName() {
-        return brokerName;
+    public String getMasterAddress() {
+        return this.brokerAddressMap.get(MQConstant.MASTER_ID);
     }
-
-    public String getBrokerAddress() {
-        return brokerAddress;
+    public QueueData getMasterQueueData() {
+        return this.queueDataMap.get(MQConstant.MASTER_ID);
     }
 }

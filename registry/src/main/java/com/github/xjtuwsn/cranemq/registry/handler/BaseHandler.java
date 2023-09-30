@@ -8,6 +8,7 @@ import com.github.xjtuwsn.cranemq.common.command.payloads.MQUpdateTopicRequest;
 import com.github.xjtuwsn.cranemq.common.command.payloads.MQUpdateTopicResponse;
 import com.github.xjtuwsn.cranemq.common.command.types.RequestType;
 import com.github.xjtuwsn.cranemq.common.command.types.ResponseType;
+import com.github.xjtuwsn.cranemq.common.constant.MQConstant;
 import com.github.xjtuwsn.cranemq.common.entity.Message;
 import com.github.xjtuwsn.cranemq.common.route.BrokerData;
 import com.github.xjtuwsn.cranemq.common.route.QueueData;
@@ -18,6 +19,7 @@ import io.netty.channel.SimpleChannelInboundHandler;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -29,14 +31,20 @@ import java.util.concurrent.ConcurrentHashMap;
 public class BaseHandler extends SimpleChannelInboundHandler<RemoteCommand> {
     private ConcurrentHashMap<String, TopicRouteInfo> map = new ConcurrentHashMap<>();
     public BaseHandler() {
+        build(MQConstant.DEFAULT_TOPIC_NAME);
+        build("topic1");
 
-        String topic = "topic1", brokerName = "brokder1";
-        BrokerData brokerData = new BrokerData(brokerName, "127.0.0.1:9999");
+
+    }
+    public void build(String topicName) {
+        String topic = topicName, brokerName = "brokder1";
+        BrokerData brokerData = new BrokerData(brokerName);
         QueueData queueData = new QueueData(brokerName, 4, 4);
+        brokerData.putQueueData(MQConstant.MASTER_ID, queueData);
+        brokerData.putAddress(MQConstant.MASTER_ID, "127.0.0.1:9999");
         List<BrokerData> list1 = new ArrayList<>();
-        List<QueueData> list2 = new ArrayList<>();
-        list1.add(brokerData); list2.add(queueData);
-        TopicRouteInfo info = new TopicRouteInfo(topic, list1, list2);
+        list1.add(brokerData);
+        TopicRouteInfo info = new TopicRouteInfo(topic, list1);
         this.map.put(topic, info);
     }
     @Override

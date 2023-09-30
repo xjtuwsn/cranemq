@@ -9,7 +9,7 @@ import com.github.xjtuwsn.cranemq.broker.core.MessageQueue;
 import com.github.xjtuwsn.cranemq.client.hook.RemoteHook;
 import com.github.xjtuwsn.cranemq.client.hook.SendCallback;
 import com.github.xjtuwsn.cranemq.client.producer.impl.DefaultMQProducerImpl;
-import com.github.xjtuwsn.cranemq.common.constant.ProducerConstant;
+import com.github.xjtuwsn.cranemq.common.constant.MQConstant;
 import com.github.xjtuwsn.cranemq.common.entity.Message;
 import com.github.xjtuwsn.cranemq.common.exception.CraneClientException;
 import com.github.xjtuwsn.cranemq.common.net.RemoteAddress;
@@ -24,21 +24,21 @@ import java.util.List;
  */
 public class DefaultMQProducer implements MQProducer {
     private static final Logger log = LoggerFactory.getLogger(DefaultMQProducer.class);
-    private String topic = ProducerConstant.DEFAULT_TOPIC_NAME;
+    private String topic = MQConstant.DEFAULT_TOPIC_NAME;
 
     private String tag;
-    private String group = ProducerConstant.DEFAULT_GROUP_NAME;
+    private String group = MQConstant.DEFAULT_GROUP_NAME;
 
-    private int createQueueNumber = ProducerConstant.DEFAULT_QUEUE_NUMBER;
+    private int createQueueNumber = MQConstant.DEFAULT_QUEUE_NUMBER;
 
     private List<MessageQueue> availableQueue;
 
     private RemoteAddress brokerAddress;
     private String registryAddr;
     // 响应超时时间，ms
-    private long responseTimeoutMills = ProducerConstant.RESPONSE_TIMEOUT_MILLS;
+    private long responseTimeoutMills = MQConstant.RESPONSE_TIMEOUT_MILLS;
     // 默认重试次数
-    private int maxRetryTime = ProducerConstant.MAX_RETRY_TIMES;
+    private int maxRetryTime = MQConstant.MAX_RETRY_TIMES;
     private DefaultMQProducerImpl defaultMQProducerImpl;
     private LoadBalanceStrategy loadBalanceStrategy;
 
@@ -79,7 +79,6 @@ public class DefaultMQProducer implements MQProducer {
 
     @Override
     public SendResult send(Message message) throws CraneClientException {
-
 
         return this.defaultMQProducerImpl.sendSync(this.responseTimeoutMills, false, message);
     }

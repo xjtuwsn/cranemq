@@ -21,8 +21,4 @@ public class QueueData implements Serializable {
     private int readQueueNums;
     private int writeQueueNums;
 
-
-
-
-
 }

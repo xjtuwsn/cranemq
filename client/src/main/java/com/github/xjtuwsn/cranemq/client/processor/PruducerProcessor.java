@@ -110,4 +110,17 @@ public class PruducerProcessor implements Processor {
         }
     }
 
+    public void processCreateTopicResponse(RemoteCommand remoteCommand, ExecutorService asyncHookService) {
+        RpcType rpcType = remoteCommand.getHeader().getRpcType();
+        int responseCode = remoteCommand.getHeader().getStatus();
+        String correlationID = remoteCommand.getHeader().getCorrelationId();
+        WrapperFutureCommand wrappered = this.mqProducerImpl.getWrapperFuture(correlationID);
+        if (wrappered == null) {
+            log.error("Create topic request has been deleted wrongly");
+            return;
+        }
+        if (rpcType == RpcType.SYNC) {
+            wrappered.setResponse(remoteCommand);
+        }
+    }
 }

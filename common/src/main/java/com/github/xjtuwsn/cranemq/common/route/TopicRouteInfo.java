@@ -1,5 +1,6 @@
 package com.github.xjtuwsn.cranemq.common.route;
 
+import com.github.xjtuwsn.cranemq.common.entity.MessageQueue;
 import lombok.Data;
 import lombok.Getter;
 import lombok.Setter;
@@ -25,26 +26,67 @@ import java.util.stream.Collectors;
 public class TopicRouteInfo implements Serializable {
     private String topic;
     private List<BrokerData> brokerData;
-    private List<QueueData> queueData;
 
     public TopicRouteInfo() {
     }
 
-    public TopicRouteInfo(String topic, List<BrokerData> brokerData, List<QueueData> queueData) {
+    public TopicRouteInfo(String topic) {
+        this.topic = topic;
+    }
+    public MessageQueue getNumberKQueue(int k) {
+        int sum = 0, idx = 0, p = 0;
+        for (BrokerData data : this.brokerData) {
+            int cur = data.getMasterQueueData().getWriteQueueNums();
+            sum += cur;
+            if (k < sum) {
+                idx = p;
+                break;
+            }
+            p++;
+        }
+        BrokerData choose = this.getBroker(idx);
+        MessageQueue queue = new MessageQueue(choose.getBrokerName(),
+                choose.getMasterQueueData().getWriteQueueNums() - (sum - k));
+        return queue;
+    }
+    public TopicRouteInfo(String topic, List<BrokerData> brokerData) {
         this.topic = topic;
         this.brokerData = brokerData;
-        this.queueData = queueData;
+    }
+    public List<String> getBrokerAddresses() {
+        return this.brokerData.stream().map(BrokerData::getMasterAddress).collect(Collectors.toList());
+    }
+    public int brokerNumber() {
+        return this.brokerData.size();
+    }
+    public int getTotalWriteQueueNumber() {
+        return this.brokerData.stream().mapToInt(e -> e.getMasterQueueData().getWriteQueueNums()).sum();
+    }
+    public BrokerData getBroker(int idx) {
+        if (idx >= this.brokerData.size() || idx < 0) {
+            return null;
+        }
+        return this.brokerData.get(idx);
+    }
+    public void compact(TopicRouteInfo other) {
+        if (!this.topic.equals(other.getTopic())) {
+            return;
+        }
+        if (this.brokerData == null) {
+            this.brokerData = new ArrayList<>();
+        }
+        this.brokerData.addAll(other.getBrokerData());
     }
     public List<String> getExpiredBrokerAddress(TopicRouteInfo other) {
         Set<String> newAddress =
-                other.getBrokerData().stream().map(BrokerData::getBrokerAddress).collect(Collectors.toSet());
+                other.getBrokerData().stream().map(BrokerData::getMasterAddress).collect(Collectors.toSet());
         List<String> ans = new ArrayList<>();
         if (newAddress == null) {
-            return this.brokerData.stream().map(BrokerData::getBrokerAddress).collect(Collectors.toList());
+            return this.brokerData.stream().map(BrokerData::getMasterAddress).collect(Collectors.toList());
         }
         for (BrokerData data : this.brokerData) {
-            if (newAddress.contains(data.getBrokerAddress())) {
-                ans.add(data.getBrokerAddress());
+            if (!newAddress.contains(data.getMasterAddress())) {
+                ans.add(data.getMasterAddress());
             }
         }
         return ans;

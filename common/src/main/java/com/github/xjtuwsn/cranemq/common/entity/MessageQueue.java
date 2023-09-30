@@ -1,5 +1,7 @@
 package com.github.xjtuwsn.cranemq.common.entity;
 
+import lombok.ToString;
+
 import java.io.Serializable;
 
 /**
@@ -8,12 +10,18 @@ import java.io.Serializable;
  * @author:wsn
  * @create:2023/09/29-22:03
  */
+@ToString
 public class MessageQueue implements Serializable {
     private String topic;
     private String brokerName;
     private int queueId;
 
     public MessageQueue() {
+    }
+
+    public MessageQueue(String brokerName, int queueId) {
+        this.brokerName = brokerName;
+        this.queueId = queueId;
     }
 
     public MessageQueue(String topic, String brokerName, int queueId) {

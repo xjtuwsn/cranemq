@@ -1,6 +1,7 @@
 package com.github.xjtuwsn.cranemq.common.command;
 
 import com.github.xjtuwsn.cranemq.common.exception.CraneClientException;
+import lombok.ToString;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -15,6 +16,7 @@ import java.util.concurrent.TimeoutException;
  * @author:wsn
  * @create:2023/09/27-10:51
  */
+@ToString
 public class FutureCommand implements Future<RemoteCommand> {
     private static final Logger log = LoggerFactory.getLogger(FutureCommand.class);
     private RemoteCommand response;

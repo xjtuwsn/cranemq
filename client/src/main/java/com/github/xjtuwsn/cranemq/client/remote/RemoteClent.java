@@ -108,7 +108,7 @@ public class RemoteClent implements RemoteService {
             String key = iterator.next();
             ChannelWrapper cw = this.channelTable.get(key);
             if (cw.isExpired()) {
-                System.out.println("hhhhhhhhhhhhh");
+                log.info("FutureChannel {} has expired, and will be cleaned", cw);
                 cw.close();
                 iterator.remove();
             }

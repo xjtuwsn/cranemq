@@ -1,5 +1,6 @@
 package com.github.xjtuwsn.cranemq.client.remote;
 
+import com.github.xjtuwsn.cranemq.client.hook.RemoteHook;
 import com.github.xjtuwsn.cranemq.client.producer.impl.DefaultMQProducerImpl;
 import com.github.xjtuwsn.cranemq.common.exception.CraneClientException;
 
@@ -20,11 +21,14 @@ public class ClienFactory {
         return instance;
     }
 
-    public synchronized ClientInstance getOrCreate(String key, DefaultMQProducerImpl impl) throws CraneClientException {
+    public synchronized ClientInstance getOrCreate(String key,
+                                                   DefaultMQProducerImpl impl,
+                                                   RemoteHook hook) throws CraneClientException {
         ClientInstance client = null;
         if (!cache.containsKey(key)) {
             client = new ClientInstance(impl);
             cache.putIfAbsent(key, client);
+            client.registerHook(hook);
             client.start();
         }
         client = cache.get(key);

@@ -6,7 +6,7 @@ package com.github.xjtuwsn.cranemq.common.constant;
  * @author:wsn
  * @create:2023/09/27-11:18
  */
-public class ProducerConstant {
+public class MQConstant {
     public static final String DEFAULT_TOPIC_NAME = "default-topic";
     public static final String DEFAULT_GROUP_NAME = "default-group";
 
@@ -15,4 +15,5 @@ public class ProducerConstant {
     public static final int MAX_RETRY_TIMES = 2;
 
     public static final int DEFAULT_QUEUE_NUMBER = 4;
+    public static final int MASTER_ID = 0;
 }

@@ -1,6 +1,7 @@
 package com.github.xjtuwsn.cranemq.common.command;
 
 import com.github.xjtuwsn.cranemq.common.command.types.ResponseCode;
+import com.github.xjtuwsn.cranemq.common.entity.MessageQueue;
 import lombok.*;
 import com.github.xjtuwsn.cranemq.common.command.types.RpcType;
 import com.github.xjtuwsn.cranemq.common.command.types.Type;
@@ -27,6 +28,7 @@ public class Header implements Serializable {
     private String correlationId;
     // 响应状态码
     private int status = ResponseCode.SUCCESS;
+    private MessageQueue writeQueue;
 
     private int version = 1;
 
