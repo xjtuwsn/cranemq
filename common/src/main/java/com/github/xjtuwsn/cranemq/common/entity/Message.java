@@ -18,5 +18,9 @@ import java.io.Serializable;
 public class Message implements Serializable {
     private static final long serialVersionUID = 23L;
     private String topic;
+    private String tag;
     private byte[] body;
+    public Message(String topic, byte[] body) {
+        this(topic, "", body);
+    }
 }
