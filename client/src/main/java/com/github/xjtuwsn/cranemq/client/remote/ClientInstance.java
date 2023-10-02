@@ -9,9 +9,7 @@ import com.github.xjtuwsn.cranemq.client.producer.impl.DefaultMQProducerImpl;
 import com.github.xjtuwsn.cranemq.client.producer.impl.WrapperFutureCommand;
 import com.github.xjtuwsn.cranemq.client.producer.result.SendResult;
 import com.github.xjtuwsn.cranemq.client.producer.result.SendResultType;
-import com.github.xjtuwsn.cranemq.common.command.payloads.MQCreateTopicRequest;
-import com.github.xjtuwsn.cranemq.common.command.payloads.MQCreateTopicResponse;
-import com.github.xjtuwsn.cranemq.common.command.payloads.MQUpdateTopicResponse;
+import com.github.xjtuwsn.cranemq.common.command.payloads.*;
 import com.github.xjtuwsn.cranemq.common.command.types.ResponseCode;
 import com.github.xjtuwsn.cranemq.common.command.types.ResponseType;
 import com.github.xjtuwsn.cranemq.common.constant.MQConstant;
@@ -21,14 +19,13 @@ import com.github.xjtuwsn.cranemq.common.route.TopicRouteInfo;
 import com.github.xjtuwsn.cranemq.common.command.FutureCommand;
 import com.github.xjtuwsn.cranemq.common.command.Header;
 import com.github.xjtuwsn.cranemq.common.command.PayLoad;
-import com.github.xjtuwsn.cranemq.common.command.payloads.MQUpdateTopicRequest;
 import com.github.xjtuwsn.cranemq.common.command.types.RequestType;
 import com.github.xjtuwsn.cranemq.common.command.types.RpcType;
 import com.github.xjtuwsn.cranemq.common.exception.CraneClientException;
 import com.github.xjtuwsn.cranemq.common.utils.TopicUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import com.github.xjtuwsn.cranemq.client.hook.RemoteHook;
+import com.github.xjtuwsn.cranemq.common.net.RemoteHook;
 import com.github.xjtuwsn.cranemq.common.command.RemoteCommand;
 
 import java.util.*;
@@ -52,7 +49,7 @@ public class ClientInstance {
     private ExecutorService asyncSendThreadPool;
     private ExecutorService parallelCreateService;
     private String registryAddress;
-
+    private String clientId;
     private ScheduledExecutorService retryService;
     private ScheduledExecutorService timerService;
     private int coreSize = 10;
@@ -135,6 +132,10 @@ public class ClientInstance {
             log.info("Clean expired remote broker");
             this.cleanExpired();
         }, 300, 1000 * 60, TimeUnit.MILLISECONDS);
+        this.timerService.scheduleAtFixedRate(() -> {
+            log.info("Send heartbeat to brokers");
+            this.sendHeartBeatToBroker();
+        }, 500, 30 * 1000, TimeUnit.MILLISECONDS);
     }
 
     /**
@@ -251,6 +252,32 @@ public class ClientInstance {
         }
         wrappered.getFutureCommand().getRequest().getHeader().setWriteQueue(queue);
         return address;
+    }
+
+    public void sendHeartBeatToBroker() {
+        MQHeartBeatRequest heartBeatRequest = new MQHeartBeatRequest(this.clientId);
+        Set<String> producerGroup = new HashSet<>();
+        for (Map.Entry<String, DefaultMQProducerImpl> entry : this.producerRegister.entrySet()) {
+            DefaultMQProducerImpl value = entry.getValue();
+            producerGroup.add(value.getDefaultMQProducer().getGroup());
+        }
+        if (producerGroup.isEmpty()) {
+            log.warn("No producer here");
+            return;
+        }
+        heartBeatRequest.setProducerGroup(producerGroup);
+        Header header = new Header(RequestType.HEARTBEAT, RpcType.ONE_WAY, TopicUtil.generateUniqueID());
+        RemoteCommand remoteCommand = new RemoteCommand(header, heartBeatRequest);
+        if (this.brokerAddressTable.isEmpty()) {
+            return;
+        }
+        for (Map.Entry<String, HashMap<Integer, String>> entry : this.brokerAddressTable.entrySet()) {
+            HashMap<Integer, String> addrs = entry.getValue();
+            String address = addrs.get(MQConstant.MASTER_ID);
+            this.asyncSendThreadPool.execute(() -> {
+                this.remoteClent.invoke(address, remoteCommand);
+            });
+        }
     }
 
     public SendResult sendMessageSync(final WrapperFutureCommand wrappered, boolean isOneWay) {
@@ -520,5 +547,9 @@ public class ClientInstance {
 
     public void setLoadBalanceStrategy(LoadBalanceStrategy loadBalanceStrategy) {
         this.loadBalanceStrategy = loadBalanceStrategy;
+    }
+
+    public void setClientId(String clientId) {
+        this.clientId = clientId;
     }
 }

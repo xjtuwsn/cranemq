@@ -1,7 +1,7 @@
 package com.github.xjtuwsn.cranemq.client.processor;
 
 import com.github.xjtuwsn.cranemq.client.hook.InnerCallback;
-import com.github.xjtuwsn.cranemq.client.hook.RemoteHook;
+import com.github.xjtuwsn.cranemq.common.net.RemoteHook;
 import com.github.xjtuwsn.cranemq.client.producer.impl.DefaultMQProducerImpl;
 import com.github.xjtuwsn.cranemq.client.producer.impl.WrapperFutureCommand;
 import com.github.xjtuwsn.cranemq.client.producer.result.SendResult;

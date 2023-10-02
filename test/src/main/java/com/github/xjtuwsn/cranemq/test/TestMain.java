@@ -1,16 +1,13 @@
 package com.github.xjtuwsn.cranemq.test;
 
 import com.github.xjtuwsn.cranemq.broker.core.MqBroker;
-import com.github.xjtuwsn.cranemq.client.hook.RemoteHook;
-import com.github.xjtuwsn.cranemq.client.hook.SendCallback;
+import com.github.xjtuwsn.cranemq.common.net.RemoteHook;
 import com.github.xjtuwsn.cranemq.client.producer.DefaultMQProducer;
 import com.github.xjtuwsn.cranemq.client.producer.balance.RoundRobinStrategy;
-import com.github.xjtuwsn.cranemq.client.producer.result.SendResult;
 import com.github.xjtuwsn.cranemq.common.entity.Message;
 import com.github.xjtuwsn.cranemq.common.net.RemoteAddress;
 import com.github.xjtuwsn.cranemq.registry.core.Registry;
-
-import java.util.Arrays;
+import org.junit.Test;
 
 /**
  * @project:cranemq
@@ -20,12 +17,10 @@ import java.util.Arrays;
  */
 public class TestMain {
 
-    public static void main(String[] args) {
-        MqBroker broker = new MqBroker();
-        broker.start();
-        Registry registry = new Registry();
-        registry.start();
-        String topic = "topic3";
+    public static void main(String[] args) throws Exception {
+//        MqBroker broker = new MqBroker();
+//        broker.start();
+        String topic = "topic1";
         RemoteHook hook = new RemoteHook() {
             @Override
             public void beforeMessage() {
@@ -47,31 +42,15 @@ public class TestMain {
             producer.start();
             Message message1 = new Message(topic, "hhhh".getBytes());
             Message message2 = new Message(topic, "aaaa".getBytes());
-//            producer.send(message1, new SendCallback() {
-//                @Override
-//                public void onSuccess(SendResult result) {
-//                    System.out.println("-----------------------");
-//                    System.out.println("success, " + result);
-//                    System.out.println("-----------------------");
-//                }
-//
-//                @Override
-//                public void onFailure(Throwable reason) {
-//                    System.out.println("-----------------------");
-//                    System.out.println("Failure, " + reason);
-//                    System.out.println("-----------------------");
-//                }
-//            });
-//            try {
-//                Thread.sleep(200);
-//            } catch (InterruptedException e) {
-//                throw new RuntimeException(e);
-//            }
             long start = System.nanoTime();
-            for (int i = 0; i < 5000; i++) {
+            for (int i = 0; i < 2; i++) {
 
                 producer.send(message2);
-
+                try {
+                    Thread.sleep(1000);
+                } catch (InterruptedException e) {
+                    throw new RuntimeException(e);
+                }
             }
             long end = System.nanoTime();
             double cost = (end - start) / 1e6;
@@ -79,5 +58,10 @@ public class TestMain {
 //            producer.shutdown();
         });
         t.start();
+    }
+    @Test
+    public void test() {
+        int x = 10;
+        System.out.println(x & (-x));
     }
 }

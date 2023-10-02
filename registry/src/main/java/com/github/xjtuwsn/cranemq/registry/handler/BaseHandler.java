@@ -41,7 +41,7 @@ public class BaseHandler extends SimpleChannelInboundHandler<RemoteCommand> {
         BrokerData brokerData = new BrokerData(brokerName);
         QueueData queueData = new QueueData(brokerName, 4, 4);
         brokerData.putQueueData(MQConstant.MASTER_ID, queueData);
-        brokerData.putAddress(MQConstant.MASTER_ID, "127.0.0.1:9999");
+        brokerData.putAddress(MQConstant.MASTER_ID, "127.0.0.1:6086");
         List<BrokerData> list1 = new ArrayList<>();
         list1.add(brokerData);
         TopicRouteInfo info = new TopicRouteInfo(topic, list1);

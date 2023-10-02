@@ -1,6 +1,6 @@
-package com.github.xjtuwsn.cranemq.client.remote;
+package com.github.xjtuwsn.cranemq.common.net;
 
-import com.github.xjtuwsn.cranemq.client.hook.RemoteHook;
+import com.github.xjtuwsn.cranemq.common.net.RemoteHook;
 
 /**
  * @project:cranemq

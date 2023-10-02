@@ -27,6 +27,7 @@
         <project.hessian.version>4.0.66</project.hessian.version>
         <project.slf4j-simple.version>2.0.7</project.slf4j-simple.version>
         <project.hutool.version>5.8.20</project.hutool.version>
+        <project.logback-classic.version>1.4.5</project.logback-classic.version>
     </properties>
     <dependencyManagement>
         <dependencies>
@@ -73,17 +74,21 @@
                 <artifactId>hessian</artifactId>
                 <version>${project.hessian.version}</version>
             </dependency>
-            <dependency>
-                <groupId>org.slf4j</groupId>
-                <artifactId>slf4j-simple</artifactId>
-                <version>${project.slf4j-simple.version}</version>
-            </dependency>
+<!--            <dependency>-->
+<!--                <groupId>org.slf4j</groupId>-->
+<!--                <artifactId>slf4j-simple</artifactId>-->
+<!--                <version>${project.slf4j-simple.version}</version>-->
+<!--            </dependency>-->
             <dependency>
                 <groupId>cn.hutool</groupId>
                 <artifactId>hutool-all</artifactId>
                 <version>${project.hutool.version}</version>
             </dependency>
-
+            <dependency>
+                <groupId>ch.qos.logback</groupId>
+                <artifactId>logback-classic</artifactId>
+                <version>${project.logback-classic.version}</version>
+            </dependency>
 
         </dependencies>
     </dependencyManagement>

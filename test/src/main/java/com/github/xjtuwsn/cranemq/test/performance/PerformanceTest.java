@@ -1,14 +1,16 @@
 package com.github.xjtuwsn.cranemq.test.performance;
 
 import com.github.xjtuwsn.cranemq.broker.core.MqBroker;
-import com.github.xjtuwsn.cranemq.client.hook.RemoteHook;
-import com.github.xjtuwsn.cranemq.client.hook.SendCallback;
+import com.github.xjtuwsn.cranemq.common.net.RemoteHook;
 import com.github.xjtuwsn.cranemq.client.producer.DefaultMQProducer;
 import com.github.xjtuwsn.cranemq.client.producer.balance.RoundRobinStrategy;
-import com.github.xjtuwsn.cranemq.client.producer.result.SendResult;
 import com.github.xjtuwsn.cranemq.common.entity.Message;
 import com.github.xjtuwsn.cranemq.registry.core.Registry;
 
+import java.io.BufferedWriter;
+import java.io.File;
+import java.io.FileWriter;
+import java.io.IOException;
 import java.util.concurrent.*;
 
 /**
@@ -18,7 +20,7 @@ import java.util.concurrent.*;
  * @create:2023/09/30-19:12
  */
 public class PerformanceTest {
-    public static void main(String[] args) throws InterruptedException {
+    public static void main(String[] args) throws InterruptedException, IOException {
         MqBroker broker = new MqBroker();
         broker.start();
         Registry registry = new Registry();
@@ -35,7 +37,7 @@ public class PerformanceTest {
                 // System.out.println("response come");
             }
         };
-        int threadNum = 10, loop = 2000;
+        int threadNum = 10, loop = 2200;
         CountDownLatch latch = new CountDownLatch(threadNum);
         ExecutorService threadPool = new ThreadPoolExecutor(10,
                 22, 60L, TimeUnit.SECONDS, new LinkedBlockingDeque<>(1000),
@@ -51,22 +53,12 @@ public class PerformanceTest {
         producer.start();
 
         Message message1 = new Message(topic, "hhhh".getBytes());
-//        producer.send(message1);
+        producer.send(message1);
         long start = System.nanoTime();
         for (int i = 0; i < threadNum; i++) {
             threadPool.execute(() -> {
                 for (int j = 0; j < loop; j++) {
-                    producer.send(message1, new SendCallback() {
-                        @Override
-                        public void onSuccess(SendResult result) {
-
-                        }
-
-                        @Override
-                        public void onFailure(Throwable reason) {
-
-                        }
-                    });
+                    producer.send(message1);
                 }
                 latch.countDown();
             });
@@ -74,6 +66,11 @@ public class PerformanceTest {
         latch.await();
         long end = System.nanoTime();
         double cost = (end - start) / 1e6;
+        FileWriter fw = new FileWriter(new File("D:\\code\\opensource\\cranemq\\test\\src\\main\\resources\\test.txt"), true);
+        BufferedWriter bw = new BufferedWriter(fw);
+        bw.write(String.valueOf(cost));
+        bw.write("\n");
+        bw.flush();
         System.out.println("--------------------------------------------------------------------------------------------");
         System.out.println("Single SYNC message cost " + cost + " ms totally");
     }

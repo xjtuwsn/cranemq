@@ -43,8 +43,7 @@ public class MqBroker {
                         protected void initChannel(SocketChannel ch) throws Exception {
                             ch.pipeline()
                                     .addLast(new NettyDecoder(RemoteCommand.class, new Hessian1Serializer()))
-                                    .addLast(new NettyEncoder(RemoteCommand.class, new Hessian1Serializer()))
-                                    .addLast(new BaseHandler());
+                                    .addLast(new NettyEncoder(RemoteCommand.class, new Hessian1Serializer()));
                         }
                     });
             ChannelFuture channelFuture = serverBootstrap.bind(port).sync();

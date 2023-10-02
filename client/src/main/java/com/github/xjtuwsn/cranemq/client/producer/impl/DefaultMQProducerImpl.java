@@ -5,13 +5,12 @@ import cn.hutool.core.util.StrUtil;
 import com.github.xjtuwsn.cranemq.client.hook.SendCallback;
 import com.github.xjtuwsn.cranemq.client.producer.balance.LoadBalanceStrategy;
 import com.github.xjtuwsn.cranemq.client.producer.result.SendResult;
-import com.github.xjtuwsn.cranemq.client.producer.result.SendResultType;
 import com.github.xjtuwsn.cranemq.common.command.*;
 import com.github.xjtuwsn.cranemq.common.command.payloads.MQBachProduceRequest;
 import com.github.xjtuwsn.cranemq.common.utils.TopicUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import com.github.xjtuwsn.cranemq.client.hook.RemoteHook;
+import com.github.xjtuwsn.cranemq.common.net.RemoteHook;
 import com.github.xjtuwsn.cranemq.client.producer.DefaultMQProducer;
 import com.github.xjtuwsn.cranemq.client.producer.MQProducerInner;
 import com.github.xjtuwsn.cranemq.client.remote.ClienFactory;
@@ -25,7 +24,6 @@ import com.github.xjtuwsn.cranemq.common.net.RemoteAddress;
 import com.github.xjtuwsn.cranemq.common.utils.NetworkUtil;
 
 import java.util.*;
-import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -86,7 +84,9 @@ public class DefaultMQProducerImpl implements MQProducerInner {
             this.clientInstance.setLoadBalanceStrategy(this.loadBalanceStrategy);
         }
         this.clientInstance.registerHook(hook);
+        this.clientInstance.registerProducer(this);
         this.state.set(1);
+        this.clientInstance.sendHeartBeatToBroker();
 //        this.remoteClient.start();
 
 
@@ -141,6 +141,9 @@ public class DefaultMQProducerImpl implements MQProducerInner {
         this.topicSet.add(topic);
         String correlationID = TopicUtil.generateUniqueID();
         Header header = new Header(RequestType.MESSAGE_PRODUCE_REQUEST, rpcType, correlationID);
+        if (messages.length > 1) {
+            header.setCommandType(RequestType.MESSAGE_BATCH_PRODUCE_REAUEST);
+        }
         PayLoad payLoad = null;
         if (messages.length == 1) {
             payLoad = new MQProduceRequest(messages[0]);
@@ -164,8 +167,8 @@ public class DefaultMQProducerImpl implements MQProducerInner {
     private String buildClientID() {
         String ip = NetworkUtil.getLocalAddress();
         StringBuilder id = new StringBuilder();
-        id.append(ip).append("@").append(this.defaultMQProducer.getTopic())
-                .append("@").append(this.defaultMQProducer.getGroup());
+        id.append(ip).append("@").append("@").append("default");
+
         return id.toString();
     }
 
@@ -223,5 +226,9 @@ public class DefaultMQProducerImpl implements MQProducerInner {
 
     public void setLoadBalanceStrategy(LoadBalanceStrategy loadBalanceStrategy) {
         this.loadBalanceStrategy = loadBalanceStrategy;
+    }
+
+    public DefaultMQProducer getDefaultMQProducer() {
+        return defaultMQProducer;
     }
 }

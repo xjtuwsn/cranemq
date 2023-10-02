@@ -1,9 +1,13 @@
 package com.github.xjtuwsn.cranemq.broker.handler;
 
+import com.github.xjtuwsn.cranemq.broker.enums.HandlerType;
+import com.github.xjtuwsn.cranemq.broker.processors.BrokerProcessor;
+import com.github.xjtuwsn.cranemq.broker.remote.RemoteServer;
 import com.github.xjtuwsn.cranemq.common.command.PayLoad;
 import com.github.xjtuwsn.cranemq.common.command.payloads.MQCreateTopicRequest;
 import com.github.xjtuwsn.cranemq.common.command.payloads.MQCreateTopicResponse;
 import com.github.xjtuwsn.cranemq.common.command.types.ResponseCode;
+import com.github.xjtuwsn.cranemq.common.command.types.Type;
 import com.github.xjtuwsn.cranemq.common.constant.MQConstant;
 import com.github.xjtuwsn.cranemq.common.route.BrokerData;
 import com.github.xjtuwsn.cranemq.common.route.QueueData;
@@ -21,7 +25,9 @@ import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.PrimitiveIterator;
 import java.util.Random;
+import java.util.concurrent.ExecutorService;
 
 /**
  * @project:cranemq
@@ -31,36 +37,55 @@ import java.util.Random;
  */
 public class BaseHandler extends SimpleChannelInboundHandler<RemoteCommand> {
     private static final Logger log = LoggerFactory.getLogger(BaseHandler.class);
+    private RemoteServer remoteServer;
+    private BrokerProcessor brokerProcessor;
+    public BaseHandler(RemoteServer remoteServer) {
+        this.remoteServer = remoteServer;
+        this.brokerProcessor = new BrokerProcessor();
+    }
     @Override
     protected void channelRead0(ChannelHandlerContext channelHandlerContext, RemoteCommand request) throws Exception {
-        if (request.getHeader().getCommandType() == RequestType.MESSAGE_PRODUCE_REQUEST) {
-            MQProduceRequest messageProduceRequest = (MQProduceRequest) request.getPayLoad();
-            log.info("Broker receve produce message: {}", messageProduceRequest);
-            Header header = new Header(ResponseType.PRODUCE_MESSAGE_RESPONSE,
-                    request.getHeader().getRpcType(), request.getHeader().getCorrelationId());
-            int right = 10000;
-            int rand = new Random().nextInt(right);
-//            if (rand > 99990) header.onFailure(ResponseCode.DEFAULT_ERROR);
-            RemoteCommand command = new RemoteCommand(header, new MQProduceRequest(new Message()));
-            channelHandlerContext.writeAndFlush(command);
-        } else if (request.getHeader().getCommandType() == RequestType.CREATE_TOPIC_REQUEST) {
-            log.info("------------Create Topic Request----------------");
-            MQCreateTopicRequest mqCreateTopicRequest = (MQCreateTopicRequest) request.getPayLoad();
-            Header header = new Header(ResponseType.CREATE_TOPIC_RESPONSE,
-                    request.getHeader().getRpcType(), request.getHeader().getCorrelationId());
-
-            String topic = mqCreateTopicRequest.getTopic(), brokerName = "brokder1";
-            BrokerData brokerData = new BrokerData(brokerName);
-            QueueData queueData = new QueueData(brokerName, 4, 4);
-            brokerData.putQueueData(MQConstant.MASTER_ID, queueData);
-            brokerData.putAddress(MQConstant.MASTER_ID, "127.0.0.1:9999");
-            List<BrokerData> list1 = new ArrayList<>();
-            list1.add(brokerData);
-            TopicRouteInfo info = new TopicRouteInfo(topic, list1);
-            PayLoad payLoad = new MQCreateTopicResponse(info);
-            RemoteCommand remoteCommand = new RemoteCommand(header, payLoad);
-            log.info("----------------Create Topic Finished-------------");
-            channelHandlerContext.writeAndFlush(remoteCommand);
+        if (request == null) {
+            log.error("Receve null request from client");
+            return;
+        }
+        RequestType type = (RequestType) request.getHeader().getCommandType();
+        switch (type) {
+            case MESSAGE_PRODUCE_REQUEST:
+                doProducerMessageProcess(channelHandlerContext, request);
+                break;
+            case CREATE_TOPIC_REQUEST:
+                doCreateTopicProcess(channelHandlerContext, request);
+                break;
+            case HEARTBEAT:
+                doHeartBeatProcess(channelHandlerContext, request);
+            default:
+                break;
+        }
+    }
+    private void doProducerMessageProcess(ChannelHandlerContext ctx, RemoteCommand remoteCommand) {
+        ExecutorService pool = this.remoteServer.getThreadPool(HandlerType.PRODUCER_REQUEST);
+        System.out.println(pool);
+        if (pool != null) {
+            pool.execute(() -> {
+                this.brokerProcessor.processProduceMessage(ctx, remoteCommand);
+            });
+        }
+    }
+    private void doCreateTopicProcess(ChannelHandlerContext ctx, RemoteCommand remoteCommand) {
+        ExecutorService pool = this.remoteServer.getThreadPool(HandlerType.CREATE_TOPIC);
+        if (pool != null) {
+            pool.execute(() -> {
+                this.brokerProcessor.processCreateTopic(ctx, remoteCommand);
+            });
+        }
+    }
+    private void doHeartBeatProcess(ChannelHandlerContext ctx, RemoteCommand remoteCommand) {
+        ExecutorService pool = this.remoteServer.getThreadPool(HandlerType.HEARTBEAT_REQUEST);
+        if (pool != null) {
+            pool.execute(() -> {
+                this.brokerProcessor.processHeartBeat(ctx, remoteCommand);
+            });
         }
     }
 }

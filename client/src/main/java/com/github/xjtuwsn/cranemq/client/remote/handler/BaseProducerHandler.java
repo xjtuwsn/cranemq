@@ -1,16 +1,13 @@
 package com.github.xjtuwsn.cranemq.client.remote.handler;
 
-import com.github.xjtuwsn.cranemq.client.processor.Processor;
 import com.github.xjtuwsn.cranemq.client.processor.PruducerProcessor;
-import com.github.xjtuwsn.cranemq.client.producer.impl.DefaultMQProducerImpl;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.SimpleChannelInboundHandler;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import com.github.xjtuwsn.cranemq.client.hook.RemoteHook;
+import com.github.xjtuwsn.cranemq.common.net.RemoteHook;
 import com.github.xjtuwsn.cranemq.common.command.RemoteCommand;
 import com.github.xjtuwsn.cranemq.common.command.types.ResponseType;
-import com.github.xjtuwsn.cranemq.common.command.types.RpcType;
 import com.github.xjtuwsn.cranemq.common.command.types.Type;
 
 import java.util.concurrent.*;

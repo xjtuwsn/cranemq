@@ -1,11 +1,12 @@
 package com.github.xjtuwsn.cranemq.client.remote;
 
-import com.github.xjtuwsn.cranemq.client.hook.RemoteHook;
+import com.github.xjtuwsn.cranemq.common.net.RemoteHook;
 import com.github.xjtuwsn.cranemq.client.processor.PruducerProcessor;
 import com.github.xjtuwsn.cranemq.client.producer.impl.DefaultMQProducerImpl;
 import com.github.xjtuwsn.cranemq.client.remote.handler.BaseProducerHandler;
 import com.github.xjtuwsn.cranemq.common.command.RemoteCommand;
 import com.github.xjtuwsn.cranemq.common.exception.CraneClientException;
+import com.github.xjtuwsn.cranemq.common.net.RemoteService;
 import com.github.xjtuwsn.cranemq.common.net.codec.NettyDecoder;
 import com.github.xjtuwsn.cranemq.common.net.codec.NettyEncoder;
 import com.github.xjtuwsn.cranemq.common.net.serialize.impl.Hessian1Serializer;
@@ -18,7 +19,6 @@ import org.slf4j.LoggerFactory;
 
 import java.util.Iterator;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -92,6 +92,7 @@ public class RemoteClent implements RemoteService {
                 cw.close();
             }
         }
+        this.workerGroup.shutdownGracefully();
     }
     public void markExpired(List<String> addresses) {
         if (addresses == null || addresses.size() == 0) return;

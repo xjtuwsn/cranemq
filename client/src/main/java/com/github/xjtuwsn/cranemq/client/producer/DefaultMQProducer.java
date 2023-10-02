@@ -5,8 +5,7 @@ import com.github.xjtuwsn.cranemq.client.producer.balance.LoadBalanceStrategy;
 import com.github.xjtuwsn.cranemq.client.producer.result.SendResult;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import com.github.xjtuwsn.cranemq.broker.core.MessageQueue;
-import com.github.xjtuwsn.cranemq.client.hook.RemoteHook;
+import com.github.xjtuwsn.cranemq.common.net.RemoteHook;
 import com.github.xjtuwsn.cranemq.client.hook.SendCallback;
 import com.github.xjtuwsn.cranemq.client.producer.impl.DefaultMQProducerImpl;
 import com.github.xjtuwsn.cranemq.common.constant.MQConstant;
@@ -31,7 +30,6 @@ public class DefaultMQProducer implements MQProducer {
 
     private int createQueueNumber = MQConstant.DEFAULT_QUEUE_NUMBER;
 
-    private List<MessageQueue> availableQueue;
 
     private RemoteAddress brokerAddress;
     private String registryAddr;
@@ -63,10 +61,12 @@ public class DefaultMQProducer implements MQProducer {
         }
         this.defaultMQProducerImpl.setRegistryAddress(this.registryAddr);
         this.defaultMQProducerImpl.start();
+        Runtime.getRuntime().addShutdownHook(new Thread(this::shutdown));
     }
 
     @Override
     public void shutdown() {
+        System.out.println(1111);
         this.defaultMQProducerImpl.close();
     }
 
