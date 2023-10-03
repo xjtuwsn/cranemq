@@ -28,7 +28,6 @@ public class Header implements Serializable {
     private String correlationId;
     // 响应状态码
     private int status = ResponseCode.SUCCESS;
-    private MessageQueue writeQueue;
 
     private int version = 1;
 

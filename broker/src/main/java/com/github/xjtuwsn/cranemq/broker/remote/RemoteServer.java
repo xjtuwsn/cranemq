@@ -109,6 +109,11 @@ public class RemoteServer implements RemoteService {
     public void registerHook(RemoteHook hook) {
         this.hook = hook;
     }
+
+    public BrokerController getController() {
+        return controller;
+    }
+
     // TODO 连接与断联、心跳等发布事件
     class PublishEvent extends Thread {
         private final Logger log = LoggerFactory.getLogger(PublishEvent.class);

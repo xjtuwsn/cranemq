@@ -17,4 +17,5 @@ public class MQConstant {
     public static final int MASTER_ID = 0;
 
     public static final String DEFAULT_CONF_PATH = "D:\\code\\opensource\\cranemq\\default.conf";
+    public static final String CHARSETNAME = "UTF-8";
 }

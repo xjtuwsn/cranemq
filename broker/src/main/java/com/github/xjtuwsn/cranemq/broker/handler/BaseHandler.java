@@ -41,7 +41,7 @@ public class BaseHandler extends SimpleChannelInboundHandler<RemoteCommand> {
     private BrokerProcessor brokerProcessor;
     public BaseHandler(RemoteServer remoteServer) {
         this.remoteServer = remoteServer;
-        this.brokerProcessor = new BrokerProcessor();
+        this.brokerProcessor = new BrokerProcessor(this.remoteServer.getController());
     }
     @Override
     protected void channelRead0(ChannelHandlerContext channelHandlerContext, RemoteCommand request) throws Exception {
@@ -65,7 +65,6 @@ public class BaseHandler extends SimpleChannelInboundHandler<RemoteCommand> {
     }
     private void doProducerMessageProcess(ChannelHandlerContext ctx, RemoteCommand remoteCommand) {
         ExecutorService pool = this.remoteServer.getThreadPool(HandlerType.PRODUCER_REQUEST);
-        System.out.println(pool);
         if (pool != null) {
             pool.execute(() -> {
                 this.brokerProcessor.processProduceMessage(ctx, remoteCommand);

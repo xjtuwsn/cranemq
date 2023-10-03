@@ -241,7 +241,7 @@ public class ClientInstance {
     }
     // TODO 根据负载均衡选出队列，和指定地址，发送消息
     // TODO 更改路由表和相关逻辑
-    private String selectProducedQueueAndChangeHeader(WrapperFutureCommand wrappered, String topic) {
+    private String selectProducedQueueAndChangeHeader(final WrapperFutureCommand wrappered, String topic) {
         MessageQueue queue = this.loadBalanceStrategy.getNextQueue(topic, this.topicTable.get(topic));
         if (queue == null) {
             throw new CraneClientException("Queue select error");
@@ -250,8 +250,17 @@ public class ClientInstance {
         if (StrUtil.isEmpty(address)) {
             log.error("Cannot find address when getting {} broker", topic);
         }
-        wrappered.getFutureCommand().getRequest().getHeader().setWriteQueue(queue);
+        this.setQueueToRequest(wrappered, queue);
         return address;
+    }
+    private void setQueueToRequest(final WrapperFutureCommand wrappered, MessageQueue queue) {
+        PayLoad payLoad = wrappered.getFutureCommand().getRequest().getPayLoad();
+        if (payLoad instanceof MQProduceRequest) {
+            ((MQProduceRequest) payLoad).setWriteQueue(queue);
+        } else if (payLoad instanceof MQBachProduceRequest) {
+            ((MQBachProduceRequest) payLoad).setWriteQueue(queue);
+        }
+
     }
 
     public void sendHeartBeatToBroker() {

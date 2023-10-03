@@ -1,5 +1,6 @@
 package com.github.xjtuwsn.cranemq.broker.processors;
 
+import com.github.xjtuwsn.cranemq.broker.BrokerController;
 import com.github.xjtuwsn.cranemq.common.command.Header;
 import com.github.xjtuwsn.cranemq.common.command.PayLoad;
 import com.github.xjtuwsn.cranemq.common.command.RemoteCommand;
@@ -32,13 +33,20 @@ import java.util.Random;
 public class BrokerProcessor {
 
     private static final Logger log = LoggerFactory.getLogger(BrokerProcessor.class);
+    private BrokerController brokerController;
+
+    public BrokerProcessor() {
+    }
+
+    public BrokerProcessor(BrokerController brokerController) {
+        this.brokerController = brokerController;
+    }
 
     public void processProduceMessage(ChannelHandlerContext ctx, RemoteCommand remoteCommand) {
         System.out.println(remoteCommand);
         Header header = remoteCommand.getHeader();
-        MessageQueue queue = header.getWriteQueue();
         MQProduceRequest messageProduceRequest = (MQProduceRequest) remoteCommand.getPayLoad();
-
+        this.brokerController.getMessageStoreCenter().putMessage(remoteCommand);
         /**
          * 存储消息
          * 等等操作

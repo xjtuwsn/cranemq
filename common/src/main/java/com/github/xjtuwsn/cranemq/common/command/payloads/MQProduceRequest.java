@@ -1,5 +1,6 @@
 package com.github.xjtuwsn.cranemq.common.command.payloads;
 
+import com.github.xjtuwsn.cranemq.common.entity.MessageQueue;
 import lombok.*;
 import com.github.xjtuwsn.cranemq.common.command.PayLoad;
 import com.github.xjtuwsn.cranemq.common.entity.Message;
@@ -19,4 +20,9 @@ import java.io.Serializable;
 @Setter
 public class MQProduceRequest implements PayLoad, Serializable {
     private Message message;
+    private MessageQueue writeQueue;
+
+    public MQProduceRequest(Message message) {
+        this.message = message;
+    }
 }

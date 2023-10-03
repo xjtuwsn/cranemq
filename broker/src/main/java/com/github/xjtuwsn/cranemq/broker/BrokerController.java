@@ -3,6 +3,8 @@ package com.github.xjtuwsn.cranemq.broker;
 import com.github.xjtuwsn.cranemq.broker.client.ClientHousekeepingService;
 import com.github.xjtuwsn.cranemq.broker.enums.HandlerType;
 import com.github.xjtuwsn.cranemq.broker.remote.RemoteServer;
+import com.github.xjtuwsn.cranemq.broker.store.CommitLog;
+import com.github.xjtuwsn.cranemq.broker.store.MessageStoreCenter;
 import com.github.xjtuwsn.cranemq.broker.store.PersistentConfig;
 import com.github.xjtuwsn.cranemq.common.config.BrokerConfig;
 
@@ -19,6 +21,7 @@ public class BrokerController {
     private BrokerConfig brokerConfig;
     private PersistentConfig persistentConfig;
     private RemoteServer remoteServer;
+    private MessageStoreCenter messageStoreCenter;
     private ExecutorService producerMessageService;
     private ExecutorService createTopicService;
     private ExecutorService handleHeartBeatService;
@@ -35,6 +38,7 @@ public class BrokerController {
     public boolean initialize() {
         this.remoteServer = new RemoteServer(brokerConfig.getPort(),
                 this, new ClientHousekeepingService(this));
+        this.messageStoreCenter = new MessageStoreCenter(this);
         this.initThreadPool();
         this.registerThreadPool();
         return true;
@@ -75,8 +79,21 @@ public class BrokerController {
     }
     public void start() {
         this.remoteServer.start();
+        this.messageStoreCenter.start();
     }
     public void close() {
 
+    }
+
+    public BrokerConfig getBrokerConfig() {
+        return brokerConfig;
+    }
+
+    public PersistentConfig getPersistentConfig() {
+        return persistentConfig;
+    }
+
+    public MessageStoreCenter getMessageStoreCenter() {
+        return messageStoreCenter;
     }
 }
