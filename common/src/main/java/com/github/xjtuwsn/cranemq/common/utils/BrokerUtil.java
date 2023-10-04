@@ -1,6 +1,7 @@
 package com.github.xjtuwsn.cranemq.common.utils;
 
 import com.github.xjtuwsn.cranemq.common.config.FlushDisk;
+import com.github.xjtuwsn.cranemq.common.constant.MQConstant;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -47,5 +48,14 @@ public class BrokerUtil {
                 }
             }
         }
+    }
+
+    public static String makeFileName(int index, int fileSize) {
+        int offset = index * fileSize;
+        StringBuilder sb = new StringBuilder(String.valueOf(offset));
+        int left = MQConstant.COMMITLOG_FILENAME_LENGTH - sb.length();
+        StringBuilder padding = new StringBuilder();
+        padding.append("0".repeat(Math.max(0, left)));
+        return padding.append(sb).toString();
     }
 }

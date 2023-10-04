@@ -86,6 +86,6 @@ public class BrokerProcessor {
     }
 
     public void processHeartBeat(ChannelHandlerContext ctx, RemoteCommand remoteCommand) {
-        System.out.println(remoteCommand);
+//        System.out.println(remoteCommand);
     }
 }

@@ -22,5 +22,7 @@ public class PersistentConfig {
     private String commitLogPath = rootPath + "commitlog\\";
     private String consumerqueuePath = rootPath + "consumerqueue\\";
     private String defaultName = "dummy";
+    private int maxOutOfMemoryPoolSize = 3;
+    private boolean enableOutOfMemory = true;
 
 }
