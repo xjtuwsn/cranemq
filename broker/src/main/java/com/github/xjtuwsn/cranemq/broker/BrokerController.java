@@ -4,6 +4,7 @@ import com.github.xjtuwsn.cranemq.broker.client.ClientHousekeepingService;
 import com.github.xjtuwsn.cranemq.broker.enums.HandlerType;
 import com.github.xjtuwsn.cranemq.broker.remote.RemoteServer;
 import com.github.xjtuwsn.cranemq.broker.store.CommitLog;
+import com.github.xjtuwsn.cranemq.broker.store.GeneralStoreService;
 import com.github.xjtuwsn.cranemq.broker.store.MessageStoreCenter;
 import com.github.xjtuwsn.cranemq.broker.store.PersistentConfig;
 import com.github.xjtuwsn.cranemq.common.config.BrokerConfig;
@@ -17,7 +18,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  * @author:wsn
  * @create:2023/10/02-10:18
  */
-public class BrokerController {
+public class BrokerController implements GeneralStoreService {
     private BrokerConfig brokerConfig;
     private PersistentConfig persistentConfig;
     private RemoteServer remoteServer;

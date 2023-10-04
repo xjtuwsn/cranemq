@@ -30,7 +30,7 @@ public class OutOfHeapMemoryPool {
 
     public void init() {
         for (int i = 0; i < this.maxQueueSize; i++) {
-            ByteBuffer byteBuffer = ByteBuffer.allocate(this.persistentConfig.getCommitLogMaxSize());
+            ByteBuffer byteBuffer = ByteBuffer.allocateDirect(this.persistentConfig.getCommitLogMaxSize());
             this.queue.offer(byteBuffer);
         }
         log.info("Finish memory pool initialize");

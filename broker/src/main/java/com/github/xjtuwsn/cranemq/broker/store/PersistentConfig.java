@@ -25,4 +25,8 @@ public class PersistentConfig {
     private int maxOutOfMemoryPoolSize = 3;
     private boolean enableOutOfMemory = true;
 
+    private int queueUnit = 8 + 4;
+    private int maxQueueItemNumber = 400000;
+    private int maxQueueSize = queueUnit * maxQueueItemNumber;
+
 }

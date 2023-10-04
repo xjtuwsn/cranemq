@@ -27,7 +27,7 @@ import java.util.concurrent.atomic.AtomicLong;
  * @create:2023/10/03-10:20
  */
 
-public class MappedFile {
+public class MappedFile implements ListItem {
     private static final Logger log = LoggerFactory.getLogger(MappedFile.class);
     public MappedFile next, prev;
     private int index;
@@ -88,7 +88,7 @@ public class MappedFile {
         if (this.mappedByteBuffer == null) {
             try {
                 this.mappedByteBuffer = this.fileChannel.map(FileChannel.MapMode.READ_WRITE,
-                        0, this.fileSize);
+                        0, this.persistentConfig.getCommitLogMaxSize());
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }
@@ -114,6 +114,7 @@ public class MappedFile {
             log.error("Get error inner message null");
             return StoreResponse.PARAMETER_ERROR;
         }
+
         try {
             final byte[] topicData = innerMessage.getTopic().getBytes(MQConstant.CHARSETNAME);
             int topicLen = topicData.length;
@@ -127,11 +128,13 @@ public class MappedFile {
             int queueSelected = innerMessage.getMessageQueue().getQueueId();
 
             int total = this.calTotalLength(topicLen, tagLen, bodyLen);
-            if (this.totalPointer.get() + total > this.persistentConfig.getCommitLogMaxSize()) {
-                return StoreResponse.NO_ENOUGH_SPACE;
-            }
-            
-            ByteBuffer writeBuffer = this.getWriteBuffer();
+//            if (this.totalPointer.get() + total > this.persistentConfig.getCommitLogMaxSize()) {
+//                return StoreResponse.NO_ENOUGH_SPACE;
+//            }
+            System.out.println("++++++++++++");
+            System.out.println(this.file.length());
+            System.out.println("++++++++++++++");
+            ByteBuffer writeBuffer = this.getWriteBuffer().slice();
             System.out.println(writeBuffer);
             writeBuffer.putInt(total);
             System.out.println(writeBuffer.remaining());
@@ -151,14 +154,22 @@ public class MappedFile {
             writeBuffer.putInt(queueSelected);
             this.totalPointer.getAndAdd(total);
             writeBuffer.position(0);
-            writeBuffer.limit((int) this.totalPointer.get());
+            writeBuffer.limit(total);
+            this.fileChannel.position(this.totalPointer.get() - total);
             this.fileChannel.write(writeBuffer);
             System.out.println(this.fileChannel.size());
+
+            System.out.println("----------------------");
+            ByteBuffer bufferNew = this.mappedByteBuffer.slice();
+            bufferNew.position(0);
+            bufferNew.position(4);
+            System.out.println(bufferNew);
+            System.out.println(bufferNew.getInt());
+            System.out.println(bufferNew);
+            System.out.println(this.mappedByteBuffer.load());
+            System.out.println("----------------------");
             this.fileChannel.force(false);
-            System.out.println("----------------------");
-            System.out.println(this.mappedByteBuffer);
-            System.out.println("----------------------");
-            writeBuffer.position((int) this.totalPointer.get());
+            writeBuffer.position(0);
             writeBuffer.limit(this.persistentConfig.getCommitLogMaxSize());
         } catch (IOException e) {
             log.error("UnsupportedEncodingException when decoding");

@@ -26,7 +26,7 @@ import java.util.concurrent.locks.ReentrantLock;
  * @author:wsn
  * @create:2023/10/03-10:19
  */
-public class CommitLog {
+public class CommitLog implements GeneralStoreService {
     private BrokerController brokerController;
     private MappedFile head, tail;
     private int headIndex = -1;
@@ -81,6 +81,11 @@ public class CommitLog {
             temp = temp.next;
         }
         this.createMappedFileService.start();
+    }
+
+    @Override
+    public void close() {
+
     }
 
     public void writeMessage(RemoteCommand remoteCommand) {
