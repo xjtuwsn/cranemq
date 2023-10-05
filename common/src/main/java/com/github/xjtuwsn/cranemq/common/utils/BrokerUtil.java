@@ -51,11 +51,35 @@ public class BrokerUtil {
     }
 
     public static String makeFileName(int index, int fileSize) {
-        int offset = index * fileSize;
+        long offset = index * (long) fileSize;
         StringBuilder sb = new StringBuilder(String.valueOf(offset));
         int left = MQConstant.COMMITLOG_FILENAME_LENGTH - sb.length();
         StringBuilder padding = new StringBuilder();
         padding.append("0".repeat(Math.max(0, left)));
         return padding.append(sb).toString();
     }
+
+    public static String getQueuePath(String prefix, String topic, int queueId, String fileName) {
+        StringBuilder sb = new StringBuilder();
+        sb.append(prefix).append(topic).append("\\").append(queueId).append("\\").append(fileName);
+        return sb.toString();
+    }
+
+    public static long calOffset(String filename, int pos) {
+        long begin = Long.valueOf(filename);
+        return begin + pos;
+    }
+
+    public static int findMappedIndex(long offset, String firstFileName, int fileSize) {
+        long begin = Long.parseLong(firstFileName);
+        int index = (int) ((offset - begin) / fileSize);
+        return index;
+
+    }
+
+    public static int offsetInPage(long offset, int fileSize) {
+
+        return (int) (offset % fileSize);
+    }
+
 }

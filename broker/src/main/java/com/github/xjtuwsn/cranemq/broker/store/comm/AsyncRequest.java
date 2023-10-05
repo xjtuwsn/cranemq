@@ -19,8 +19,11 @@ import java.util.concurrent.CountDownLatch;
 public class AsyncRequest {
     private StoreRequestType requestType;
     private String fileName;
+    private String key;
     private int index;
     private int fileSize;
+    private String topic;
+    private int queueId;
     private CountDownLatch count;
 
     public AsyncRequest(int index, String fileName, int fileSize) {
@@ -29,7 +32,14 @@ public class AsyncRequest {
         this.fileName = fileName;
         this.fileSize = fileSize;
     }
-
+    public AsyncRequest(int index, String fileName, int fileSize, String topic, int queueId) {
+        this.requestType = StoreRequestType.CREATE_MAPPED_FILE;
+        this.index = index;
+        this.fileName = fileName;
+        this.fileSize = fileSize;
+        this.topic = topic;
+        this.queueId = queueId;
+    }
     public AsyncRequest(StoreRequestType requestType, String fileName, int fileSize) {
         this.requestType = requestType;
         this.fileName = fileName;

@@ -13,14 +13,16 @@ public class StoreInnerMessage {
 
     private String topic;
     private String tag;
+    private String id;
     private byte[] body;
     private MessageQueue messageQueue;
 
-    public StoreInnerMessage(Message message, MessageQueue messageQueue) {
+    public StoreInnerMessage(Message message, MessageQueue messageQueue, String id) {
         this.messageQueue = messageQueue;
         this.topic = message.getTopic();
         this.tag = message.getTag();
         this.body = message.getBody();
+        this.id = id;
     }
 
     public String getTopic() {
@@ -39,6 +41,12 @@ public class StoreInnerMessage {
         return messageQueue;
     }
 
+    public String getId() {
+        return id;
+    }
+    public int getQueueId() {
+        return messageQueue.getQueueId();
+    }
     public void setMessageQueue(MessageQueue messageQueue) {
         this.messageQueue = messageQueue;
     }

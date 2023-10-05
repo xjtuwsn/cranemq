@@ -42,15 +42,11 @@ public class TestMain {
             producer.start();
             Message message1 = new Message(topic, "hhhh".getBytes());
             Message message2 = new Message(topic, "aaaa".getBytes());
+             producer.send(message2);
             long start = System.nanoTime();
             for (int i = 0; i < 2; i++) {
 
                 producer.send(message2);
-                try {
-                    Thread.sleep(1000);
-                } catch (InterruptedException e) {
-                    throw new RuntimeException(e);
-                }
             }
             long end = System.nanoTime();
             double cost = (end - start) / 1e6;

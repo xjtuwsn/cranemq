@@ -20,7 +20,7 @@ public class PersistentConfig {
     private int maxLiveTime = 1000 * 60 * 60 * 24 * 3; // 3天
 
     private String commitLogPath = rootPath + "commitlog\\";
-    private String consumerqueuePath = rootPath + "consumerqueue\\";
+    private String consumerqueuePath = rootPath + "consumequeue\\";
     private String defaultName = "dummy";
     private int maxOutOfMemoryPoolSize = 3;
     private boolean enableOutOfMemory = true;
@@ -28,5 +28,8 @@ public class PersistentConfig {
     private int queueUnit = 8 + 4;
     private int maxQueueItemNumber = 400000;
     private int maxQueueSize = queueUnit * maxQueueItemNumber;
+
+    private long asyncCommitInterval = 3000;
+    private long flushDiskInterval = 1000;
 
 }

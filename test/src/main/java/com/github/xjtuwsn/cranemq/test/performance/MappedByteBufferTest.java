@@ -1,9 +1,9 @@
 package com.github.xjtuwsn.cranemq.test.performance;
 
-import java.io.File;
-import java.io.FileNotFoundException;
-import java.io.IOException;
-import java.io.RandomAccessFile;
+import org.junit.Test;
+
+import java.io.*;
+import java.nio.ByteBuffer;
 import java.nio.MappedByteBuffer;
 import java.nio.channels.FileChannel;
 
@@ -54,5 +54,29 @@ public class MappedByteBufferTest {
         }
         mappedByteBuffer.force();
         mappedByteBuffer.clear();
+    }
+    @Test
+    public void test2() throws IOException {
+        String path = "E:\\edgedown\\out\\00000000000000000000";
+        FileInputStream fis = new FileInputStream(path);
+        DataInputStream dis = new DataInputStream(fis);
+        while (true) {
+            long offset = dis.readLong();
+            int size = dis.readInt();
+
+            if (offset == 0 && size == 0) break;
+            System.out.println(offset + ", " + size);
+        }
+    }
+    @Test
+    public void test3() {
+        ByteBuffer byteBuffer = ByteBuffer.allocate(100);
+        byteBuffer.putInt(100);
+        byteBuffer.position(0);
+        int a = byteBuffer.getInt();
+        byteBuffer.position(0);
+        int b = byteBuffer.getInt();
+        System.out.println(a);
+        System.out.println(b);
     }
 }

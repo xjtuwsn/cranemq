@@ -1,6 +1,8 @@
 package com.github.xjtuwsn.cranemq.broker.processors;
 
 import com.github.xjtuwsn.cranemq.broker.BrokerController;
+import com.github.xjtuwsn.cranemq.broker.store.StoreInnerMessage;
+import com.github.xjtuwsn.cranemq.broker.store.comm.PutMessageResponse;
 import com.github.xjtuwsn.cranemq.common.command.Header;
 import com.github.xjtuwsn.cranemq.common.command.PayLoad;
 import com.github.xjtuwsn.cranemq.common.command.RemoteCommand;
@@ -43,10 +45,19 @@ public class BrokerProcessor {
     }
 
     public void processProduceMessage(ChannelHandlerContext ctx, RemoteCommand remoteCommand) {
-        System.out.println(remoteCommand);
+
         Header header = remoteCommand.getHeader();
         MQProduceRequest messageProduceRequest = (MQProduceRequest) remoteCommand.getPayLoad();
-        this.brokerController.getMessageStoreCenter().putMessage(remoteCommand);
+        StoreInnerMessage storeInnerMessage = new StoreInnerMessage(messageProduceRequest.getMessage(),
+                messageProduceRequest.getWriteQueue(), header.getCorrelationId());
+        log.info("Broker receve produce message: {}", messageProduceRequest);
+        long start = System.nanoTime();
+        PutMessageResponse putResp = this.brokerController.getMessageStoreCenter().putMessage(storeInnerMessage);
+        long end = System.nanoTime();
+
+
+        double cost = (end - start) / 1e6;
+        log.warn("Cost {} ms", cost);
         /**
          * 存储消息
          * 等等操作
@@ -58,7 +69,7 @@ public class BrokerProcessor {
                 header.getCorrelationId());
         PayLoad responsePayload = new  MQProduceResponse("");
         RemoteCommand response = new RemoteCommand(responseHeader, responsePayload);
-        log.info("Broker receve produce message: {}", messageProduceRequest);
+
         ctx.writeAndFlush(response);
     }
     public void processCreateTopic(ChannelHandlerContext ctx, RemoteCommand remoteCommand) {

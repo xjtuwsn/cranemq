@@ -1,4 +1,4 @@
-package com.github.xjtuwsn.cranemq.broker.enums;
+package com.github.xjtuwsn.cranemq.broker.store.comm;
 
 /**
  * @project:cranemq
@@ -6,7 +6,7 @@ package com.github.xjtuwsn.cranemq.broker.enums;
  * @author:wsn
  * @create:2023/10/03-15:53
  */
-public enum StoreResponse {
+public enum StoreResponseType {
     PARAMETER_ERROR,
     NO_ENOUGH_SPACE,
     STORE_OK
