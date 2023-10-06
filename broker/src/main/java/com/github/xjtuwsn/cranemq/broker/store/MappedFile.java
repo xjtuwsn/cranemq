@@ -42,7 +42,6 @@ public class MappedFile {
     private AtomicInteger writePointer; // 当前写指针
     private AtomicInteger commitPointer; // directBuffer中已经提交，即写到filechannel的指针
     private AtomicInteger flushPointer; // 当前刷盘指针
-    private ByteBuffer byteBuffer;
     private ByteBuffer directBuffer;
     private OutOfHeapMemoryPool memoryPool;
     private ReentrantLock writeLock = new ReentrantLock();
@@ -78,7 +77,6 @@ public class MappedFile {
         this.memoryPool = memoryPool;
         if (this.fileName == "") return;
         this.fileSize = fileSize;
-        this.byteBuffer = ByteBuffer.allocate(1024 * 1024);
         this.fullPath = fullPath;
 
         this.file = new File(fullPath);
@@ -90,7 +88,7 @@ public class MappedFile {
         } catch (IOException e) {
             log.error("Create file channel error");
         }
-        this.writePointer = new AtomicInteger(0);
+        this.writePointer = new AtomicInteger(this.fileSize);
         this.commitPointer = new AtomicInteger(this.fileSize);
         this.flushPointer = new AtomicInteger(this.fileSize);
         if (this.mappedByteBuffer == null) {
@@ -106,8 +104,7 @@ public class MappedFile {
         } else {
             this.status = Status.CAN_WRITE;
         }
-
-        if (this.memoryPool != null && !this.isFull()) {
+        if (this.memoryPool != null) {
             this.directBuffer = this.memoryPool.borrowMemmory();
         }
 
@@ -163,11 +160,12 @@ public class MappedFile {
             writePointer.getAndAdd(total);
             long offset = BrokerUtil.calOffset(this.fileName, pos);
 
-            writeBuffer.position(pos);
-            writeBuffer.limit(pos + total);
-            this.fileChannel.write(writeBuffer);
-            this.fileChannel.force(false);
-            return new PutMessageResponse(StoreResponseType.STORE_OK, offset, total);
+//            writeBuffer.position(pos);
+//            writeBuffer.limit(pos + total);
+//            // TODO 删除同步刷盘，测试异步刷盘和提交
+//            this.fileChannel.write(writeBuffer);
+//            this.fileChannel.force(false);
+            return new PutMessageResponse(StoreResponseType.STORE_OK, offset, total, this);
 
 
 //            this.commitPointer.getAndAdd(total);
@@ -195,6 +193,7 @@ public class MappedFile {
         if (writePointer.get() + total >= persistentConfig.getMaxQueueSize()) {
             return new PutMessageResponse(StoreResponseType.NO_ENOUGH_SPACE);
         }
+        writeLock.lock();
         int pos = writePointer.get();
         ByteBuffer writeBuffer = this.mappedByteBuffer.slice();
         writeBuffer.position(pos);
@@ -203,9 +202,9 @@ public class MappedFile {
         writeBuffer.putInt(size);
 
         writePointer.getAndAdd(total);
-
-        this.mappedByteBuffer.force();
-        return new PutMessageResponse(StoreResponseType.STORE_OK, pos);
+        writeLock.unlock();
+        // this.mappedByteBuffer.force();
+        return new PutMessageResponse(StoreResponseType.STORE_OK, pos, this);
     }
     private int calTotalLength(int topicLen, int tagLen, int bodyLen) {
         return 4 + 4 + topicLen + 4 + tagLen + 4 + bodyLen + 4;
@@ -214,21 +213,26 @@ public class MappedFile {
 
     public void doCommit(boolean force) {
         if (!persistentConfig.isEnableOutOfMemory() || this.directBuffer == null) {
-            log.info("Do not need to commit");
+//            log.info("Do not need to commit");
             return;
         }
         int last = commitPointer.get();
         int write = writePointer.get();
-        if (write - last < 4 * OS_PAGE && !force) {
-            log.info("The buffer's data number is too less");
+        if (last == write) {
             return;
         }
+        if (write - last < 4 * OS_PAGE && !force) {
+            // log.info("The buffer's data number is too less");
+            return;
+        }
+
         ByteBuffer buffer = directBuffer.slice();
         buffer.position(last);
         buffer.limit(write);
         try {
             this.fileChannel.position(last);
             this.fileChannel.write(buffer);
+            log.info("Finish one commit, commit {} --> {}", last, write);
             commitPointer.set(write);
         } catch (IOException e) {
             log.error("Move file channel posistion error");
@@ -241,10 +245,11 @@ public class MappedFile {
             int last = flushPointer.get();
             int commit = commitPointer.get();
             if (last == commit) {
-                log.info("Do not need to flush disk");
+                // log.info("Do not need to flush disk because commit the same");
                 return;
             }
             try {
+                log.info("Finish direct buffer flush, flush pointer {} ---> {}", last, commit);
                 this.fileChannel.force(false);
                 flushPointer.set(commit);
             } catch (IOException e) {
@@ -253,6 +258,12 @@ public class MappedFile {
             }
         } else {
             int write = writePointer.get();
+            int flush = flushPointer.get();
+            if (flush == write) {
+                // log.info("Do not need to flush disk because write the same");
+                return;
+            }
+            log.info("Finish direct buffer flush, flush pointer {} ---> {}", flush, write);
             this.mappedByteBuffer.force();
             flushPointer.set(write);
         }
@@ -262,6 +273,18 @@ public class MappedFile {
         this.doCommit(true);
         this.doFlush();
         this.markFull();
+        this.returnMemory();
+    }
+
+    public void returnMemory() {
+        if (this.memoryPool != null && this.directBuffer!= null) {
+            this.memoryPool.returnMemory(directBuffer);
+            this.directBuffer = null;
+            this.memoryPool = null;
+        }
+    }
+    public boolean ownDirectMemory() {
+        return persistentConfig.isEnableOutOfMemory() && this.memoryPool != null && this.directBuffer != null;
     }
     public void setStatus(Status status) {
         this.status = status;

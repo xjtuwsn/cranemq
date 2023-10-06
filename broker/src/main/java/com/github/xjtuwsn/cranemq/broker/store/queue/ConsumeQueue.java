@@ -111,6 +111,8 @@ public class ConsumeQueue extends AbstractLinkedListOrganize implements GeneralS
         mappedFile.setWritePointer(newPos);
         mappedFile.setCommitPointer(newPos);
         mappedFile.setFlushPointer(newPos);
+        log.info("Consumequeue [topic: {}, queueId: {}, name: {}], recovery frome pos: {}",
+                topic, queueId, mappedFile.getFileName(), newPos);
         this.recoveryListener.onUpdateOffset(offset, size);
     }
     public MappedFile getLastMappedFile() {

@@ -1,5 +1,6 @@
 package com.github.xjtuwsn.cranemq.broker.store.comm;
 
+import com.github.xjtuwsn.cranemq.broker.store.MappedFile;
 import lombok.*;
 
 /**
@@ -22,16 +23,19 @@ public class PutMessageResponse {
 
     private int size;
     private int queueOffset;
+    private MappedFile mappedFile;
 
-    public PutMessageResponse(StoreResponseType responseType, long offset, int size) {
+    public PutMessageResponse(StoreResponseType responseType, long offset, int size, MappedFile mappedFile) {
         this.responseType = responseType;
         this.offset = offset;
         this.size = size;
+        this.mappedFile = mappedFile;
     }
 
-    public PutMessageResponse(StoreResponseType responseType, int queueOffset) {
+    public PutMessageResponse(StoreResponseType responseType, int queueOffset, MappedFile mappedFile) {
         this.responseType = responseType;
         this.queueOffset = queueOffset;
+        this.mappedFile = mappedFile;
     }
 
     public PutMessageResponse(StoreResponseType responseType) {

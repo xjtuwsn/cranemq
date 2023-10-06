@@ -1,5 +1,6 @@
 package com.github.xjtuwsn.cranemq.broker.store;
 
+import com.github.xjtuwsn.cranemq.common.config.FlushDisk;
 import lombok.*;
 
 /**
@@ -13,6 +14,7 @@ import lombok.*;
 @Getter
 @NoArgsConstructor
 @AllArgsConstructor
+@ToString
 public class PersistentConfig {
 
     private String rootPath = "D:\\cranemq\\store\\";
@@ -31,5 +33,7 @@ public class PersistentConfig {
 
     private long asyncCommitInterval = 3000;
     private long flushDiskInterval = 1000;
+
+    private FlushDisk flushDisk = FlushDisk.ASYNC;
 
 }

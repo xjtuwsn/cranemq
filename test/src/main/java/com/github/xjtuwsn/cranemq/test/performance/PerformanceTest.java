@@ -21,10 +21,6 @@ import java.util.concurrent.*;
  */
 public class PerformanceTest {
     public static void main(String[] args) throws InterruptedException, IOException {
-        MqBroker broker = new MqBroker();
-        broker.start();
-        Registry registry = new Registry();
-        registry.start();
         String topic = "topic1";
         RemoteHook hook = new RemoteHook() {
             @Override
@@ -37,7 +33,7 @@ public class PerformanceTest {
                 // System.out.println("response come");
             }
         };
-        int threadNum = 10, loop = 2200;
+        int threadNum = 5, loop = 1000;
         CountDownLatch latch = new CountDownLatch(threadNum);
         ExecutorService threadPool = new ThreadPoolExecutor(10,
                 22, 60L, TimeUnit.SECONDS, new LinkedBlockingDeque<>(1000),

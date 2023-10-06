@@ -43,7 +43,9 @@ public class BrokerMainStart {
         }
 
         BrokerUtil.prarseConfigFile(properties, brokerConfig);
+        BrokerUtil.prarseConfigFile(properties, persistentConfig);
         log.info("Read config file from disk: {}", brokerConfig);
+        log.info("Read persist file from disk: {}", persistentConfig);
 
         try {
             File persistentFile = new File(persistentConfig.getRootPath());

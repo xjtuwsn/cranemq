@@ -16,6 +16,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.File;
+import java.util.Iterator;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -80,7 +81,10 @@ public class ConsumeQueueManager implements GeneralStoreService {
     public void registerRecoveryListener(RecoveryListener listener) {
         this.recoveryListener = listener;
     }
-
+    public Iterator<ConcurrentHashMap<Integer, ConsumeQueue>> iterator() {
+        Iterator<ConcurrentHashMap<Integer, ConsumeQueue>> iterator = queueTable.values().iterator();
+        return iterator;
+    }
     @Override
     public void close() {
 
@@ -128,6 +132,9 @@ public class ConsumeQueueManager implements GeneralStoreService {
                     } else {
                         map.put(request.getQueueId(), new AtomicLong(newVal));
                     }
+                    mappedFile.setWritePointer(0);
+                    mappedFile.setCommitPointer(0);
+                    mappedFile.setFlushPointer(0);
                     request.getCount().countDown();
                     log.info("Success create mapped file in consumer queue, topic: {}, queueId: {}, file: {}",
                             request.getTopic(), request.getQueueId(), request.getFileName());

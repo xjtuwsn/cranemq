@@ -20,7 +20,6 @@ public class BrokerConfig {
 
     private int brokerId;
 
-    private FlushDisk flushDisk;
     private int port;
 
 }

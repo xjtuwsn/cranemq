@@ -5,7 +5,11 @@ import com.github.xjtuwsn.cranemq.broker.store.cmtlog.CommitLog;
 import com.github.xjtuwsn.cranemq.broker.store.cmtlog.RecoveryListener;
 import com.github.xjtuwsn.cranemq.broker.store.comm.PutMessageResponse;
 import com.github.xjtuwsn.cranemq.broker.store.comm.StoreResponseType;
+import com.github.xjtuwsn.cranemq.broker.store.flush.AsyncFlushDiskService;
+import com.github.xjtuwsn.cranemq.broker.store.flush.FlushDiskService;
+import com.github.xjtuwsn.cranemq.broker.store.flush.SyncFlushDiskService;
 import com.github.xjtuwsn.cranemq.broker.store.queue.ConsumeQueueManager;
+import com.github.xjtuwsn.cranemq.common.config.FlushDisk;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -20,12 +24,19 @@ public class MessageStoreCenter implements GeneralStoreService {
     private BrokerController brokerController;
     private CommitLog commitLog;
     private ConsumeQueueManager consumeQueueManager;
+    private FlushDiskService flushDiskService;
 
     public MessageStoreCenter(BrokerController brokerController) {
         this.brokerController = brokerController;
         this.commitLog = new CommitLog(this.brokerController);
         this.consumeQueueManager = new ConsumeQueueManager(this.brokerController,
                 this.brokerController.getPersistentConfig());
+        if (brokerController.getPersistentConfig().getFlushDisk() == FlushDisk.ASYNC) {
+            this.flushDiskService = new AsyncFlushDiskService(brokerController.getPersistentConfig(), commitLog,
+                    consumeQueueManager);
+        } else {
+            this.flushDiskService = new SyncFlushDiskService();
+        }
     }
     public PutMessageResponse putMessage(StoreInnerMessage innerMessage) {
         if (innerMessage == null) {
@@ -49,6 +60,12 @@ public class MessageStoreCenter implements GeneralStoreService {
         if (putOffsetResp == null) {
             return new PutMessageResponse(StoreResponseType.PARAMETER_ERROR);
         }
+        if (putOffsetResp.getResponseType() == StoreResponseType.STORE_OK) {
+            if (brokerController.getPersistentConfig().getFlushDisk() == FlushDisk.SYNC) {
+                this.flushDiskService.flush(response.getMappedFile());
+                this.flushDiskService.flush(putOffsetResp.getMappedFile());
+            }
+        }
         return putOffsetResp;
 
     }
@@ -61,7 +78,10 @@ public class MessageStoreCenter implements GeneralStoreService {
         });
         this.consumeQueueManager.start();
         this.commitLog.start();
-
+        if (this.flushDiskService instanceof AsyncFlushDiskService) {
+            ((AsyncFlushDiskService) flushDiskService).start();
+            log.info("Async flush disk service start successfully");
+        }
     }
 
     @Override

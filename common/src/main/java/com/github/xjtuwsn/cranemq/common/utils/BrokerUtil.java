@@ -24,6 +24,9 @@ public class BrokerUtil {
             if (name.startsWith("set")) {
                 String filedName = name.substring(3, 4).toLowerCase() + name.substring(4);
                 String value = properties.getProperty(filedName);
+                if (value == null) {
+                    continue;
+                }
                 Class<?> parameterType = method.getParameterTypes()[0];
                 if (parameterType != null) {
                     String parameterTypeName = parameterType.getSimpleName();
@@ -39,6 +42,12 @@ public class BrokerUtil {
                     }
                     if (parameterTypeName.equals("Double") || parameterTypeName.equals("double")) {
                         v = Double.valueOf(value);
+                    }
+                    if (parameterTypeName.equals("Long") || parameterTypeName.equals("long")) {
+                        v = Long.valueOf(value);
+                    }
+                    if (parameterTypeName.equals("Boolean") || parameterTypeName.equals("boolean")) {
+                        v = Boolean.valueOf(value);
                     }
                     try {
                         method.invoke(object, v);

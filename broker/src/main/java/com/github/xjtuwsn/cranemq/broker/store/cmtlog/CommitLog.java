@@ -15,6 +15,7 @@ import org.slf4j.LoggerFactory;
 import java.io.File;
 import java.util.Arrays;
 import java.util.Comparator;
+import java.util.Iterator;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
@@ -36,6 +37,7 @@ public class CommitLog extends AbstractLinkedListOrganize implements GeneralStor
     private CreateMappedFileService createMappedFileService;
     private CommitService commitService;
     private ScheduledExecutorService commitScheduleService;
+    private ScheduledExecutorService scanDirectMemoryService;
     private long recordOffset;
     private int recordSize;
 
@@ -44,8 +46,9 @@ public class CommitLog extends AbstractLinkedListOrganize implements GeneralStor
         init();
         if (brokerController.getPersistentConfig().isEnableOutOfMemory()) {
             this.memoryPool = new OutOfHeapMemoryPool(brokerController.getPersistentConfig());
+            this.scanDirectMemoryService = new ScheduledThreadPoolExecutor(1);
+            this.commitScheduleService = new ScheduledThreadPoolExecutor(2);
         }
-        this.commitScheduleService = new ScheduledThreadPoolExecutor(2);
         this.createMappedFileService = new CreateMappedFileService();
         this.commitService = new CommitService();
     }
@@ -60,7 +63,8 @@ public class CommitLog extends AbstractLinkedListOrganize implements GeneralStor
         Arrays.sort(files, Comparator.comparing(File::getName));
         for (File file : files) {
             MappedFile mappedFile = null;
-            if (this.brokerController.getPersistentConfig().isEnableOutOfMemory()) {
+            // 只给最后两个文件对外内存，并开线程定期扫描
+            if (this.brokerController.getPersistentConfig().isEnableOutOfMemory() && index >= files.length - 2) {
                 mappedFile = new MappedFile(index, brokerController.getPersistentConfig().getCommitLogMaxSize(),
                         file.getName(),
                         this.brokerController.getPersistentConfig(), this.memoryPool);
@@ -85,18 +89,41 @@ public class CommitLog extends AbstractLinkedListOrganize implements GeneralStor
                 mappedFile.setWritePointer(nextPos);
                 mappedFile.setCommitPointer(nextPos);
                 mappedFile.setFlushPointer(nextPos);
+                // 把当前位置之后的文件标为空
+                MappedFile cur = mappedFile.next;
+                while (cur != tail) {
+                    cur.setWritePointer(0);
+                    cur.setCommitPointer(0);
+                    cur.setFlushPointer(0);
+                    cur = cur.next;
+                }
             }
 
 
         }
-        // TODO 目前仅仅创建时用到了堆外内存，应该最后一个能写的文件也用，同时也需要归还，测试commit
+        // TODO 目前仅仅创建时用到了堆外内存，应该最后一个能写的文件也用，同时也需要归还，测试commit DONE
         if (brokerController.getPersistentConfig().isEnableOutOfMemory()) {
             this.commitService.start();
             this.commitScheduleService.scheduleAtFixedRate(() -> {
                 commit(true);
             }, 100, brokerController.getPersistentConfig().getAsyncCommitInterval(), TimeUnit.MILLISECONDS);
+            this.scanDirectMemoryService.scheduleAtFixedRate(() -> {
+                scanDirectMemory();
+            }, 1000, 10 * 1000, TimeUnit.MILLISECONDS);
+            log.info("CommitService, CommitScheduleService and ScanDirectMemoryService start successfully");
         }
         this.createMappedFileService.start();
+    }
+
+    private void scanDirectMemory() {
+        Iterator<MappedFile> iterator = this.iterator();
+        while (iterator.hasNext()) {
+            MappedFile mappedFile = iterator.next();
+            if (!mappedFile.canWrite() && mappedFile.ownDirectMemory()) {
+                mappedFile.returnMemory();
+                log.info("MappedFile {} return 1 direct memeoy", mappedFile.getFileName());
+            }
+        }
     }
 
     public void recoveryFromQueue(long offset, int size) {
@@ -112,6 +139,7 @@ public class CommitLog extends AbstractLinkedListOrganize implements GeneralStor
         } else if (last.prev != head && last.prev.canWrite()) {
             last = last.prev;
         }
+        last.markWrite();
         return last;
     }
     @Override

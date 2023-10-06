@@ -1,5 +1,6 @@
 package com.github.xjtuwsn.cranemq.broker.store;
 
+import java.util.Iterator;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.ReentrantLock;
@@ -39,5 +40,27 @@ public abstract class AbstractLinkedListOrganize {
     }
     protected int nextIndex() {
         return this.mappedTable.size() - 2;
+    }
+    public MappedIterator iterator() {
+        return new MappedIterator(head);
+    }
+
+    class MappedIterator implements Iterator<MappedFile> {
+        private MappedFile pointer;
+
+        public MappedIterator(MappedFile pointer) {
+            this.pointer = pointer;
+        }
+
+        @Override
+        public boolean hasNext() {
+            return pointer.next != tail;
+        }
+
+        @Override
+        public MappedFile next() {
+            pointer = pointer.next;
+            return pointer;
+        }
     }
 }
