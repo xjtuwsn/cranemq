@@ -58,7 +58,7 @@ public class BrokerController implements GeneralStoreService {
                         return new Thread(r, "Producer Message Service NO." + idx.getAndIncrement());
                     }
                 });
-        this.createTopicService = new ThreadPoolExecutor(coreSize / 2, maxSize / 2,
+        this.createTopicService = new ThreadPoolExecutor(coreSize / 3, maxSize / 3,
                 60L, TimeUnit.SECONDS, new LinkedBlockingDeque<>(5000),
                 new ThreadFactory() {
                     AtomicInteger idx = new AtomicInteger(0);
@@ -67,8 +67,8 @@ public class BrokerController implements GeneralStoreService {
                         return new Thread(r, "Create Topic Thread NO." + idx.getAndIncrement());
                     }
                 });
-        this.handleHeartBeatService = new ThreadPoolExecutor(coreSize / 2, maxSize / 2,
-                60L, TimeUnit.SECONDS, new LinkedBlockingDeque<>(5000),
+        this.handleHeartBeatService = new ThreadPoolExecutor(coreSize / 3, maxSize / 3,
+                60L, TimeUnit.SECONDS, new LinkedBlockingDeque<>(8000),
                 new ThreadFactory() {
                     AtomicInteger idx = new AtomicInteger(0);
                     @Override

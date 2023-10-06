@@ -22,4 +22,6 @@ public class BrokerConfig {
 
     private int port;
 
+    private long keepAliveTime = 1000 * 120;
+
 }

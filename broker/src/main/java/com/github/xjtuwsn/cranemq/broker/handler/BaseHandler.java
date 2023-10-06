@@ -41,7 +41,7 @@ public class BaseHandler extends SimpleChannelInboundHandler<RemoteCommand> {
     private BrokerProcessor brokerProcessor;
     public BaseHandler(RemoteServer remoteServer) {
         this.remoteServer = remoteServer;
-        this.brokerProcessor = new BrokerProcessor(this.remoteServer.getController());
+        this.brokerProcessor = new BrokerProcessor(this.remoteServer.getController(), remoteServer);
     }
     @Override
     protected void channelRead0(ChannelHandlerContext channelHandlerContext, RemoteCommand request) throws Exception {

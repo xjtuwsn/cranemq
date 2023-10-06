@@ -1,5 +1,6 @@
 package com.github.xjtuwsn.cranemq.broker.remote;
 
+import com.github.xjtuwsn.cranemq.common.command.payloads.MQHeartBeatRequest;
 import io.netty.channel.Channel;
 
 /**
@@ -14,4 +15,6 @@ public interface ChannelEventListener {
     void onDisconnect(Channel channel);
     void onIdle(Channel channel);
     void onException(Channel channel);
+    void onProducerHeartBeat(MQHeartBeatRequest request, Channel channel);
+    void onConsumerHeartBeat(MQHeartBeatRequest request, Channel channel);
 }

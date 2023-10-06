@@ -10,5 +10,7 @@ public enum ConnectionEventType {
     CONNECT,
     IDLE,
     DISCONNECT,
-    EXCEPTION
+    EXCEPTION,
+    PRODUCER_HEARTBEAT,
+    CONSUMER_HEARTBEAT
 }

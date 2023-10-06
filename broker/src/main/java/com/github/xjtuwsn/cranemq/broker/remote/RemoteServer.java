@@ -121,7 +121,7 @@ public class RemoteServer implements RemoteService {
         public void publish(ConnectionEvent event) {
             int size = queue.size();
             if (size > 20000) {
-                log.warn("Too much event, connot been handlered, number is {}", size);
+                log.warn("Too much event, connot been handled, number is {}", size);
             } else {
                 queue.add(event);
             }
@@ -146,6 +146,13 @@ public class RemoteServer implements RemoteService {
                             case EXCEPTION:
                                 RemoteServer.this.channelEventListener.onException(channel);
                                 break;
+                            case PRODUCER_HEARTBEAT:
+                                RemoteServer.this.channelEventListener.onProducerHeartBeat(event.getHeartBeatRequest(),
+                                        channel);
+                                break;
+                            case CONSUMER_HEARTBEAT:
+                                RemoteServer.this.channelEventListener.onConsumerHeartBeat(event.getHeartBeatRequest(),
+                                        channel);
                             default:
                                 break;
                         }

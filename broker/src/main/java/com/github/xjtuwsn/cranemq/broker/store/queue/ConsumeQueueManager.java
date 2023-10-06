@@ -10,6 +10,7 @@ import com.github.xjtuwsn.cranemq.broker.store.cmtlog.RecoveryListener;
 import com.github.xjtuwsn.cranemq.broker.store.comm.AsyncRequest;
 import com.github.xjtuwsn.cranemq.broker.store.comm.PutMessageResponse;
 import com.github.xjtuwsn.cranemq.broker.store.comm.StoreRequestType;
+import com.github.xjtuwsn.cranemq.common.route.QueueData;
 import com.github.xjtuwsn.cranemq.common.utils.BrokerUtil;
 import io.netty.util.internal.StringUtil;
 import org.slf4j.Logger;
@@ -54,36 +55,60 @@ public class ConsumeQueueManager implements GeneralStoreService {
         }
         File[] topicFiles = rootDir.listFiles();
         for (File topicDir : topicFiles) {
-            String topic = topicDir.getName();
-            ConcurrentHashMap<Integer, ConsumeQueue> queueConcurrentHashMap = new ConcurrentHashMap<>();
-            this.queueTable.put(topic, queueConcurrentHashMap);
-            for (File queues : topicDir.listFiles()) {
-                String queueIdStr = queues.getName();
-                if (StrUtil.isNumeric(queueIdStr)) {
-                    int queueId = Integer.parseInt(queueIdStr);
-                    ConsumeQueue consumeQueue = new ConsumeQueue(queueId, topic, this.persistentConfig);
-                    queueConcurrentHashMap.put(queueId, consumeQueue);
-                    consumeQueue.registerCreateListener(new CreateRequestListener() {
-                        @Override
-                        public MappedFile onRequireCreate(String topic, int queueId, int index) {
-                            return createQueueService.putCreateRequest(index, topic, queueId);
-                        }
-                    });
-                    consumeQueue.registerUpdateOffsetListener(this.recoveryListener);
-                    consumeQueue.start();
-                }
-            }
+            loadTopicQueueFile(topicDir);
+
         }
         this.createQueueService.start();
         log.info("ConsumeQueue Manager start successfylly");
     }
-
+    private void loadTopicQueueFile(File topicDir) {
+        String topic = topicDir.getName();
+        ConcurrentHashMap<Integer, ConsumeQueue> queueConcurrentHashMap = new ConcurrentHashMap<>();
+        this.queueTable.put(topic, queueConcurrentHashMap);
+        for (File queues : topicDir.listFiles()) {
+            String queueIdStr = queues.getName();
+            if (StrUtil.isNumeric(queueIdStr)) {
+                int queueId = Integer.parseInt(queueIdStr);
+                ConsumeQueue consumeQueue = new ConsumeQueue(queueId, topic, this.persistentConfig);
+                queueConcurrentHashMap.put(queueId, consumeQueue);
+                consumeQueue.registerCreateListener(new CreateRequestListener() {
+                    @Override
+                    public MappedFile onRequireCreate(String topic, int queueId, int index) {
+                        return createQueueService.putCreateRequest(index, topic, queueId);
+                    }
+                });
+                consumeQueue.registerUpdateOffsetListener(this.recoveryListener);
+                consumeQueue.start();
+            }
+        }
+    }
     public void registerRecoveryListener(RecoveryListener listener) {
         this.recoveryListener = listener;
     }
     public Iterator<ConcurrentHashMap<Integer, ConsumeQueue>> iterator() {
         Iterator<ConcurrentHashMap<Integer, ConsumeQueue>> iterator = queueTable.values().iterator();
         return iterator;
+    }
+    // TODO 重构加载start时的方法，完成create，晚上顺序消息
+    public synchronized QueueData createQueue(String topic, int writeNumber, int readNumber) {
+        QueueData res = new QueueData(brokerController.getBrokerConfig().getBrokerName());
+        if (queueTable.containsKey(topic)) {
+            int number = queueTable.get(topic).size();
+            res.setWriteQueueNums(number);
+            res.setReadQueueNums(number);
+            return res;
+        }
+        String path = persistentConfig.getConsumerqueuePath() + topic + "\\";
+        File rootDir = new File(path);
+        rootDir.mkdir();
+        for (int i = 0; i < writeNumber; i++) {
+            String filePath = path + i + "\\";
+            File queue = new File(filePath);
+            queue.mkdir();
+        }
+        loadTopicQueueFile(rootDir);
+        log.info("Finish create {} consumequeue, writenumber is {}", topic, writeNumber);
+        return new QueueData(topic, writeNumber, readNumber);
     }
     @Override
     public void close() {

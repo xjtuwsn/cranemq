@@ -23,4 +23,6 @@ public interface MQProducer {
     SendResult send(List<Message> messages);
     void send(List<Message> messages, boolean oneWay);
     void send(List<Message> messages, SendCallback callback);
+
+    SendResult send(Message message, MQSelector selector, Object arg);
 }

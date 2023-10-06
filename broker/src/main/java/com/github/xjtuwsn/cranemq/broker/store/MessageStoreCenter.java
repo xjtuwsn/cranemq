@@ -9,7 +9,9 @@ import com.github.xjtuwsn.cranemq.broker.store.flush.AsyncFlushDiskService;
 import com.github.xjtuwsn.cranemq.broker.store.flush.FlushDiskService;
 import com.github.xjtuwsn.cranemq.broker.store.flush.SyncFlushDiskService;
 import com.github.xjtuwsn.cranemq.broker.store.queue.ConsumeQueueManager;
+import com.github.xjtuwsn.cranemq.common.command.payloads.MQCreateTopicRequest;
 import com.github.xjtuwsn.cranemq.common.config.FlushDisk;
+import com.github.xjtuwsn.cranemq.common.route.QueueData;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -68,6 +70,13 @@ public class MessageStoreCenter implements GeneralStoreService {
         }
         return putOffsetResp;
 
+    }
+
+    public QueueData createTopic(MQCreateTopicRequest mqCreateTopicRequest) {
+        String topic = mqCreateTopicRequest.getTopic();
+        int writeNumber = mqCreateTopicRequest.getWirteNumber();
+        int readNumber = mqCreateTopicRequest.getReadNumber();
+        return consumeQueueManager.createQueue(topic, writeNumber, readNumber);
     }
     public void start() {
         this.consumeQueueManager.registerRecoveryListener(new RecoveryListener() {

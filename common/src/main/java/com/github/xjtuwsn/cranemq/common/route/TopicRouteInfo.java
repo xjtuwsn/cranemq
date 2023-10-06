@@ -33,6 +33,20 @@ public class TopicRouteInfo implements Serializable {
     public TopicRouteInfo(String topic) {
         this.topic = topic;
     }
+    public List<MessageQueue> getAllQueueList() {
+        return brokerData.stream().map(BrokerData::getMasterQueueData).map(e -> {
+            int number = e.getWriteQueueNums();
+            List<MessageQueue> list = new ArrayList<>();
+            for (int i = 0; i < number; i++) {
+                MessageQueue messageQueue = new MessageQueue(topic, e.getBroker(), i);
+                list.add(messageQueue);
+            }
+            return list;
+        }).reduce(new ArrayList<>(), (a, b) -> {
+             a.addAll(b);
+             return a;
+        });
+    }
     public MessageQueue getNumberKQueue(int k) {
         int sum = 0, idx = 0, p = 0;
         for (BrokerData data : this.brokerData) {
@@ -78,6 +92,9 @@ public class TopicRouteInfo implements Serializable {
         this.brokerData.addAll(other.getBrokerData());
     }
     public List<String> getExpiredBrokerAddress(TopicRouteInfo other) {
+        if (other == null) {
+            return this.brokerData.stream().map(BrokerData::getMasterAddress).collect(Collectors.toList());
+        }
         Set<String> newAddress =
                 other.getBrokerData().stream().map(BrokerData::getMasterAddress).collect(Collectors.toSet());
         List<String> ans = new ArrayList<>();

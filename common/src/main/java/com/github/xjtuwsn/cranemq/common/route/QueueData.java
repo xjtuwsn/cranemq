@@ -21,4 +21,7 @@ public class QueueData implements Serializable {
     private int readQueueNums;
     private int writeQueueNums;
 
+    public QueueData(String broker) {
+        this.broker = broker;
+    }
 }

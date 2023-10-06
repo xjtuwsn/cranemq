@@ -3,6 +3,7 @@ package com.github.xjtuwsn.cranemq.client.producer.impl;
 import cn.hutool.core.collection.ConcurrentHashSet;
 import cn.hutool.core.util.StrUtil;
 import com.github.xjtuwsn.cranemq.client.hook.SendCallback;
+import com.github.xjtuwsn.cranemq.client.producer.MQSelector;
 import com.github.xjtuwsn.cranemq.client.producer.balance.LoadBalanceStrategy;
 import com.github.xjtuwsn.cranemq.client.producer.result.SendResult;
 import com.github.xjtuwsn.cranemq.common.command.*;
@@ -77,7 +78,7 @@ public class DefaultMQProducerImpl implements MQProducerInner {
         }
         this.checkConfig();
         this.address = this.defaultMQProducer.getBrokerAddress();
-        this.clientID = buildClientID();
+        this.clientID = buildClientID("producer");
 
         this.clientInstance = ClienFactory.newInstance().getOrCreate(this.clientID, this, this.hook);
         if (this.loadBalanceStrategy != null) {
@@ -92,11 +93,16 @@ public class DefaultMQProducerImpl implements MQProducerInner {
 
     }
 
-    public SendResult sendSync(long timeout, boolean isOneWay, Message... messages) throws CraneClientException {
+    public SendResult sendSync(long timeout, boolean isOneWay, MQSelector selector, Object arg, Message... messages)
+            throws CraneClientException {
         if (messages == null || messages.length == 0) {
             throw new CraneClientException("Message cannot be empty!");
         }
         WrapperFutureCommand wrappered = buildRequest(RpcType.SYNC, null, timeout, messages);
+        if (selector != null) {
+            wrappered.setSelector(selector);
+            wrappered.setArg(arg);
+        }
         String correlationID = wrappered.getFutureCommand().getRequest().getHeader().getCorrelationId();
         if (isOneWay) {
             wrappered.getFutureCommand().getRequest().getHeader().setRpcType(RpcType.ONE_WAY);
@@ -107,6 +113,11 @@ public class DefaultMQProducerImpl implements MQProducerInner {
         FutureCommand futureCommand = wrappered.getFutureCommand();
 
         return this.clientInstance.sendMessageSync(wrappered, isOneWay);
+    }
+
+    public SendResult sendSync(long timeout, boolean isOneWay, Message... messages)
+            throws CraneClientException {
+        return this.sendSync(timeout, isOneWay, null, null, messages);
     }
 
     public void sendAsync(SendCallback callback, long timeout, Message... messages) {
@@ -164,10 +175,10 @@ public class DefaultMQProducerImpl implements MQProducerInner {
         this.clientInstance.shutdown();
     }
 
-    private String buildClientID() {
+    private String buildClientID(String role) {
         String ip = NetworkUtil.getLocalAddress();
         StringBuilder id = new StringBuilder();
-        id.append(ip).append("@").append("@").append("default");
+        id.append(ip).append("@").append(role).append("@").append("default");
 
         return id.toString();
     }

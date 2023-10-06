@@ -1,6 +1,7 @@
 package com.github.xjtuwsn.cranemq.client.producer.impl;
 
 import com.github.xjtuwsn.cranemq.client.hook.SendCallback;
+import com.github.xjtuwsn.cranemq.client.producer.MQSelector;
 import com.github.xjtuwsn.cranemq.common.command.FutureCommand;
 import com.github.xjtuwsn.cranemq.common.command.RemoteCommand;
 import lombok.ToString;
@@ -25,6 +26,8 @@ public class WrapperFutureCommand {
     private AtomicLong startTime;
     private AtomicInteger currentRetryTime;
     private SendCallback callback;
+    private MQSelector selector;
+    private Object arg;
 
     public WrapperFutureCommand(FutureCommand futureCommand, String topic, long timeout, SendCallback callback) {
         this(futureCommand, -1, timeout, callback, topic);
@@ -83,5 +86,21 @@ public class WrapperFutureCommand {
 
     public void setToRegistery(boolean toRegistery) {
         this.toRegistery = toRegistery;
+    }
+
+    public MQSelector getSelector() {
+        return selector;
+    }
+
+    public void setSelector(MQSelector selector) {
+        this.selector = selector;
+    }
+
+    public Object getArg() {
+        return arg;
+    }
+
+    public void setArg(Object arg) {
+        this.arg = arg;
     }
 }

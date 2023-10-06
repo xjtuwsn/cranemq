@@ -3,6 +3,7 @@ package com.github.xjtuwsn.cranemq.client.remote;
 import cn.hutool.core.util.StrUtil;
 import com.github.xjtuwsn.cranemq.client.hook.InnerCallback;
 import com.github.xjtuwsn.cranemq.client.hook.SendCallback;
+import com.github.xjtuwsn.cranemq.client.producer.MQSelector;
 import com.github.xjtuwsn.cranemq.client.producer.balance.LoadBalanceStrategy;
 import com.github.xjtuwsn.cranemq.client.producer.balance.RandomStrategy;
 import com.github.xjtuwsn.cranemq.client.producer.impl.DefaultMQProducerImpl;
@@ -47,6 +48,7 @@ public class ClientInstance {
     private RemoteHook hook;
     private RemoteClent remoteClent;
     private ExecutorService asyncSendThreadPool;
+    private ExecutorService orderSendThreadPool;
     private ExecutorService parallelCreateService;
     private String registryAddress;
     private String clientId;
@@ -104,6 +106,14 @@ public class ClientInstance {
                     }
                 },
                 new ThreadPoolExecutor.AbortPolicy());
+        this.orderSendThreadPool = new ThreadPoolExecutor(1, 1, 60L,
+                TimeUnit.SECONDS, new LinkedBlockingDeque<>(10000),
+                new ThreadFactory() {
+                    @Override
+                    public Thread newThread(Runnable r) {
+                        return new Thread(r, "Ordered send thread");
+                    }
+                }, new ThreadPoolExecutor.AbortPolicy());
         // 对于每一个消息，定时判断是否删除的线程池
         this.retryService = Executors.newScheduledThreadPool(3, new ThreadFactory() {
             AtomicInteger count = new AtomicInteger(0);
@@ -242,7 +252,16 @@ public class ClientInstance {
     // TODO 根据负载均衡选出队列，和指定地址，发送消息
     // TODO 更改路由表和相关逻辑
     private String selectProducedQueueAndChangeHeader(final WrapperFutureCommand wrappered, String topic) {
-        MessageQueue queue = this.loadBalanceStrategy.getNextQueue(topic, this.topicTable.get(topic));
+        MQSelector selector = wrappered.getSelector();
+        MessageQueue queue = null;
+        if (selector == null) {
+            queue = this.loadBalanceStrategy.getNextQueue(topic, this.topicTable.get(topic));
+        } else {
+            TopicRouteInfo info = this.topicTable.get(topic);
+            List<MessageQueue> messageQueues = info.getAllQueueList();
+            queue = selector.select(messageQueues, wrappered.getArg());
+        }
+
         if (queue == null) {
             throw new CraneClientException("Queue select error");
         }
@@ -294,9 +313,7 @@ public class ClientInstance {
         if (this.hook != null && !wrappered.isToRegistery()) {
             this.hook.beforeMessage();
         }
-//        this.asyncSendThreadPool.execute(() -> {
-//            sendCore(wrappered, null);
-//        });
+
         this.sendAdaptor(wrappered, null);
         if (isOneWay) return null;
         SendResult result = null;
@@ -387,12 +404,18 @@ public class ClientInstance {
             }
 
         }
+        if (wrappered.getSelector() == null) {
+            this.asyncSendThreadPool.execute(() -> {
+                this.sendCore(wrappered, callback, this.asyncSendThreadPool);
+            });
+        } else {
+            this.orderSendThreadPool.execute(() -> {
+                this.sendCore(wrappered, callback, this.orderSendThreadPool);
+            });
+        }
 
-        this.asyncSendThreadPool.execute(() -> {
-            this.sendCore(wrappered, callback);
-        });
     }
-    private void sendCore(final WrapperFutureCommand wrappered, SendCallback callback) {
+    private void sendCore(final WrapperFutureCommand wrappered, SendCallback callback, ExecutorService executorService) {
         RemoteCommand remoteCommand = wrappered.getFutureCommand().getRequest();
         RpcType rpcType = remoteCommand.getHeader().getRpcType();
         String correlationID = remoteCommand.getHeader().getCorrelationId();
@@ -429,9 +452,9 @@ public class ClientInstance {
                     // 重试
                     newWrappered.increaseRetryTime();
                     newWrappered.setStartTime(System.currentTimeMillis());
-                    this.asyncSendThreadPool.execute(() -> {
+                    executorService.execute(() -> {
                         log.info("Request {} do retry", correlationID);
-                        sendCore(newWrappered, callback);
+                        sendCore(newWrappered, callback, executorService);
                     });
 
                 }, wrappered.getTimeout(), TimeUnit.MILLISECONDS);

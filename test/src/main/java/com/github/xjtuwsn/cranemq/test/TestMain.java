@@ -1,6 +1,8 @@
 package com.github.xjtuwsn.cranemq.test;
 
 import com.github.xjtuwsn.cranemq.broker.core.MqBroker;
+import com.github.xjtuwsn.cranemq.client.producer.MQSelector;
+import com.github.xjtuwsn.cranemq.common.entity.MessageQueue;
 import com.github.xjtuwsn.cranemq.common.net.RemoteHook;
 import com.github.xjtuwsn.cranemq.client.producer.DefaultMQProducer;
 import com.github.xjtuwsn.cranemq.client.producer.balance.RoundRobinStrategy;
@@ -8,6 +10,8 @@ import com.github.xjtuwsn.cranemq.common.entity.Message;
 import com.github.xjtuwsn.cranemq.common.net.RemoteAddress;
 import com.github.xjtuwsn.cranemq.registry.core.Registry;
 import org.junit.Test;
+
+import java.util.List;
 
 /**
  * @project:cranemq
@@ -42,11 +46,17 @@ public class TestMain {
             producer.start();
             Message message1 = new Message(topic, "hhhh".getBytes());
             Message message2 = new Message(topic, "aaaa".getBytes());
-             producer.send(message2);
+            // producer.send(message2);
             long start = System.nanoTime();
-            for (int i = 0; i < 2; i++) {
+            for (int i = 0; i < 5; i++) {
 
-                producer.send(message2);
+                producer.send(message2, new MQSelector() {
+                    @Override
+                    public MessageQueue select(List<MessageQueue> queues, Object arg) {
+                        int index = (int) arg;
+                        return queues.get((index + 1) % queues.size());
+                    }
+                }, i);
             }
             long end = System.nanoTime();
             double cost = (end - start) / 1e6;

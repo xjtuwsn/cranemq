@@ -146,6 +146,12 @@ public class DefaultMQProducer implements MQProducer {
     public void send(List<Message> messages, SendCallback callback) throws CraneClientException {
         this.defaultMQProducerImpl.sendAsync(callback, this.responseTimeoutMills, messages.toArray(new Message[0]));
     }
+
+    @Override
+    public SendResult send(Message message, MQSelector selector, Object arg) {
+        return this.defaultMQProducerImpl.sendSync(this.responseTimeoutMills, false, selector, arg, message);
+    }
+
     public void bindRegistery(String registryAddr) {
         if (StrUtil.isEmpty(registryAddr)) {
             throw new CraneClientException("Registery address canot be null or empty");
