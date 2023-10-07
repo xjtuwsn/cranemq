@@ -1,9 +1,8 @@
 package com.github.xjtuwsn.cranemq.broker.client;
 
-import cn.hutool.core.collection.ConcurrentHashSet;
 import com.github.xjtuwsn.cranemq.broker.BrokerController;
-import com.github.xjtuwsn.cranemq.broker.remote.ChannelEventListener;
-import com.github.xjtuwsn.cranemq.common.command.payloads.MQHeartBeatRequest;
+import com.github.xjtuwsn.cranemq.common.remote.event.ChannelEventListener;
+import com.github.xjtuwsn.cranemq.common.command.payloads.req.MQHeartBeatRequest;
 import io.netty.channel.Channel;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

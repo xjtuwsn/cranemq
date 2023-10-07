@@ -3,13 +3,11 @@ package com.github.xjtuwsn.cranemq.registry.handler;
 import com.github.xjtuwsn.cranemq.common.command.Header;
 import com.github.xjtuwsn.cranemq.common.command.PayLoad;
 import com.github.xjtuwsn.cranemq.common.command.RemoteCommand;
-import com.github.xjtuwsn.cranemq.common.command.payloads.MQProduceRequest;
-import com.github.xjtuwsn.cranemq.common.command.payloads.MQUpdateTopicRequest;
-import com.github.xjtuwsn.cranemq.common.command.payloads.MQUpdateTopicResponse;
+import com.github.xjtuwsn.cranemq.common.command.payloads.req.MQUpdateTopicRequest;
+import com.github.xjtuwsn.cranemq.common.command.payloads.resp.MQUpdateTopicResponse;
 import com.github.xjtuwsn.cranemq.common.command.types.RequestType;
 import com.github.xjtuwsn.cranemq.common.command.types.ResponseType;
 import com.github.xjtuwsn.cranemq.common.constant.MQConstant;
-import com.github.xjtuwsn.cranemq.common.entity.Message;
 import com.github.xjtuwsn.cranemq.common.route.BrokerData;
 import com.github.xjtuwsn.cranemq.common.route.QueueData;
 import com.github.xjtuwsn.cranemq.common.route.TopicRouteInfo;
@@ -17,9 +15,7 @@ import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.SimpleChannelInboundHandler;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**

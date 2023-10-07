@@ -12,5 +12,6 @@ public enum ResponseType implements Type {
     CREATE_TOPIC_RESPONSE,
 
     QUERY_BROKER_RESPONSE,
-    RESPONSE_FAILED
+    RESPONSE_FAILED,
+    SIMPLE_PULL_RESPONSE
 }

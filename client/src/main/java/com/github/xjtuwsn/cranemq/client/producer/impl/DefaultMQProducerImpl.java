@@ -7,22 +7,21 @@ import com.github.xjtuwsn.cranemq.client.producer.MQSelector;
 import com.github.xjtuwsn.cranemq.client.producer.balance.LoadBalanceStrategy;
 import com.github.xjtuwsn.cranemq.client.producer.result.SendResult;
 import com.github.xjtuwsn.cranemq.common.command.*;
-import com.github.xjtuwsn.cranemq.common.command.payloads.MQBachProduceRequest;
+import com.github.xjtuwsn.cranemq.common.command.payloads.req.MQBachProduceRequest;
 import com.github.xjtuwsn.cranemq.common.utils.TopicUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import com.github.xjtuwsn.cranemq.common.net.RemoteHook;
+import com.github.xjtuwsn.cranemq.common.remote.RemoteHook;
 import com.github.xjtuwsn.cranemq.client.producer.DefaultMQProducer;
 import com.github.xjtuwsn.cranemq.client.producer.MQProducerInner;
 import com.github.xjtuwsn.cranemq.client.remote.ClienFactory;
 import com.github.xjtuwsn.cranemq.client.remote.ClientInstance;
-import com.github.xjtuwsn.cranemq.common.command.payloads.MQProduceRequest;
+import com.github.xjtuwsn.cranemq.common.command.payloads.req.MQProduceRequest;
 import com.github.xjtuwsn.cranemq.common.command.types.RequestType;
 import com.github.xjtuwsn.cranemq.common.command.types.RpcType;
 import com.github.xjtuwsn.cranemq.common.entity.Message;
 import com.github.xjtuwsn.cranemq.common.exception.CraneClientException;
-import com.github.xjtuwsn.cranemq.common.net.RemoteAddress;
-import com.github.xjtuwsn.cranemq.common.utils.NetworkUtil;
+import com.github.xjtuwsn.cranemq.common.remote.RemoteAddress;
 
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -47,7 +46,7 @@ public class DefaultMQProducerImpl implements MQProducerInner {
     private RemoteAddress address;
     private String registryAddress;
     private String clientID;
-    LoadBalanceStrategy loadBalanceStrategy;
+    private LoadBalanceStrategy loadBalanceStrategy;
     private ConcurrentHashSet<String> topicSet = new ConcurrentHashSet<>();
     /**
      * 0: created
@@ -78,9 +77,9 @@ public class DefaultMQProducerImpl implements MQProducerInner {
         }
         this.checkConfig();
         this.address = this.defaultMQProducer.getBrokerAddress();
-        this.clientID = buildClientID("producer");
+        this.clientID = TopicUtil.buildClientID("producer");
 
-        this.clientInstance = ClienFactory.newInstance().getOrCreate(this.clientID, this, this.hook);
+        this.clientInstance = ClienFactory.newInstance().getOrCreate(this.clientID, this.hook);
         if (this.loadBalanceStrategy != null) {
             this.clientInstance.setLoadBalanceStrategy(this.loadBalanceStrategy);
         }
@@ -88,6 +87,7 @@ public class DefaultMQProducerImpl implements MQProducerInner {
         this.clientInstance.registerProducer(this);
         this.state.set(1);
         this.clientInstance.sendHeartBeatToBroker();
+        this.clientInstance.start();
 //        this.remoteClient.start();
 
 
@@ -175,13 +175,7 @@ public class DefaultMQProducerImpl implements MQProducerInner {
         this.clientInstance.shutdown();
     }
 
-    private String buildClientID(String role) {
-        String ip = NetworkUtil.getLocalAddress();
-        StringBuilder id = new StringBuilder();
-        id.append(ip).append("@").append(role).append("@").append("default");
 
-        return id.toString();
-    }
 
     private void checkConfig() throws CraneClientException {
         if (StrUtil.isEmpty(this.defaultMQProducer.getTopic())) {

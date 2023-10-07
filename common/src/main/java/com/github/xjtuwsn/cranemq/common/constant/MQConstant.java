@@ -9,7 +9,9 @@ package com.github.xjtuwsn.cranemq.common.constant;
 public class MQConstant {
     public static final String DEFAULT_TOPIC_NAME = "default-topic";
     public static final String DEFAULT_GROUP_NAME = "default-group";
-    public static final long RESPONSE_TIMEOUT_MILLS = 115000;
+    public static final String DEFAULT_CONSUMER_GROUP = "default-consumer";
+    public static final long RESPONSE_TIMEOUT_MILLS = 3000;
+    public static final long MAX_PULL_TIMEOUT_MILLS = 3000;
 
     public static final int MAX_RETRY_TIMES = 2;
 

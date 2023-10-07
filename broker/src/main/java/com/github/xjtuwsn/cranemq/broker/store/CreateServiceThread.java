@@ -17,7 +17,7 @@ public abstract class CreateServiceThread extends Thread {
     protected LinkedBlockingQueue<AsyncRequest> requestQueue;
     protected ConcurrentHashMap<String, AsyncRequest> requestTable = new ConcurrentHashMap<>();
     public CreateServiceThread() {
-        this.requestQueue = new LinkedBlockingQueue<>(500);
+        this.requestQueue = new LinkedBlockingQueue<>(1000);
     }
     @Override
     public void run() {

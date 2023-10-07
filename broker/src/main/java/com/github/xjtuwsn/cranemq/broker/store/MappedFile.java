@@ -1,9 +1,12 @@
 package com.github.xjtuwsn.cranemq.broker.store;
 
+import cn.hutool.core.lang.Pair;
 import com.github.xjtuwsn.cranemq.broker.store.comm.PutMessageResponse;
+import com.github.xjtuwsn.cranemq.broker.store.comm.StoreInnerMessage;
 import com.github.xjtuwsn.cranemq.broker.store.comm.StoreResponseType;
 import com.github.xjtuwsn.cranemq.broker.store.pool.OutOfHeapMemoryPool;
 import com.github.xjtuwsn.cranemq.common.constant.MQConstant;
+import com.github.xjtuwsn.cranemq.common.entity.Message;
 import com.github.xjtuwsn.cranemq.common.utils.BrokerUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -11,9 +14,12 @@ import org.slf4j.LoggerFactory;
 import java.io.File;
 import java.io.IOException;
 import java.io.RandomAccessFile;
+import java.io.UnsupportedEncodingException;
 import java.nio.ByteBuffer;
 import java.nio.MappedByteBuffer;
 import java.nio.channels.FileChannel;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.ReentrantLock;
 
@@ -184,6 +190,40 @@ public class MappedFile {
             writeLock.unlock();
         }
     }
+    // 总长度int + topic长度int + topic + tag长度int + tag + body长度int + body + 队列号int
+    public Message readSingleMessage(int start) {
+        int readPointer = getReadPointer();
+        if (start >= readPointer) {
+            log.error("Out of limit");
+            return null;
+        }
+        ByteBuffer byteBuffer = this.mappedByteBuffer.slice();
+        byteBuffer.position(start);
+        Message message = null;
+
+        try {
+            int total = byteBuffer.getInt();
+
+            int topicSize = byteBuffer.getInt();
+            byte[] topicByte = new byte[topicSize];
+            byteBuffer.get(topicByte);
+            String topic = new String(topicByte, MQConstant.CHARSETNAME);
+
+            int tagSize = byteBuffer.getInt();
+            byte[] tagByte = new byte[tagSize];
+            byteBuffer.get(tagByte);
+            String tag = new String(tagByte, MQConstant.CHARSETNAME);
+
+            int bodySize = byteBuffer.getInt();
+            byte[] body = new byte[bodySize];
+
+            message = new Message(topic, tag, body);
+
+        } catch (UnsupportedEncodingException e) {
+            log.warn("UnsupportedEncodingException in readSingleMessage");
+        }
+        return message;
+    }
 
     public PutMessageResponse putOffsetIndex(long offset, int size) {
         if (offset < 0 || size < 0) {
@@ -205,6 +245,41 @@ public class MappedFile {
         writeLock.unlock();
         // this.mappedByteBuffer.force();
         return new PutMessageResponse(StoreResponseType.STORE_OK, pos, this);
+    }
+    private int getReadPointer() {
+        return this.directBuffer == null ? this.writePointer.get() : this.commitPointer.get();
+    }
+    public Pair<Long, Integer> readSingleOffsetIndex(int start) {
+        int readPointer = getReadPointer();
+        if (start >= readPointer) {
+            log.error("Canot over the read pointer");
+            return null;
+        }
+        ByteBuffer byteBuffer = this.mappedByteBuffer.slice();
+        byteBuffer.position(start);
+        long offset = byteBuffer.getLong();
+        int size = byteBuffer.getInt();
+        return new Pair<>(offset, size);
+    }
+
+    public List<Pair<Long, Integer>> readOffsetIndex(int start, int number) {
+        int readPointer = getReadPointer();
+        if (start >= readPointer) {
+            log.error("Canot over the read pointer");
+            return null;
+        }
+        ByteBuffer byteBuffer = this.mappedByteBuffer.slice();
+        byteBuffer.position(start);
+        List<Pair<Long, Integer>> list = new ArrayList<>();
+
+        while (number-- > 0 && start < readPointer) {
+            long offset = byteBuffer.getLong();
+            int size = byteBuffer.getInt();
+            list.add(new Pair<>(offset, size));
+            start += persistentConfig.getQueueUnit();
+        }
+
+        return list;
     }
     private int calTotalLength(int topicLen, int tagLen, int bodyLen) {
         return 4 + 4 + topicLen + 4 + tagLen + 4 + bodyLen + 4;

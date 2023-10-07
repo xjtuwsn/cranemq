@@ -1,19 +1,33 @@
 package com.github.xjtuwsn.cranemq.broker.store;
 
+import cn.hutool.core.lang.Pair;
 import com.github.xjtuwsn.cranemq.broker.BrokerController;
 import com.github.xjtuwsn.cranemq.broker.store.cmtlog.CommitLog;
 import com.github.xjtuwsn.cranemq.broker.store.cmtlog.RecoveryListener;
 import com.github.xjtuwsn.cranemq.broker.store.comm.PutMessageResponse;
+import com.github.xjtuwsn.cranemq.broker.store.comm.StoreInnerMessage;
 import com.github.xjtuwsn.cranemq.broker.store.comm.StoreResponseType;
 import com.github.xjtuwsn.cranemq.broker.store.flush.AsyncFlushDiskService;
 import com.github.xjtuwsn.cranemq.broker.store.flush.FlushDiskService;
 import com.github.xjtuwsn.cranemq.broker.store.flush.SyncFlushDiskService;
+import com.github.xjtuwsn.cranemq.broker.store.queue.ConsumeQueue;
 import com.github.xjtuwsn.cranemq.broker.store.queue.ConsumeQueueManager;
-import com.github.xjtuwsn.cranemq.common.command.payloads.MQCreateTopicRequest;
+import com.github.xjtuwsn.cranemq.common.command.payloads.req.MQCreateTopicRequest;
+import com.github.xjtuwsn.cranemq.common.command.payloads.req.MQSimplePullRequest;
+import com.github.xjtuwsn.cranemq.common.command.payloads.resp.MQSimplePullResponse;
+import com.github.xjtuwsn.cranemq.common.command.types.PullResultType;
 import com.github.xjtuwsn.cranemq.common.config.FlushDisk;
+import com.github.xjtuwsn.cranemq.common.entity.Message;
+import com.github.xjtuwsn.cranemq.common.entity.MessageQueue;
+import com.github.xjtuwsn.cranemq.common.entity.ReadyMessage;
 import com.github.xjtuwsn.cranemq.common.route.QueueData;
+import com.github.xjtuwsn.cranemq.common.utils.BrokerUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Set;
 
 /**
  * @project:cranemq
@@ -24,17 +38,19 @@ import org.slf4j.LoggerFactory;
 public class MessageStoreCenter implements GeneralStoreService {
     private static final Logger log = LoggerFactory.getLogger(MessageStoreCenter.class);
     private BrokerController brokerController;
+    private PersistentConfig persistentConfig;
     private CommitLog commitLog;
     private ConsumeQueueManager consumeQueueManager;
     private FlushDiskService flushDiskService;
 
     public MessageStoreCenter(BrokerController brokerController) {
         this.brokerController = brokerController;
+        this.persistentConfig = brokerController.getPersistentConfig();
         this.commitLog = new CommitLog(this.brokerController);
         this.consumeQueueManager = new ConsumeQueueManager(this.brokerController,
                 this.brokerController.getPersistentConfig());
-        if (brokerController.getPersistentConfig().getFlushDisk() == FlushDisk.ASYNC) {
-            this.flushDiskService = new AsyncFlushDiskService(brokerController.getPersistentConfig(), commitLog,
+        if (persistentConfig.getFlushDisk() == FlushDisk.ASYNC) {
+            this.flushDiskService = new AsyncFlushDiskService(persistentConfig, commitLog,
                     consumeQueueManager);
         } else {
             this.flushDiskService = new SyncFlushDiskService();
@@ -63,7 +79,7 @@ public class MessageStoreCenter implements GeneralStoreService {
             return new PutMessageResponse(StoreResponseType.PARAMETER_ERROR);
         }
         if (putOffsetResp.getResponseType() == StoreResponseType.STORE_OK) {
-            if (brokerController.getPersistentConfig().getFlushDisk() == FlushDisk.SYNC) {
+            if (persistentConfig.getFlushDisk() == FlushDisk.SYNC) {
                 this.flushDiskService.flush(response.getMappedFile());
                 this.flushDiskService.flush(putOffsetResp.getMappedFile());
             }
@@ -78,6 +94,91 @@ public class MessageStoreCenter implements GeneralStoreService {
         int readNumber = mqCreateTopicRequest.getReadNumber();
         return consumeQueueManager.createQueue(topic, writeNumber, readNumber);
     }
+
+    public MQSimplePullResponse simplePullMessage(MQSimplePullRequest mqSimplePullRequest) {
+        MessageQueue messageQueue = mqSimplePullRequest.getMessageQueue();
+
+        int length = mqSimplePullRequest.getLength(), queueId = messageQueue.getQueueId();
+        long offset = mqSimplePullRequest.getOffset();
+        String topic = messageQueue.getTopic();
+        List<Pair<Long, Integer>> commitLogData = new ArrayList<>();
+
+        MQSimplePullResponse response = new MQSimplePullResponse(PullResultType.NO_MESSAGE);
+
+        ConsumeQueue consumeQueue = consumeQueueManager.getConsumeQueue(topic, queueId);
+        if (consumeQueue == null) {
+            log.error("No such consume queue");
+            return response;
+        }
+
+        MappedFile firstMappedFile = consumeQueue.getFirstMappedFile();
+        if (firstMappedFile == null) {
+            log.error("Consume queue has zero file");
+            return response;
+        }
+
+        String firstName = firstMappedFile.getFileName();
+        int queueUnit = persistentConfig.getQueueUnit();
+        int maxQueueItemNumber = persistentConfig.getMaxQueueItemNumber();
+        int left = length;
+        //要么全都读到，要么全都不读
+        for (int i = 0; i < length;) {
+            int index = (int) ((offset + i) / maxQueueItemNumber);
+            MappedFile current = consumeQueue.getMappedFileByIndex(index);
+            if (current == null) {
+                response.setResultType(PullResultType.OFFSET_INVALID);
+                log.error("Offset has over the limit");
+                return response;
+            }
+            int start = (int) ((offset + i) * queueUnit % maxQueueItemNumber);
+            List<Pair<Long, Integer>> list = current.readOffsetIndex(start, left);
+            if (left != 0 && list == null) {
+                return response;
+            }
+            commitLogData.addAll(list);
+            int readed = list.size();
+            left -= readed;
+            if (left == 0) {
+                break;
+            }
+            i = length - left;
+        }
+
+        response.setResultType(PullResultType.ERROR);
+        MappedFile firstCommit = commitLog.getFirstMappedFile();
+
+        long nextOffset = offset + length;
+        if (firstCommit == null) {
+            return response;
+        }
+        String firstCommitName = firstCommit.getFileName();
+        List<ReadyMessage> readyMessageList = new ArrayList<>();
+        for (int i = 0; i < length; i++) {
+            Pair<Long, Integer> pair = commitLogData.get(i);
+
+            long curOffset = pair.getKey();
+            int curSize = pair.getValue();
+
+            int mappedIndex = BrokerUtil.findMappedIndex(curOffset, firstCommitName,
+                    persistentConfig.getCommitLogMaxSize());
+            MappedFile mappedFileByIndex = commitLog.getMappedFileByIndex(mappedIndex);
+            if (mappedFileByIndex == null) {
+                return response;
+            }
+            int offsetInpage = BrokerUtil.offsetInPage(curOffset, persistentConfig.getCommitLogMaxSize());
+            Message message = mappedFileByIndex.readSingleMessage(offsetInpage);
+            if (message == null) {
+                return response;
+            }
+            readyMessageList.add(new ReadyMessage(brokerController.getBrokerConfig().getBrokerName(),
+                    queueId, offset + i, message));
+        }
+        response.setResultType(PullResultType.DONE);
+        response.setNextOffset(nextOffset);
+        response.setMessages(readyMessageList);
+        return response;
+    }
+
     public void start() {
         this.consumeQueueManager.registerRecoveryListener(new RecoveryListener() {
             @Override

@@ -23,4 +23,9 @@ public class Message implements Serializable {
     public Message(String topic, byte[] body) {
         this(topic, "", body);
     }
+    public Message(Message other) {
+        this.topic = other.getTopic();
+        this.tag = other.getTag();
+        this.body = other.getBody();
+    }
 }

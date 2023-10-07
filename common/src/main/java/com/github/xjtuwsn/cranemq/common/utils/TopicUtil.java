@@ -41,4 +41,12 @@ public class TopicUtil {
         String id = UUID.randomUUID().toString().replaceAll("-", "").substring(0, 16);
         return id;
     }
+
+    public static String buildClientID(String role) {
+        String ip = NetworkUtil.getLocalAddress();
+        StringBuilder id = new StringBuilder();
+        id.append(ip).append("@").append(role).append("@").append("default");
+
+        return id.toString();
+    }
 }

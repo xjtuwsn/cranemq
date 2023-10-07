@@ -110,6 +110,13 @@ public class ConsumeQueueManager implements GeneralStoreService {
         log.info("Finish create {} consumequeue, writenumber is {}", topic, writeNumber);
         return new QueueData(topic, writeNumber, readNumber);
     }
+    public ConsumeQueue getConsumeQueue(String topic, int queueId) {
+        ConcurrentHashMap<Integer, ConsumeQueue> queueConcurrentHashMap = queueTable.get(topic);
+        if (queueConcurrentHashMap == null) {
+            return null;
+        }
+        return queueConcurrentHashMap.get(queueId);
+    }
     @Override
     public void close() {
 

@@ -44,6 +44,16 @@ public abstract class AbstractLinkedListOrganize {
     public MappedIterator iterator() {
         return new MappedIterator(head);
     }
+    public MappedFile getFirstMappedFile() {
+        MappedFile mappedFile = head.next;
+        if (mappedFile == tail) {
+            return null;
+        }
+        return mappedFile;
+    }
+    public MappedFile getMappedFileByIndex(int index) {
+        return this.mappedTable.get(index);
+    }
 
     class MappedIterator implements Iterator<MappedFile> {
         private MappedFile pointer;

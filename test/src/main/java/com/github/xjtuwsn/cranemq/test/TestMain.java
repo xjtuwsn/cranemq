@@ -1,15 +1,12 @@
 package com.github.xjtuwsn.cranemq.test;
 
-import com.github.xjtuwsn.cranemq.broker.core.MqBroker;
 import com.github.xjtuwsn.cranemq.client.producer.MQSelector;
 import com.github.xjtuwsn.cranemq.common.entity.MessageQueue;
-import com.github.xjtuwsn.cranemq.common.net.RemoteHook;
+import com.github.xjtuwsn.cranemq.common.remote.RemoteHook;
 import com.github.xjtuwsn.cranemq.client.producer.DefaultMQProducer;
 import com.github.xjtuwsn.cranemq.client.producer.balance.RoundRobinStrategy;
 import com.github.xjtuwsn.cranemq.common.entity.Message;
-import com.github.xjtuwsn.cranemq.common.net.RemoteAddress;
-import com.github.xjtuwsn.cranemq.registry.core.Registry;
-import org.junit.Test;
+import com.github.xjtuwsn.cranemq.common.remote.RemoteAddress;
 
 import java.util.List;
 
@@ -64,10 +61,5 @@ public class TestMain {
 //            producer.shutdown();
         });
         t.start();
-    }
-    @Test
-    public void test() {
-        int x = 10;
-        System.out.println(x & (-x));
     }
 }

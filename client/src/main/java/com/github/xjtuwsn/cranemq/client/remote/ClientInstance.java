@@ -1,8 +1,13 @@
 package com.github.xjtuwsn.cranemq.client.remote;
 
 import cn.hutool.core.util.StrUtil;
+import com.github.xjtuwsn.cranemq.client.consumer.PullResult;
+import com.github.xjtuwsn.cranemq.client.consumer.impl.DefaultPullConsumerImpl;
 import com.github.xjtuwsn.cranemq.client.hook.InnerCallback;
 import com.github.xjtuwsn.cranemq.client.hook.SendCallback;
+import com.github.xjtuwsn.cranemq.client.processor.CommonProcessor;
+import com.github.xjtuwsn.cranemq.client.processor.ConsumerProcessor;
+import com.github.xjtuwsn.cranemq.client.processor.PruducerProcessor;
 import com.github.xjtuwsn.cranemq.client.producer.MQSelector;
 import com.github.xjtuwsn.cranemq.client.producer.balance.LoadBalanceStrategy;
 import com.github.xjtuwsn.cranemq.client.producer.balance.RandomStrategy;
@@ -10,11 +15,16 @@ import com.github.xjtuwsn.cranemq.client.producer.impl.DefaultMQProducerImpl;
 import com.github.xjtuwsn.cranemq.client.producer.impl.WrapperFutureCommand;
 import com.github.xjtuwsn.cranemq.client.producer.result.SendResult;
 import com.github.xjtuwsn.cranemq.client.producer.result.SendResultType;
-import com.github.xjtuwsn.cranemq.common.command.payloads.*;
+import com.github.xjtuwsn.cranemq.common.command.payloads.req.*;
+import com.github.xjtuwsn.cranemq.common.command.payloads.resp.MQCreateTopicResponse;
+import com.github.xjtuwsn.cranemq.common.command.payloads.resp.MQSimplePullResponse;
+import com.github.xjtuwsn.cranemq.common.command.payloads.resp.MQUpdateTopicResponse;
 import com.github.xjtuwsn.cranemq.common.command.types.ResponseCode;
 import com.github.xjtuwsn.cranemq.common.command.types.ResponseType;
 import com.github.xjtuwsn.cranemq.common.constant.MQConstant;
+import com.github.xjtuwsn.cranemq.common.entity.ClientType;
 import com.github.xjtuwsn.cranemq.common.entity.MessageQueue;
+import com.github.xjtuwsn.cranemq.common.remote.RemoteClent;
 import com.github.xjtuwsn.cranemq.common.route.BrokerData;
 import com.github.xjtuwsn.cranemq.common.route.TopicRouteInfo;
 import com.github.xjtuwsn.cranemq.common.command.FutureCommand;
@@ -26,12 +36,13 @@ import com.github.xjtuwsn.cranemq.common.exception.CraneClientException;
 import com.github.xjtuwsn.cranemq.common.utils.TopicUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import com.github.xjtuwsn.cranemq.common.net.RemoteHook;
+import com.github.xjtuwsn.cranemq.common.remote.RemoteHook;
 import com.github.xjtuwsn.cranemq.common.command.RemoteCommand;
 
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
 
 /**
  * @project:cranemq
@@ -42,7 +53,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 public class ClientInstance {
 
     private static final Logger log= LoggerFactory.getLogger(ClientInstance.class);
-    private DefaultMQProducerImpl defaultMQProducer;
+    private DefaultPullConsumerImpl defaultPullConsumer;
     private LoadBalanceStrategy loadBalanceStrategy = new RandomStrategy();
 
     private RemoteHook hook;
@@ -54,6 +65,8 @@ public class ClientInstance {
     private String clientId;
     private ScheduledExecutorService retryService;
     private ScheduledExecutorService timerService;
+    private AtomicInteger state;    /** 0:未启动，1:正在启动，2:启动完成**/
+
     private int coreSize = 10;
 
     private int maxSize = 22;
@@ -61,24 +74,38 @@ public class ClientInstance {
     private volatile ConcurrentHashMap<String, TopicRouteInfo> topicTable = new ConcurrentHashMap<>();
     private ConcurrentHashMap<String, HashMap<Integer, String>> brokerAddressTable = new ConcurrentHashMap<>();
     private ConcurrentHashMap<String, DefaultMQProducerImpl> producerRegister = new ConcurrentHashMap<>();
+    private ConcurrentHashMap<String, DefaultPullConsumerImpl> pullConsumerRegister = new ConcurrentHashMap<>();
     private AtomicInteger clinetNumber;
     private static volatile ConcurrentHashMap<String, WrapperFutureCommand> requestTable = new ConcurrentHashMap<>();
     private volatile Semaphore updateSemphore = new Semaphore(2);
+    private Random random = new Random();
 
 
 
-    public ClientInstance(DefaultMQProducerImpl impl) {
-        this.defaultMQProducer = impl;
+    public ClientInstance() {
+        this.state = new AtomicInteger(0);
+        this.clinetNumber = new AtomicInteger(0);
+        this.remoteClent = new RemoteClent();
 
     }
 
     public void start() {
-        this.remoteClent = new RemoteClent(this.defaultMQProducer);
-        this.remoteClent.registerHook(hook);
+        if (this.state.get() == 2) {
+            log.info("Has alread statrted");
+            return;
+        }
+        if (this.state.get() == 1) {
+            log.info("Another client has called the start method");
+            while (!this.state.compareAndSet(2, 2)) {
+            }
+            return;
+        }
+        this.state.set(1);
 
+        this.remoteClent.registerHook(hook);
+        this.registerProcessors();
         this.remoteClent.start();
-        this.clinetNumber = new AtomicInteger(0);
-        this.registryAddress = this.defaultMQProducer.getRegisteryAddress();
+        this.registryAddress = this.pickOneRegistryAddress();
         // 异步发送消息的线程池
         this.asyncSendThreadPool = new ThreadPoolExecutor(coreSize,
                 maxSize,
@@ -131,6 +158,34 @@ public class ClientInstance {
             }
         });
         this.startScheduleTast();
+        this.state.set(2);
+    }
+
+    private void registerProcessors() {
+        if (this.producerRegister != null && this.producerRegister.size() != 0) {
+            this.remoteClent.registerProcessor(ClientType.PRODUCER, new PruducerProcessor(this));
+        }
+        if (this.pullConsumerRegister != null && this.pullConsumerRegister.size() != 0) {
+            this.remoteClent.registerProcessor(ClientType.CONSUMER, new ConsumerProcessor(this));
+        }
+        this.remoteClent.registerProcessor(ClientType.BOTH, new CommonProcessor(this));
+    }
+    private String pickOneRegistryAddress() {
+        String address = "";
+        List<String> addrs = null;
+        if (this.producerRegister.size() != 0) {
+            log.info("This is a producer client instance");
+            addrs = this.producerRegister.values().stream().map(DefaultMQProducerImpl::getRegisteryAddress)
+                    .collect(Collectors.toList());
+
+        } else if (this.pullConsumerRegister.size() != 0) {
+            log.info("This is a pull consumer client instance");
+            addrs = this.pullConsumerRegister.values().stream().map(DefaultPullConsumerImpl::getRegistryAddress)
+                    .collect(Collectors.toList());
+        }
+        int size = addrs.size();
+        address = addrs.get(this.random.nextInt(size));
+        return address;
     }
     private void startScheduleTast() {
         // 每30s向注册中心更新路由
@@ -145,7 +200,7 @@ public class ClientInstance {
         this.timerService.scheduleAtFixedRate(() -> {
             log.info("Send heartbeat to brokers");
             this.sendHeartBeatToBroker();
-        }, 500, 30 * 1000, TimeUnit.MILLISECONDS);
+        }, 100, 30 * 1000, TimeUnit.MILLISECONDS);
     }
 
     /**
@@ -307,6 +362,27 @@ public class ClientInstance {
             });
         }
     }
+    public PullResult sendPullSync(final WrapperFutureCommand wrappered) {
+        FutureCommand futureCommand = wrappered.getFutureCommand();
+        if (this.hook != null) {
+            this.hook.beforeMessage();
+        }
+        this.sendAdaptor(wrappered, null);
+        PullResult result = null;
+        RemoteCommand response = null;
+        try {
+            response = futureCommand.get();
+            log.info("Sync method get response: {}", response);
+        } catch (InterruptedException | ExecutionException | CraneClientException e) {
+            result = new PullResult();
+            log.warn("Sync Request has retred for max time");
+        }
+        if (result == null) {
+            result = new PullResult((MQSimplePullResponse) response.getPayLoad());
+
+        }
+        return result;
+    }
 
     public SendResult sendMessageSync(final WrapperFutureCommand wrappered, boolean isOneWay) {
         FutureCommand futureCommand = wrappered.getFutureCommand();
@@ -335,6 +411,7 @@ public class ClientInstance {
 //        this.asyncSendThreadPool.execute(() -> {
 //            sendCore(wrappered, wrappered.getCallback());
 //        });
+
         this.sendAdaptor(wrappered, wrappered.getCallback());
     }
     private SendResult buildSendResult(RemoteCommand response, String correlationID) {
@@ -367,8 +444,10 @@ public class ClientInstance {
         RemoteCommand command = wrappered.getFutureCommand().getRequest();
         String address = "";
         // 查找路由的信息，地址就是注册中心地址
+
         if (wrappered.isToRegistery()) {
             address = this.registryAddress;
+
         } else {
             try {
                 TopicRouteInfo routeInfo = this.topicTable.get(topic);
@@ -409,6 +488,7 @@ public class ClientInstance {
                 this.sendCore(wrappered, callback, this.asyncSendThreadPool);
             });
         } else {
+
             this.orderSendThreadPool.execute(() -> {
                 this.sendCore(wrappered, callback, this.orderSendThreadPool);
             });
@@ -483,6 +563,12 @@ public class ClientInstance {
                 topicList.addAll(impl.getTopics());
             }
         }
+        for (Map.Entry<String, DefaultPullConsumerImpl> entry : this.pullConsumerRegister.entrySet()) {
+            DefaultPullConsumerImpl impl = entry.getValue();
+            if (impl != null) {
+                topicList.addAll(impl.getTopicSet());
+            }
+        }
         for (String topic : topicList) {
             this.updateTopicInfo(topic);
         }
@@ -540,6 +626,7 @@ public class ClientInstance {
                 MQUpdateTopicResponse response = (MQUpdateTopicResponse) remoteCommand.getPayLoad();
                 TopicRouteInfo info = response.getRouteInfo();
                 TopicRouteInfo old = topicTable.get(topic);
+
                 markExpiredBroker(response.getRouteInfo(), old);
                 if (info == null) {
                     log.error("Cannot find route info {} from registery", topic);
@@ -576,11 +663,28 @@ public class ClientInstance {
         int order = this.clinetNumber.getAndIncrement();
         this.producerRegister.put("produer-" + order, defaultMQProducer);
     }
-
+    public void registerPullConsumer(DefaultPullConsumerImpl defaultPullConsumer) {
+        int order = this.clinetNumber.getAndIncrement();
+        this.pullConsumerRegister.put("pullconsumer-" + order, defaultPullConsumer);
+    }
     public void setLoadBalanceStrategy(LoadBalanceStrategy loadBalanceStrategy) {
         this.loadBalanceStrategy = loadBalanceStrategy;
     }
-
+    public List<MessageQueue> listQueues(Set<String> topics) {
+        for (String topic : topics) {
+            this.getTopicInfoSync(topic);
+        }
+        return topics.stream().map(e -> {
+            TopicRouteInfo info = topicTable.get(e);
+            if (info != null) {
+                return info.getAllQueueList();
+            }
+            return null;
+        }).filter(Objects::nonNull).reduce(new ArrayList<>(), (a, b) -> {
+            a.addAll(b);
+            return a;
+        });
+    }
     public void setClientId(String clientId) {
         this.clientId = clientId;
     }

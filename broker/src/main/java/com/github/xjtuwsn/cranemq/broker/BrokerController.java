@@ -1,8 +1,9 @@
 package com.github.xjtuwsn.cranemq.broker;
 
 import com.github.xjtuwsn.cranemq.broker.client.ClientHousekeepingService;
-import com.github.xjtuwsn.cranemq.broker.enums.HandlerType;
-import com.github.xjtuwsn.cranemq.broker.remote.RemoteServer;
+import com.github.xjtuwsn.cranemq.broker.processors.ServerProcessor;
+import com.github.xjtuwsn.cranemq.common.remote.enums.HandlerType;
+import com.github.xjtuwsn.cranemq.common.remote.RemoteServer;
 import com.github.xjtuwsn.cranemq.broker.store.GeneralStoreService;
 import com.github.xjtuwsn.cranemq.broker.store.MessageStoreCenter;
 import com.github.xjtuwsn.cranemq.broker.store.PersistentConfig;
@@ -36,8 +37,8 @@ public class BrokerController implements GeneralStoreService {
         this.persistentConfig = persistentConfig;
     }
     public boolean initialize() {
-        this.remoteServer = new RemoteServer(brokerConfig.getPort(),
-                this, new ClientHousekeepingService(this));
+        this.remoteServer = new RemoteServer(brokerConfig.getPort(), new ClientHousekeepingService(this));
+        this.remoteServer.registerProcessor(new ServerProcessor(this, remoteServer));
         this.messageStoreCenter = new MessageStoreCenter(this);
         this.initThreadPool();
         this.registerThreadPool();
