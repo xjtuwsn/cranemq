@@ -114,7 +114,9 @@ public class RemoteClent implements RemoteService {
         this.workerGroup.shutdownGracefully();
     }
     public void markExpired(List<String> addresses) {
-        if (addresses == null || addresses.size() == 0) return;
+        if (addresses == null || addresses.size() == 0) {
+            return;
+        }
         for (String address : addresses) {
             ChannelWrapper cw = this.channelTable.get(address);
             if (cw != null) {
@@ -172,6 +174,12 @@ public class RemoteClent implements RemoteService {
                 case SIMPLE_PULL_RESPONSE:
                     doSimplePullProcessor(remoteCommand);
                     break;
+                case NOTIFY_CHAGED_RESPONSE:
+                    doNotifyChangedProcessor(remoteCommand);
+                    break;
+                case PULL_RESPONSE:
+                    doPullResponceProcessor(remoteCommand);
+                    break;
                 default:
                     break;
             }
@@ -190,6 +198,12 @@ public class RemoteClent implements RemoteService {
         }
         private void doSimplePullProcessor(RemoteCommand remoteCommand) {
             processorTable.get(ClientType.CONSUMER).processSimplePullResponse(remoteCommand, asyncCallBackService, hook);
+        }
+        private void doNotifyChangedProcessor(RemoteCommand remoteCommand) {
+            processorTable.get(ClientType.CONSUMER).processNotifyChangedResponse(remoteCommand, asyncCallBackService);
+        }
+        private void doPullResponceProcessor(RemoteCommand remoteCommand) {
+            processorTable.get(ClientType.CONSUMER).processPullResponse(remoteCommand, asyncCallBackService);
         }
     }
     static class ChannelWrapper {

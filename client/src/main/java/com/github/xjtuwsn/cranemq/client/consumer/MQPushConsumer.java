@@ -3,6 +3,8 @@ package com.github.xjtuwsn.cranemq.client.consumer;
 import com.github.xjtuwsn.cranemq.client.consumer.listener.CommonMessageListener;
 import com.github.xjtuwsn.cranemq.client.consumer.listener.MessageListener;
 import com.github.xjtuwsn.cranemq.client.consumer.listener.OrderedMessageListener;
+import com.github.xjtuwsn.cranemq.common.consumer.MessageModel;
+import com.github.xjtuwsn.cranemq.common.consumer.StartConsume;
 
 /**
  * @project:cranemq
@@ -11,6 +13,8 @@ import com.github.xjtuwsn.cranemq.client.consumer.listener.OrderedMessageListene
  * @create:2023/10/06-22:18
  */
 public interface MQPushConsumer extends MQConsumer {
+    void setStartFrom(StartConsume startConsume);
+    void setMesageModel(MessageModel messageModel);
 
     void registerListener(MessageListener messageListener);
 

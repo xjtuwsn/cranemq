@@ -1,6 +1,7 @@
 package com.github.xjtuwsn.cranemq.common.command.payloads.req;
 
 import com.github.xjtuwsn.cranemq.common.command.PayLoad;
+import com.github.xjtuwsn.cranemq.common.consumer.ConsumerInfo;
 import lombok.*;
 
 import java.io.Serializable;
@@ -21,6 +22,7 @@ import java.util.Set;
 public class MQHeartBeatRequest implements Serializable, PayLoad {
     private String clientId;
     private Set<String> producerGroup;
+    private Set<ConsumerInfo> consumerGroup;
 
     public MQHeartBeatRequest(String clientId) {
         this.clientId = clientId;

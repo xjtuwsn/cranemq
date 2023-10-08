@@ -15,7 +15,7 @@ import com.github.xjtuwsn.cranemq.broker.store.queue.ConsumeQueueManager;
 import com.github.xjtuwsn.cranemq.common.command.payloads.req.MQCreateTopicRequest;
 import com.github.xjtuwsn.cranemq.common.command.payloads.req.MQSimplePullRequest;
 import com.github.xjtuwsn.cranemq.common.command.payloads.resp.MQSimplePullResponse;
-import com.github.xjtuwsn.cranemq.common.command.types.PullResultType;
+import com.github.xjtuwsn.cranemq.common.command.types.AcquireResultType;
 import com.github.xjtuwsn.cranemq.common.config.FlushDisk;
 import com.github.xjtuwsn.cranemq.common.entity.Message;
 import com.github.xjtuwsn.cranemq.common.entity.MessageQueue;
@@ -27,7 +27,6 @@ import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Set;
 
 /**
  * @project:cranemq
@@ -103,7 +102,7 @@ public class MessageStoreCenter implements GeneralStoreService {
         String topic = messageQueue.getTopic();
         List<Pair<Long, Integer>> commitLogData = new ArrayList<>();
 
-        MQSimplePullResponse response = new MQSimplePullResponse(PullResultType.NO_MESSAGE);
+        MQSimplePullResponse response = new MQSimplePullResponse(AcquireResultType.NO_MESSAGE);
 
         ConsumeQueue consumeQueue = consumeQueueManager.getConsumeQueue(topic, queueId);
         if (consumeQueue == null) {
@@ -126,7 +125,7 @@ public class MessageStoreCenter implements GeneralStoreService {
             int index = (int) ((offset + i) / maxQueueItemNumber);
             MappedFile current = consumeQueue.getMappedFileByIndex(index);
             if (current == null) {
-                response.setResultType(PullResultType.OFFSET_INVALID);
+                response.setResultType(AcquireResultType.OFFSET_INVALID);
                 log.error("Offset has over the limit");
                 return response;
             }
@@ -143,8 +142,7 @@ public class MessageStoreCenter implements GeneralStoreService {
             }
             i = length - left;
         }
-
-        response.setResultType(PullResultType.ERROR);
+        response.setResultType(AcquireResultType.ERROR);
         MappedFile firstCommit = commitLog.getFirstMappedFile();
 
         long nextOffset = offset + length;
@@ -173,12 +171,12 @@ public class MessageStoreCenter implements GeneralStoreService {
             readyMessageList.add(new ReadyMessage(brokerController.getBrokerConfig().getBrokerName(),
                     queueId, offset + i, message));
         }
-        response.setResultType(PullResultType.DONE);
+        response.setResultType(AcquireResultType.DONE);
         response.setNextOffset(nextOffset);
         response.setMessages(readyMessageList);
         return response;
     }
-
+    @Override
     public void start() {
         this.consumeQueueManager.registerRecoveryListener(new RecoveryListener() {
             @Override

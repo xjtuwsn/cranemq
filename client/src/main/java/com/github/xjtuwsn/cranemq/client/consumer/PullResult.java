@@ -1,7 +1,7 @@
 package com.github.xjtuwsn.cranemq.client.consumer;
 
 import com.github.xjtuwsn.cranemq.common.command.payloads.resp.MQSimplePullResponse;
-import com.github.xjtuwsn.cranemq.common.command.types.PullResultType;
+import com.github.xjtuwsn.cranemq.common.command.types.AcquireResultType;
 import com.github.xjtuwsn.cranemq.common.entity.ReadyMessage;
 import lombok.*;
 
@@ -20,16 +20,16 @@ import java.util.List;
 @Setter
 public class PullResult {
 
-    private PullResultType pullResultType;
+    private AcquireResultType acquireResultType;
     private long nextOffset;
 
     private List<ReadyMessage> messages;
 
-    public PullResult(PullResultType pullResultType) {
-        this.pullResultType = PullResultType.ERROR;
+    public PullResult(AcquireResultType acquireResultType) {
+        this.acquireResultType = AcquireResultType.ERROR;
     }
     public PullResult(MQSimplePullResponse mqSimplePullResponse) {
-        this.pullResultType = mqSimplePullResponse.getResultType();
+        this.acquireResultType = mqSimplePullResponse.getResultType();
         this.nextOffset = mqSimplePullResponse.getNextOffset();
         this.messages = mqSimplePullResponse.getMessages();
 

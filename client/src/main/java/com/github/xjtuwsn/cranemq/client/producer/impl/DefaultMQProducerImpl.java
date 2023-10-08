@@ -44,7 +44,7 @@ public class DefaultMQProducerImpl implements MQProducerInner {
 
     private ClientInstance clientInstance;
     private RemoteAddress address;
-    private String registryAddress;
+    private String[] registryAddress;
     private String clientID;
     private LoadBalanceStrategy loadBalanceStrategy;
     private ConcurrentHashSet<String> topicSet = new ConcurrentHashSet<>();
@@ -65,7 +65,7 @@ public class DefaultMQProducerImpl implements MQProducerInner {
                                  LoadBalanceStrategy loadBalanceStrategy) {
         this.defaultMQProducer = defaultMQProducer;
         this.hook = hook;
-        this.registryAddress = registryAddress;
+        this.registryAddress = registryAddress.split(";");
         this.state = new AtomicInteger(0);
         this.loadBalanceStrategy = loadBalanceStrategy;
     }
@@ -221,12 +221,12 @@ public class DefaultMQProducerImpl implements MQProducerInner {
         return this.topicSet;
     }
 
-    public String getRegisteryAddress() {
+    public String[] getRegisteryAddress() {
         return registryAddress;
     }
 
     public void setRegistryAddress(String registryAddress) {
-        this.registryAddress = registryAddress;
+        this.registryAddress = registryAddress.split(";");
     }
 
     public void setLoadBalanceStrategy(LoadBalanceStrategy loadBalanceStrategy) {

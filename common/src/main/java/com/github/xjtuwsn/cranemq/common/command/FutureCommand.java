@@ -94,7 +94,9 @@ public class FutureCommand implements Future<RemoteCommand> {
                 }
             }
         }
-        if (!isDone) throw new TimeoutException();
+        if (!isDone) {
+            throw new TimeoutException();
+        }
         return this.response;
     }
 }

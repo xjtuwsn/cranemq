@@ -133,7 +133,7 @@ public class RemoteServer implements RemoteService {
                     doHeartBeatProcess(channelHandlerContext, request);
                     break;
                 case SIMPLE_PULL_MESSAGE_REQUEST:
-
+                    doSimplePullProcess(channelHandlerContext, request);
                 default:
                     break;
             }

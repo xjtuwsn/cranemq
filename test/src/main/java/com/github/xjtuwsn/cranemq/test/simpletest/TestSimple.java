@@ -1,12 +1,14 @@
 package com.github.xjtuwsn.cranemq.test.simpletest;
 
 import com.github.xjtuwsn.cranemq.broker.store.PersistentConfig;
+import com.github.xjtuwsn.cranemq.common.entity.MessageQueue;
 import org.junit.Test;
 
 import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -66,5 +68,33 @@ public class TestSimple {
             return a;
         });
         System.out.println(reduce);
+    }
+    @Test
+    public void test4() {
+        List<Integer> list = Arrays.asList(1, 2, 3, 4, 5, 6, 7, 8);
+        Set<String> abc = Set.of("www");
+        System.out.println(allocate(list, abc, "www"));
+    }
+    public List<Integer> allocate(List<Integer> queues, Set<String> groupMember, String self) {
+        List<String> memebers = new ArrayList<>(groupMember);
+        memebers.sort(String::compareTo);
+        List<Integer> result = new ArrayList<>();
+        int queueSize = queues.size(), all = memebers.size();
+        int div = queueSize / all, left = queueSize % all, done = 0;
+        for (int i = 0; i < all; i++) {
+            String cur = memebers.get(i);
+            if (cur.equals(self)) {
+                int limit = done + div;
+                if (i < left) {
+                    limit++;
+                }
+                for (int j = done; j < limit; j++) {
+                    result.add(queues.get(j));
+                }
+            }
+            done += (i < left ? div + 1 : div);
+            System.out.println(done + ", " + i + ", " + left + ", " + div);
+        }
+        return result;
     }
 }

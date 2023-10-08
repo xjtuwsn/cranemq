@@ -4,6 +4,8 @@ import com.github.xjtuwsn.cranemq.common.command.PayLoad;
 import com.github.xjtuwsn.cranemq.common.entity.MessageQueue;
 import lombok.*;
 
+import java.io.Serializable;
+
 /**
  * @project:cranemq
  * @file:MQSimplePullRequest
@@ -16,7 +18,7 @@ import lombok.*;
 @Getter
 @Setter
 @ToString
-public class MQSimplePullRequest implements PayLoad {
+public class MQSimplePullRequest implements PayLoad, Serializable {
     private MessageQueue messageQueue;
     private long offset;
     private int length;

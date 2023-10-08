@@ -2,6 +2,8 @@ package com.github.xjtuwsn.cranemq.client.processor;
 
 import com.github.xjtuwsn.cranemq.client.remote.ClientInstance;
 import com.github.xjtuwsn.cranemq.common.command.RemoteCommand;
+import com.github.xjtuwsn.cranemq.common.command.payloads.resp.MQNotifyChangedResponse;
+import com.github.xjtuwsn.cranemq.common.command.payloads.resp.MQPullMessageResponse;
 import com.github.xjtuwsn.cranemq.common.remote.RemoteHook;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -32,6 +34,19 @@ public class ConsumerProcessor extends AbstractClientProcessor {
                 hook.afterMessage();
             }
         }
+
+    }
+
+    @Override
+    public void processNotifyChangedResponse(RemoteCommand remoteCommand, ExecutorService asyncHookService) {
+        MQNotifyChangedResponse payLoad = (MQNotifyChangedResponse) remoteCommand.getPayLoad();
+        this.clientInstance.getRebalanceService().updateConsumerGroup(payLoad);
+
+    }
+
+    @Override
+    public void processPullResponse(RemoteCommand remoteCommand, ExecutorService asyncHookService) {
+        MQPullMessageResponse mqPullMessageResponse = (MQPullMessageResponse) remoteCommand.getPayLoad();
 
     }
 }

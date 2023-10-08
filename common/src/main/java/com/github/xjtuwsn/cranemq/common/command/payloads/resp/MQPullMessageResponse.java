@@ -18,7 +18,7 @@ import java.util.List;
 @Getter
 @Setter
 @Data
-public class MQPushMessageResponse implements PayLoad {
+public class MQPullMessageResponse implements PayLoad {
     private AcquireResultType acquireResultType;
     private String groupName;
     private List<ReadyMessage> messages;

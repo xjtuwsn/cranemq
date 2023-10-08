@@ -23,6 +23,9 @@ public interface BaseProcessor {
     // ---------------------- Consumer ----------------------
     default void processSimplePullResponse(RemoteCommand remoteCommand, ExecutorService asyncHookService,
                                            RemoteHook hook) {}
+    default void processNotifyChangedResponse(RemoteCommand remoteCommand, ExecutorService asyncHookService) {}
+
+    default void processPullResponse(RemoteCommand remoteCommand, ExecutorService asyncHookService) {}
 
     // ---------------------- Consumer and Producer ----------------------
     default void processUpdateTopicResponse(RemoteCommand remoteCommand, ExecutorService asyncHookService) {}

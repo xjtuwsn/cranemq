@@ -1,19 +1,25 @@
 package com.github.xjtuwsn.cranemq.broker.client;
 
 import com.github.xjtuwsn.cranemq.broker.BrokerController;
+import com.github.xjtuwsn.cranemq.common.command.Header;
+import com.github.xjtuwsn.cranemq.common.command.PayLoad;
+import com.github.xjtuwsn.cranemq.common.command.RemoteCommand;
+import com.github.xjtuwsn.cranemq.common.command.payloads.resp.MQNotifyChangedResponse;
+import com.github.xjtuwsn.cranemq.common.command.types.ResponseType;
+import com.github.xjtuwsn.cranemq.common.command.types.RpcType;
+import com.github.xjtuwsn.cranemq.common.consumer.ConsumerInfo;
 import com.github.xjtuwsn.cranemq.common.remote.event.ChannelEventListener;
 import com.github.xjtuwsn.cranemq.common.command.payloads.req.MQHeartBeatRequest;
+import com.github.xjtuwsn.cranemq.common.utils.TopicUtil;
 import io.netty.channel.Channel;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ScheduledThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -28,6 +34,7 @@ public class ClientHousekeepingService implements ChannelEventListener {
     private ConcurrentHashMap<String, ClientWrepper> produceTable = new ConcurrentHashMap<>();
     private ConcurrentHashMap<String, ConcurrentHashMap<String, ClientWrepper>> consumerTable = new ConcurrentHashMap<>();
     private ScheduledExecutorService scanUnactiveService;
+    private ExecutorService asyncNotifyConsumerService;
     private AtomicInteger activeNumber;
     public ClientHousekeepingService(BrokerController brokerController) {
         this.brokerController = brokerController;
@@ -36,6 +43,15 @@ public class ClientHousekeepingService implements ChannelEventListener {
         this.scanUnactiveService.scheduleAtFixedRate(() -> {
             this.scanInactiveClient();
         }, 500, 20 * 1000, TimeUnit.MILLISECONDS);
+        asyncNotifyConsumerService = new ThreadPoolExecutor(6, 12, 60L,
+                TimeUnit.SECONDS, new LinkedBlockingDeque<>(1000),
+                new ThreadFactory() {
+                    AtomicInteger index = new AtomicInteger(0);
+                    @Override
+                    public Thread newThread(Runnable r) {
+                        return new Thread(r, "AsyncNotifyConsumerService NO." + index.getAndIncrement());
+                    }
+                });
     }
     @Override
     public void onConnect(Channel channel) {
@@ -59,24 +75,72 @@ public class ClientHousekeepingService implements ChannelEventListener {
 
     @Override
     public void onProducerHeartBeat(MQHeartBeatRequest request, Channel channel) {
-        String key = getUniqueKey(channel, request);
         Set<String> groups = request.getProducerGroup();
+        Set<ConsumerInfo> consumerGroup = request.getConsumerGroup();
         String clientId = request.getClientId();
-        if (!this.produceTable.containsKey(key)) {
-            this.produceTable.put(key, new ClientWrepper(channel, key, clientId, groups));
+
+        if (!this.produceTable.containsKey(clientId)) {
+            this.produceTable.put(clientId, new ClientWrepper(channel, clientId, groups));
         }
-        ClientWrepper clientWrepper = produceTable.get(key);
+
+        System.out.println(request);
+        ClientWrepper clientWrepper = produceTable.get(clientId);
         clientWrepper.updateCommTime(System.currentTimeMillis());
 
     }
 
     @Override
     public void onConsumerHeartBeat(MQHeartBeatRequest request, Channel channel) {
-
+        Set<ConsumerInfo> consumerGroup = request.getConsumerGroup();
+        String clientId = request.getClientId();
+        for (ConsumerInfo info : consumerGroup) {
+            String cg = info.getConsumerGroup();
+            boolean changed = false;
+            if (!consumerTable.containsKey(cg)) {
+                changed = true;
+                consumerTable.put(cg, new ConcurrentHashMap<>());
+            }
+            ConcurrentHashMap<String, ClientWrepper> map = consumerTable.get(cg);
+            if (!map.containsKey(clientId)) {
+                changed = true;
+                map.put(clientId, new ClientWrepper(channel, clientId, info));
+            }
+            if (changed) {
+                consumerGroupChanged(cg);
+            }
+        }
     }
-
+    private void consumerGroupChanged(String groupName) {
+        log.info("Consumer cluster {} has changed", groupName);
+        ConcurrentHashMap<String, ClientWrepper> map = consumerTable.get(groupName);
+        Iterator<String> iterator = map.keys().asIterator();
+        Set<String> clients = new HashSet<>();
+        while (iterator.hasNext()) {
+            clients.add(iterator.next());
+        }
+        for (Map.Entry<String, ClientWrepper> entry : map.entrySet()) {
+            asyncNotifyConsumerService.execute(() -> {
+                Header header = new Header(ResponseType.NOTIFY_CHAGED_RESPONSE, RpcType.ONE_WAY,
+                        TopicUtil.generateUniqueID());
+                PayLoad payLoad = new MQNotifyChangedResponse(groupName, clients);
+                RemoteCommand remoteCommand = new RemoteCommand(header, payLoad);
+                System.out.println(remoteCommand);
+                entry.getValue().channel.writeAndFlush(remoteCommand);
+            });
+        }
+    }
     private void scanInactiveClient() {
         Iterator<Map.Entry<String, ClientWrepper>> iterator = this.produceTable.entrySet().iterator();
+        doRemove(iterator);
+        Iterator<Map.Entry<String, ConcurrentHashMap<String, ClientWrepper>>> consumgerIntrator =
+                this.consumerTable.entrySet().iterator();
+        while (consumgerIntrator.hasNext()) {
+            Iterator<Map.Entry<String, ClientWrepper>> subiterator = consumgerIntrator.next().getValue().
+                    entrySet().iterator();
+            doRemove(subiterator);
+        }
+    }
+    private void doRemove(Iterator<Map.Entry<String, ClientWrepper>> iterator) {
         while (iterator.hasNext()) {
             Map.Entry<String, ClientWrepper> next = iterator.next();
             ClientWrepper clientWrepper = next.getValue();
@@ -85,9 +149,7 @@ public class ClientHousekeepingService implements ChannelEventListener {
             if (now - last >= brokerController.getBrokerConfig().getKeepAliveTime()) {
                 log.info("Client {} has disconnected and will be removed", clientWrepper);
                 clientWrepper.close();
-                log.info("Before remove size {}", produceTable.size());
                 iterator.remove();
-                log.info("After remove size {}", produceTable.size());
             }
         }
     }
@@ -104,26 +166,29 @@ public class ClientHousekeepingService implements ChannelEventListener {
             CONSUMER
         }
         private Channel channel;
-        private String key;
         private String clientId;
         private long lastCommTime;
         private Role role;
         private String group;
+        private ConsumerInfo consumerInfo;
         private Set<String> groups;
 
-        public ClientWrepper(Channel channel, String key, String clientId, Set<String> groups) {
+        public ClientWrepper(Channel channel, String clientId, Set<String> groups) {
             this.channel = channel;
-            this.key = key;
             this.clientId = clientId;
             this.groups = groups;
             this.lastCommTime = System.currentTimeMillis();
             this.role = Role.PRODUCER;
         }
-
-        public ClientWrepper(Channel channel, String key) {
-            this(channel, key, null, null);
-
+        public ClientWrepper(Channel channel, String clientId, ConsumerInfo info) {
+            this.channel = channel;
+            this.clientId = clientId;
+            this.consumerInfo = info;
+            this.lastCommTime = System.currentTimeMillis();
+            this.role = Role.CONSUMER;
         }
+
+
 
         public void markProducer() {
             this.role = Role.PRODUCER;
@@ -148,7 +213,6 @@ public class ClientHousekeepingService implements ChannelEventListener {
         @Override
         public String toString() {
             return "ClientWrepper{" +
-                    "key='" + key + '\'' +
                     ", clientId='" + clientId + '\'' +
                     ", lastCommTime=" + lastCommTime +
                     ", role=" + role +

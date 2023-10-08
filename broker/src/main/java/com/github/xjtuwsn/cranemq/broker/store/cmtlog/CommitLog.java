@@ -49,7 +49,7 @@ public class CommitLog extends AbstractLinkedListOrganize implements GeneralStor
         this.createMappedFileService = new CreateMappedFileService();
         this.commitService = new CommitService();
     }
-
+    @Override
     public void start() {
         if (this.memoryPool != null) {
             this.memoryPool.init();

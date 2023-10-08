@@ -81,7 +81,9 @@ public class MappedFile {
         this.index = index;
         this.fileName = fileName;
         this.memoryPool = memoryPool;
-        if (this.fileName == "") return;
+        if (this.fileName == "") {
+            return;
+        }
         this.fileSize = fileSize;
         this.fullPath = fullPath;
 
@@ -216,6 +218,7 @@ public class MappedFile {
 
             int bodySize = byteBuffer.getInt();
             byte[] body = new byte[bodySize];
+            byteBuffer.get(body);
 
             message = new Message(topic, tag, body);
 

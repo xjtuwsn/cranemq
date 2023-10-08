@@ -47,7 +47,7 @@ public class ConsumeQueueManager implements GeneralStoreService {
         log.info("Select consume queue {}", queue);
         return queue.updateQueueOffset(offset, size);
     }
-
+    @Override
     public void start() {
         File rootDir = new File(persistentConfig.getConsumerqueuePath());
         if (!rootDir.exists()) {

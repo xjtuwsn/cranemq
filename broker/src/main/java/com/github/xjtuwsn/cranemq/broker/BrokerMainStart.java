@@ -82,7 +82,9 @@ public class BrokerMainStart {
         String path = MQConstant.DEFAULT_CONF_PATH;
         for (int i = 0; i < args.length; i++) {
             if ("-c".equals(args[i]) || "-C".equals(args[i]) || "--conf".equals(args[i])) {
-                if (i == args.length - 1) return path;
+                if (i == args.length - 1) {
+                    return path;
+                }
                 path = args[i + 1];
             }
         }

@@ -1,4 +1,6 @@
-package com.github.xjtuwsn.cranemq.common.entity;
+package com.github.xjtuwsn.cranemq.common.consumer;
+
+import java.io.Serializable;
 
 /**
  * @project:cranemq
@@ -6,7 +8,7 @@ package com.github.xjtuwsn.cranemq.common.entity;
  * @author:wsn
  * @create:2023/10/07-10:43
  */
-public enum MessageModel {
+public enum MessageModel implements Serializable {
 
     BRODERCAST,
     CLUSTER

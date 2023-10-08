@@ -2,7 +2,10 @@ package com.github.xjtuwsn.cranemq.client.remote;
 
 import cn.hutool.core.util.StrUtil;
 import com.github.xjtuwsn.cranemq.client.consumer.PullResult;
+import com.github.xjtuwsn.cranemq.client.consumer.RebalanceService;
 import com.github.xjtuwsn.cranemq.client.consumer.impl.DefaultPullConsumerImpl;
+import com.github.xjtuwsn.cranemq.client.consumer.impl.DefaultPushConsumerImpl;
+import com.github.xjtuwsn.cranemq.client.consumer.push.PullRequest;
 import com.github.xjtuwsn.cranemq.client.hook.InnerCallback;
 import com.github.xjtuwsn.cranemq.client.hook.SendCallback;
 import com.github.xjtuwsn.cranemq.client.processor.CommonProcessor;
@@ -19,9 +22,9 @@ import com.github.xjtuwsn.cranemq.common.command.payloads.req.*;
 import com.github.xjtuwsn.cranemq.common.command.payloads.resp.MQCreateTopicResponse;
 import com.github.xjtuwsn.cranemq.common.command.payloads.resp.MQSimplePullResponse;
 import com.github.xjtuwsn.cranemq.common.command.payloads.resp.MQUpdateTopicResponse;
-import com.github.xjtuwsn.cranemq.common.command.types.ResponseCode;
-import com.github.xjtuwsn.cranemq.common.command.types.ResponseType;
+import com.github.xjtuwsn.cranemq.common.command.types.*;
 import com.github.xjtuwsn.cranemq.common.constant.MQConstant;
+import com.github.xjtuwsn.cranemq.common.consumer.ConsumerInfo;
 import com.github.xjtuwsn.cranemq.common.entity.ClientType;
 import com.github.xjtuwsn.cranemq.common.entity.MessageQueue;
 import com.github.xjtuwsn.cranemq.common.remote.RemoteClent;
@@ -30,8 +33,6 @@ import com.github.xjtuwsn.cranemq.common.route.TopicRouteInfo;
 import com.github.xjtuwsn.cranemq.common.command.FutureCommand;
 import com.github.xjtuwsn.cranemq.common.command.Header;
 import com.github.xjtuwsn.cranemq.common.command.PayLoad;
-import com.github.xjtuwsn.cranemq.common.command.types.RequestType;
-import com.github.xjtuwsn.cranemq.common.command.types.RpcType;
 import com.github.xjtuwsn.cranemq.common.exception.CraneClientException;
 import com.github.xjtuwsn.cranemq.common.utils.TopicUtil;
 import org.slf4j.Logger;
@@ -42,7 +43,6 @@ import com.github.xjtuwsn.cranemq.common.command.RemoteCommand;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.stream.Collectors;
 
 /**
  * @project:cranemq
@@ -75,18 +75,21 @@ public class ClientInstance {
     private ConcurrentHashMap<String, HashMap<Integer, String>> brokerAddressTable = new ConcurrentHashMap<>();
     private ConcurrentHashMap<String, DefaultMQProducerImpl> producerRegister = new ConcurrentHashMap<>();
     private ConcurrentHashMap<String, DefaultPullConsumerImpl> pullConsumerRegister = new ConcurrentHashMap<>();
+    // group : push
+    private ConcurrentHashMap<String, DefaultPushConsumerImpl> pushConsumerRegister = new ConcurrentHashMap<>();
+
     private AtomicInteger clinetNumber;
     private static volatile ConcurrentHashMap<String, WrapperFutureCommand> requestTable = new ConcurrentHashMap<>();
     private volatile Semaphore updateSemphore = new Semaphore(2);
     private Random random = new Random();
 
-
+    private RebalanceService rebalanceService;
 
     public ClientInstance() {
         this.state = new AtomicInteger(0);
         this.clinetNumber = new AtomicInteger(0);
         this.remoteClent = new RemoteClent();
-
+        this.rebalanceService = new RebalanceService(this);
     }
 
     public void start() {
@@ -176,12 +179,25 @@ public class ClientInstance {
         if (this.producerRegister.size() != 0) {
             log.info("This is a producer client instance");
             addrs = this.producerRegister.values().stream().map(DefaultMQProducerImpl::getRegisteryAddress)
-                    .collect(Collectors.toList());
+                    .map(Arrays::asList).reduce(new ArrayList<>(), (a, b) -> {
+                        a.addAll(b);
+                        return a;
+                    });
 
         } else if (this.pullConsumerRegister.size() != 0) {
             log.info("This is a pull consumer client instance");
             addrs = this.pullConsumerRegister.values().stream().map(DefaultPullConsumerImpl::getRegistryAddress)
-                    .collect(Collectors.toList());
+                    .map(Arrays::asList).reduce(new ArrayList<>(), (a, b) -> {
+                        a.addAll(b);
+                        return a;
+                    });
+        } else if (this.pushConsumerRegister.size() != 0) {
+            log.info("This is a push consumer client instance");
+            addrs = this.pushConsumerRegister.values().stream().map(DefaultPushConsumerImpl::getRegisteryAddress)
+                    .map(Arrays::asList).reduce(new ArrayList<>(), (a, b) -> {
+                        a.addAll(b);
+                        return a;
+                    });
         }
         int size = addrs.size();
         address = addrs.get(this.random.nextInt(size));
@@ -192,15 +208,15 @@ public class ClientInstance {
         this.timerService.scheduleAtFixedRate(() -> {
             log.info("Fetech topic router info from registery");
             this.fetchRouteInfo();
-        }, 300, 1000 * 30, TimeUnit.MILLISECONDS);
+        }, 0, 1000 * 30, TimeUnit.MILLISECONDS);
         this.timerService.scheduleAtFixedRate(() -> {
             log.info("Clean expired remote broker");
             this.cleanExpired();
         }, 300, 1000 * 60, TimeUnit.MILLISECONDS);
         this.timerService.scheduleAtFixedRate(() -> {
-            log.info("Send heartbeat to brokers");
+            log.info("Send heartbeat to all brokers");
             this.sendHeartBeatToBroker();
-        }, 100, 30 * 1000, TimeUnit.MILLISECONDS);
+        }, 500, 20 * 1000, TimeUnit.MILLISECONDS);
     }
 
     /**
@@ -338,17 +354,25 @@ public class ClientInstance {
     }
 
     public void sendHeartBeatToBroker() {
+
         MQHeartBeatRequest heartBeatRequest = new MQHeartBeatRequest(this.clientId);
         Set<String> producerGroup = new HashSet<>();
+        Set<ConsumerInfo> consumerInfos = new HashSet<>();
         for (Map.Entry<String, DefaultMQProducerImpl> entry : this.producerRegister.entrySet()) {
             DefaultMQProducerImpl value = entry.getValue();
             producerGroup.add(value.getDefaultMQProducer().getGroup());
         }
-        if (producerGroup.isEmpty()) {
-            log.warn("No producer here");
-            return;
-        }
         heartBeatRequest.setProducerGroup(producerGroup);
+        for (Map.Entry<String, DefaultPushConsumerImpl> entry : this.pushConsumerRegister.entrySet()) {
+            DefaultPushConsumerImpl value = entry.getValue();
+            ConsumerInfo info = new ConsumerInfo();
+            info.setConsumerGroup(entry.getKey());
+            info.setStartConsume(value.getStartConsume());
+            info.setMessageModel(value.getMessageModel());
+            info.setSubscriptionInfos(value.getSubscriptionInfos());
+            consumerInfos.add(info);
+        }
+        heartBeatRequest.setConsumerGroup(consumerInfos);
         Header header = new Header(RequestType.HEARTBEAT, RpcType.ONE_WAY, TopicUtil.generateUniqueID());
         RemoteCommand remoteCommand = new RemoteCommand(header, heartBeatRequest);
         if (this.brokerAddressTable.isEmpty()) {
@@ -362,6 +386,10 @@ public class ClientInstance {
             });
         }
     }
+
+    public void sendPullRequestSync(final WrapperFutureCommand wrappered) {
+
+    }
     public PullResult sendPullSync(final WrapperFutureCommand wrappered) {
         FutureCommand futureCommand = wrappered.getFutureCommand();
         if (this.hook != null) {
@@ -374,7 +402,7 @@ public class ClientInstance {
             response = futureCommand.get();
             log.info("Sync method get response: {}", response);
         } catch (InterruptedException | ExecutionException | CraneClientException e) {
-            result = new PullResult();
+            result = new PullResult(AcquireResultType.ERROR);
             log.warn("Sync Request has retred for max time");
         }
         if (result == null) {
@@ -391,7 +419,9 @@ public class ClientInstance {
         }
 
         this.sendAdaptor(wrappered, null);
-        if (isOneWay) return null;
+        if (isOneWay) {
+            return null;
+        }
         SendResult result = null;
         RemoteCommand response = null;
         try {
@@ -569,6 +599,12 @@ public class ClientInstance {
                 topicList.addAll(impl.getTopicSet());
             }
         }
+        for (Map.Entry<String, DefaultPushConsumerImpl> entry : this.pushConsumerRegister.entrySet()) {
+            DefaultPushConsumerImpl impl = entry.getValue();
+            if (impl != null) {
+                topicList.addAll(impl.getTopicSet());
+            }
+        }
         for (String topic : topicList) {
             this.updateTopicInfo(topic);
         }
@@ -661,11 +697,16 @@ public class ClientInstance {
     }
     public void registerProducer(DefaultMQProducerImpl defaultMQProducer) {
         int order = this.clinetNumber.getAndIncrement();
+
         this.producerRegister.put("produer-" + order, defaultMQProducer);
     }
     public void registerPullConsumer(DefaultPullConsumerImpl defaultPullConsumer) {
         int order = this.clinetNumber.getAndIncrement();
         this.pullConsumerRegister.put("pullconsumer-" + order, defaultPullConsumer);
+    }
+    public void registerPushConsumer(String group, DefaultPushConsumerImpl defaultPushConsumer) {
+        int order = this.clinetNumber.getAndIncrement();
+        this.pushConsumerRegister.put(group, defaultPushConsumer);
     }
     public void setLoadBalanceStrategy(LoadBalanceStrategy loadBalanceStrategy) {
         this.loadBalanceStrategy = loadBalanceStrategy;
@@ -687,5 +728,16 @@ public class ClientInstance {
     }
     public void setClientId(String clientId) {
         this.clientId = clientId;
+    }
+
+    public RebalanceService getRebalanceService() {
+        return rebalanceService;
+    }
+    public DefaultPushConsumerImpl getPushConsumerByGroup(String group) {
+        return pushConsumerRegister.get(group);
+    }
+
+    public String getClientId() {
+        return clientId;
     }
 }

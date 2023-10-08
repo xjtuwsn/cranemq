@@ -31,22 +31,22 @@ public class BrokerUtil {
                 if (parameterType != null) {
                     String parameterTypeName = parameterType.getSimpleName();
                     Object v = null;
-                    if (parameterTypeName.equals("int") || parameterTypeName.equals("Int")) {
+                    if ("int".equals(parameterTypeName) || "Int".equals(parameterTypeName)) {
                         v = Integer.parseInt(value);
                     }
-                    if (parameterTypeName.equals("String") || parameterTypeName.equals("string")) {
+                    if ("String".equals(parameterTypeName) || "string".equals(parameterTypeName)) {
                         v = String.valueOf(value);
                     }
-                    if (parameterTypeName.equals("FlushDisk")) {
+                    if ("FlushDisk".equals(parameterTypeName)) {
                         v = FlushDisk.valueOf(value.toUpperCase());
                     }
-                    if (parameterTypeName.equals("Double") || parameterTypeName.equals("double")) {
+                    if ("Double".equals(parameterTypeName) || "double".equals(parameterTypeName)) {
                         v = Double.valueOf(value);
                     }
-                    if (parameterTypeName.equals("Long") || parameterTypeName.equals("long")) {
+                    if ("Long".equals(parameterTypeName) || "long".equals(parameterTypeName)) {
                         v = Long.valueOf(value);
                     }
-                    if (parameterTypeName.equals("Boolean") || parameterTypeName.equals("boolean")) {
+                    if ("Boolean".equals(parameterTypeName) || "boolean".equals(parameterTypeName)) {
                         v = Boolean.valueOf(value);
                     }
                     try {

@@ -2,7 +2,7 @@ package com.github.xjtuwsn.cranemq.client.consumer;
 
 import com.github.xjtuwsn.cranemq.client.consumer.impl.DefaultPullConsumerImpl;
 import com.github.xjtuwsn.cranemq.common.constant.MQConstant;
-import com.github.xjtuwsn.cranemq.common.entity.MessageModel;
+import com.github.xjtuwsn.cranemq.common.consumer.MessageModel;
 import com.github.xjtuwsn.cranemq.common.entity.MessageQueue;
 import com.github.xjtuwsn.cranemq.common.exception.CraneClientException;
 import com.github.xjtuwsn.cranemq.common.remote.RemoteHook;
@@ -47,7 +47,7 @@ public class DefaultPullConsumer implements MQPullConsumer {
 
     @Override
     public PullResult pull(MessageQueue messageQueue, long offset, int len) throws CraneClientException {
-        return null;
+        return this.defaultPullConsumerImpl.pull(messageQueue, offset, len);
     }
 
     @Override

@@ -16,6 +16,7 @@ public enum RequestType implements Type {
     // 拉取消息请求
     MESSAGE_PULL_REQUEST,
     CREATE_TOPIC_REQUEST,
-    SIMPLE_PULL_MESSAGE_REQUEST
+    SIMPLE_PULL_MESSAGE_REQUEST,
+    PULL_MESSAGE
 
 }

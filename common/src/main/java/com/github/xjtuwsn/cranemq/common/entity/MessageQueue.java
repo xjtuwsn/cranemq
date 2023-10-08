@@ -3,6 +3,7 @@ package com.github.xjtuwsn.cranemq.common.entity;
 import lombok.ToString;
 
 import java.io.Serializable;
+import java.util.Objects;
 
 /**
  * @project:cranemq
@@ -15,6 +16,23 @@ public class MessageQueue implements Serializable {
     private String topic;
     private String brokerName;
     private int queueId;
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+        MessageQueue that = (MessageQueue) o;
+        return queueId == that.queueId && Objects.equals(topic, that.topic) && Objects.equals(brokerName, that.brokerName);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(topic, brokerName, queueId);
+    }
 
     public MessageQueue() {
     }

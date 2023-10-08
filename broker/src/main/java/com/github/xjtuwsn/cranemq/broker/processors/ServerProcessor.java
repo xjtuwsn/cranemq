@@ -3,6 +3,7 @@ package com.github.xjtuwsn.cranemq.broker.processors;
 import com.github.xjtuwsn.cranemq.broker.BrokerController;
 import com.github.xjtuwsn.cranemq.common.command.payloads.req.MQSimplePullRequest;
 import com.github.xjtuwsn.cranemq.common.command.payloads.resp.MQSimplePullResponse;
+import com.github.xjtuwsn.cranemq.common.command.types.AcquireResultType;
 import com.github.xjtuwsn.cranemq.common.remote.enums.ConnectionEventType;
 import com.github.xjtuwsn.cranemq.common.remote.event.ConnectionEvent;
 import com.github.xjtuwsn.cranemq.common.remote.RemoteServer;
@@ -115,11 +116,12 @@ public class ServerProcessor implements BaseProcessor {
     public void processHeartBeat(ChannelHandlerContext ctx, RemoteCommand remoteCommand) {
         Header header = remoteCommand.getHeader();
         MQHeartBeatRequest heartBeatRequest = (MQHeartBeatRequest) remoteCommand.getPayLoad();
-        if (heartBeatRequest.getProducerGroup() != null) {
+        if (heartBeatRequest.getProducerGroup() != null && heartBeatRequest.getProducerGroup().size() != 0) {
             this.remoteServer.publishEvent(new ConnectionEvent(ConnectionEventType.PRODUCER_HEARTBEAT, ctx.channel(),
                     heartBeatRequest));
         } else {
-
+            this.remoteServer.publishEvent(new ConnectionEvent(ConnectionEventType.CONSUMER_HEARTBEAT, ctx.channel(),
+                    heartBeatRequest));
         }
 //        System.out.println(remoteCommand);
     }
@@ -128,7 +130,19 @@ public class ServerProcessor implements BaseProcessor {
     public void processSimplePull(ChannelHandlerContext ctx, RemoteCommand remoteCommand) {
         Header header = remoteCommand.getHeader();
         MQSimplePullRequest pullRequest = (MQSimplePullRequest) remoteCommand.getPayLoad();
-        MQSimplePullResponse response = brokerController.getMessageStoreCenter().simplePullMessage(pullRequest);
 
+        long start = System.nanoTime();
+        MQSimplePullResponse response = brokerController.getMessageStoreCenter().simplePullMessage(pullRequest);
+        long end = System.nanoTime();
+        double cost = (end - start) / 1e6;
+        log.warn("Pull {} message cost {} ms", pullRequest.getLength(), cost);
+
+        Header responseHeader = new Header(ResponseType.SIMPLE_PULL_RESPONSE, header.getRpcType(),
+                header.getCorrelationId());
+        if (response.getResultType() != AcquireResultType.DONE) {
+            responseHeader.onFailure(ResponseCode.SERVER_ERROR);
+        }
+        RemoteCommand resopnse = new RemoteCommand(responseHeader, response);
+        ctx.writeAndFlush(resopnse);
     }
 }

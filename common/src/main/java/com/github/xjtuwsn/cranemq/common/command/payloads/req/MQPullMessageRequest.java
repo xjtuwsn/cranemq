@@ -1,6 +1,8 @@
 package com.github.xjtuwsn.cranemq.common.command.payloads.req;
 
 import com.github.xjtuwsn.cranemq.common.command.PayLoad;
+import com.github.xjtuwsn.cranemq.common.entity.MessageQueue;
+import lombok.*;
 
 /**
  * @project:cranemq
@@ -8,5 +10,13 @@ import com.github.xjtuwsn.cranemq.common.command.PayLoad;
  * @author:wsn
  * @create:2023/10/08-16:56
  */
-public class MQPushMessageRequest implements PayLoad {
+@Data
+@AllArgsConstructor
+@NoArgsConstructor
+@Getter
+@Setter
+public class MQPullMessageRequest implements PayLoad {
+    private String groupName
+    private MessageQueue messageQueue;
+
 }

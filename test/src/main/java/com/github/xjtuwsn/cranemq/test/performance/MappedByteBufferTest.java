@@ -64,7 +64,9 @@ public class MappedByteBufferTest {
             long offset = dis.readLong();
             int size = dis.readInt();
 
-            if (offset == 0 && size == 0) break;
+            if (offset == 0 && size == 0) {
+                break;
+            }
             System.out.println(offset + ", " + size);
         }
     }

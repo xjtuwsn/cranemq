@@ -25,6 +25,7 @@ public class BrokerController implements GeneralStoreService {
     private MessageStoreCenter messageStoreCenter;
     private ExecutorService producerMessageService;
     private ExecutorService createTopicService;
+    private ExecutorService simplePullService;
     private ExecutorService handleHeartBeatService;
     private int coreSize = 10;
     private int maxSize = 20;
@@ -48,6 +49,7 @@ public class BrokerController implements GeneralStoreService {
         this.remoteServer.registerThreadPool(HandlerType.PRODUCER_REQUEST, this.producerMessageService);
         this.remoteServer.registerThreadPool(HandlerType.CREATE_TOPIC, this.createTopicService);
         this.remoteServer.registerThreadPool(HandlerType.HEARTBEAT_REQUEST, this.handleHeartBeatService);
+        this.remoteServer.registerThreadPool(HandlerType.SIMPLE_PULL, this.simplePullService);
     }
     private void initThreadPool() {
         this.producerMessageService = new ThreadPoolExecutor(coreSize, maxSize,
@@ -77,11 +79,22 @@ public class BrokerController implements GeneralStoreService {
                         return new Thread(r, "Handle HeartBeat Service NO." + idx.getAndIncrement());
                     }
                 });
+        this.simplePullService = new ThreadPoolExecutor(coreSize / 2, maxSize / 2,
+                60L, TimeUnit.SECONDS, new LinkedBlockingDeque<>(8000),
+                new ThreadFactory() {
+                    AtomicInteger idx = new AtomicInteger(0);
+                    @Override
+                    public Thread newThread(Runnable r) {
+                        return new Thread(r, "Siple pull Service NO." + idx.getAndIncrement());
+                    }
+                });
     }
+    @Override
     public void start() {
         this.remoteServer.start();
         this.messageStoreCenter.start();
     }
+    @Override
     public void close() {
 
     }

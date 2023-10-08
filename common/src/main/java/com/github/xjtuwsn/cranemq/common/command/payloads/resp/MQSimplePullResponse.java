@@ -1,7 +1,7 @@
 package com.github.xjtuwsn.cranemq.common.command.payloads.resp;
 
 import com.github.xjtuwsn.cranemq.common.command.PayLoad;
-import com.github.xjtuwsn.cranemq.common.command.types.PullResultType;
+import com.github.xjtuwsn.cranemq.common.command.types.AcquireResultType;
 import com.github.xjtuwsn.cranemq.common.entity.ReadyMessage;
 import lombok.*;
 
@@ -19,11 +19,11 @@ import java.util.List;
 @Getter
 @Setter
 public class MQSimplePullResponse implements PayLoad {
-    private PullResultType resultType;
+    private AcquireResultType resultType;
     private List<ReadyMessage> messages;
     private long nextOffset;
 
-    public MQSimplePullResponse(PullResultType resultType) {
+    public MQSimplePullResponse(AcquireResultType resultType) {
         this.resultType = resultType;
     }
 }

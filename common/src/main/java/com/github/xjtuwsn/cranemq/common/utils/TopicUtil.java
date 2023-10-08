@@ -30,10 +30,14 @@ public class TopicUtil {
             } else if (c >= '0' && c <= '9') {
                 continue;
             } else {
-                if (!validChar.contains(c)) return false;
+                if (!validChar.contains(c)) {
+                    return false;
+                }
             }
         }
-        if (!hasLetter) return false;
+        if (!hasLetter) {
+            return false;
+        }
         return true;
     }
 
@@ -45,7 +49,7 @@ public class TopicUtil {
     public static String buildClientID(String role) {
         String ip = NetworkUtil.getLocalAddress();
         StringBuilder id = new StringBuilder();
-        id.append(ip).append("@").append(role).append("@").append("default");
+        id.append(ip).append("@").append("default").append("@").append(role);
 
         return id.toString();
     }

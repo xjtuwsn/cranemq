@@ -36,7 +36,7 @@ public class DefaultPullConsumerImpl {
 
     private RemoteHook hook;
 
-    private String registryAddress;
+    private String[] registryAddress;
     private String clientId;
 
     private ClientInstance clientInstance;
@@ -77,7 +77,7 @@ public class DefaultPullConsumerImpl {
         if (StrUtil.isEmpty(address)) {
             throw new CraneClientException("Registry address cannot be empty");
         }
-        this.registryAddress = address;
+        this.registryAddress = address.split(";");
     }
     public List<MessageQueue> listQueues() {
         return this.clientInstance.listQueues(this.topicSet);
@@ -110,7 +110,7 @@ public class DefaultPullConsumerImpl {
         return topicSet;
     }
 
-    public String getRegistryAddress() {
+    public String[] getRegistryAddress() {
         return registryAddress;
     }
 }
