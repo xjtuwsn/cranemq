@@ -122,6 +122,15 @@ public class ConsumeQueue extends AbstractLinkedListOrganize implements GeneralS
         }
         return mappedFile;
     }
+
+    public long currentLastOffset() {
+        MappedFile lastMappedFile = getLastMappedFile();
+        if (lastMappedFile == null) {
+            return 0;
+        }
+        return lastMappedFile.getWrite() / persistentConfig.getQueueUnit()
+                + (long) (this.mappedTable.size() - 3) * persistentConfig.getMaxQueueSize();
+    }
     public boolean appendMappedFile(MappedFile mappedFile) {
         if (mappedFile == null) {
             return false;

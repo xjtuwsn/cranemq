@@ -36,18 +36,25 @@ public class PullMessageService extends Thread {
 
     private void parseRequest() {
         try {
+
             PullRequest request = requestQueue.take();
+            log.warn("Take the request {}", request);
             clientInstance.getPushConsumerByGroup(request.getGroupName()).pull(request);
         } catch (InterruptedException e) {
             log.warn("Take request has been Interrupted");
         }
     }
     public void putRequestNow(PullRequest pullRequest) {
-        this.requestQueue.offer(pullRequest);
+
+        try {
+            this.requestQueue.put(pullRequest);
+        } catch (InterruptedException e) {
+            log.error("Put request has been Interrupted");
+        }
     }
     public void putRequestDelay(PullRequest pullRequest, long millis) {
         this.delayPutPool.schedule(() -> {
-            requestQueue.offer(pullRequest);
+            putRequestNow(pullRequest);
         }, millis, TimeUnit.MILLISECONDS);
     }
     public void setStop() {

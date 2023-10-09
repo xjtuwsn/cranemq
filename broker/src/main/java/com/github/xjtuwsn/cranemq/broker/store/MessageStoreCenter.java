@@ -2,6 +2,7 @@ package com.github.xjtuwsn.cranemq.broker.store;
 
 import cn.hutool.core.lang.Pair;
 import com.github.xjtuwsn.cranemq.broker.BrokerController;
+import com.github.xjtuwsn.cranemq.broker.store.cmtlog.CommitEntry;
 import com.github.xjtuwsn.cranemq.broker.store.cmtlog.CommitLog;
 import com.github.xjtuwsn.cranemq.broker.store.cmtlog.RecoveryListener;
 import com.github.xjtuwsn.cranemq.broker.store.comm.PutMessageResponse;
@@ -27,6 +28,7 @@ import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.LinkedBlockingQueue;
 
 /**
  * @project:cranemq
@@ -41,11 +43,12 @@ public class MessageStoreCenter implements GeneralStoreService {
     private CommitLog commitLog;
     private ConsumeQueueManager consumeQueueManager;
     private FlushDiskService flushDiskService;
+    private TransmitCommitLogService transmitCommitLogService;
 
     public MessageStoreCenter(BrokerController brokerController) {
         this.brokerController = brokerController;
         this.persistentConfig = brokerController.getPersistentConfig();
-        this.commitLog = new CommitLog(this.brokerController);
+        this.commitLog = new CommitLog(this.brokerController, this);
         this.consumeQueueManager = new ConsumeQueueManager(this.brokerController,
                 this.brokerController.getPersistentConfig());
         if (persistentConfig.getFlushDisk() == FlushDisk.ASYNC) {
@@ -53,6 +56,9 @@ public class MessageStoreCenter implements GeneralStoreService {
                     consumeQueueManager);
         } else {
             this.flushDiskService = new SyncFlushDiskService();
+        }
+        if (persistentConfig.isEnableOutOfMemory()) {
+            this.transmitCommitLogService = new TransmitCommitLogService();
         }
     }
     public PutMessageResponse putMessage(StoreInnerMessage innerMessage) {
@@ -67,24 +73,61 @@ public class MessageStoreCenter implements GeneralStoreService {
             log.error("Put message to CommitLog error");
 
         }
-        PutMessageResponse putOffsetResp = null;
-        if (response.getResponseType() == StoreResponseType.STORE_OK) {
-            long offset = response.getOffset();
-            int size = response.getSize();
-            putOffsetResp = this.consumeQueueManager.updateOffset(offset, innerMessage.getTopic(),
-                    innerMessage.getQueueId(), size);
+        // 同步刷盘
+        if (persistentConfig.getFlushDisk() == FlushDisk.SYNC) {
+            this.flushDiskService.flush(response.getMappedFile());
         }
-        if (putOffsetResp == null) {
-            return new PutMessageResponse(StoreResponseType.PARAMETER_ERROR);
-        }
-        if (putOffsetResp.getResponseType() == StoreResponseType.STORE_OK) {
-            if (persistentConfig.getFlushDisk() == FlushDisk.SYNC) {
-                this.flushDiskService.flush(response.getMappedFile());
-                this.flushDiskService.flush(putOffsetResp.getMappedFile());
+        // 没有提交这一步骤，每次put完都要同步刷到consumequeue
+        if (!response.getMappedFile().ownDirectMemory()) {
+            PutMessageResponse putOffsetResp = null;
+            if (response.getResponseType() == StoreResponseType.STORE_OK) {
+                long offset = response.getOffset();
+                int size = response.getSize();
+                putOffsetResp = this.consumeQueueManager.updateOffset(offset, innerMessage.getTopic(),
+                        innerMessage.getQueueId(), size);
             }
-        }
-        return putOffsetResp;
+            if (putOffsetResp == null) {
+                return new PutMessageResponse(StoreResponseType.PARAMETER_ERROR);
+            }
 
+            // 同步刷盘
+            if (putOffsetResp.getResponseType() == StoreResponseType.STORE_OK) {
+                if (persistentConfig.getFlushDisk() == FlushDisk.SYNC) {
+                    this.flushDiskService.flush(putOffsetResp.getMappedFile());
+                }
+            }
+            /**
+             * 唤醒push请求
+             */
+            return putOffsetResp;
+        }
+
+
+        return response;
+    }
+
+    private void putOffsetToQueue(List<CommitEntry> entries) {
+
+        List<Pair<String, Integer>> queue = new ArrayList<>();
+
+        System.out.println("------commit-----" + entries);
+        for (CommitEntry entry : entries) {
+            String topic = entry.getTopic(), tag = entry.getTag();
+            long offset = entry.getOffset();
+            int size = entry.getSize(), queueId = entry.getQueueId();
+            queue.add(new Pair<>(topic, queueId));
+            PutMessageResponse response = this.consumeQueueManager.updateOffset(offset, topic, queueId, size);
+
+            // 同步刷盘
+            if (persistentConfig.getFlushDisk() == FlushDisk.SYNC) {
+                flushDiskService.flush(response.getMappedFile());
+            }
+
+        }
+
+        /**
+         * 唤醒push请求
+         */
     }
 
     public QueueData createTopic(MQCreateTopicRequest mqCreateTopicRequest) {
@@ -94,45 +137,54 @@ public class MessageStoreCenter implements GeneralStoreService {
         return consumeQueueManager.createQueue(topic, writeNumber, readNumber);
     }
 
-    public MQSimplePullResponse simplePullMessage(MQSimplePullRequest mqSimplePullRequest) {
-        MessageQueue messageQueue = mqSimplePullRequest.getMessageQueue();
+    public int getQueueNumber(String topic) {
+        int queueNumber = consumeQueueManager.getQueueNumber(topic);
+        if (queueNumber == -1) {
+            consumeQueueManager.createQueue(topic, persistentConfig.getDefaultQueueNumber(),
+                    persistentConfig.getDefaultQueueNumber());
+            queueNumber = persistentConfig.getDefaultQueueNumber();
 
-        int length = mqSimplePullRequest.getLength(), queueId = messageQueue.getQueueId();
-        long offset = mqSimplePullRequest.getOffset();
-        String topic = messageQueue.getTopic();
+        }
+        return queueNumber;
+    }
+
+    public long getQueueCurWritePos(String topic, int queueId) {
+        return consumeQueueManager.getQueueCurWritePos(topic, queueId);
+    }
+
+    public Pair<List<ReadyMessage>, AcquireResultType> read(String topic, int queueId, long offset, int length) {
         List<Pair<Long, Integer>> commitLogData = new ArrayList<>();
 
-        MQSimplePullResponse response = new MQSimplePullResponse(AcquireResultType.NO_MESSAGE);
+        AcquireResultType result = AcquireResultType.NO_MESSAGE;
 
         ConsumeQueue consumeQueue = consumeQueueManager.getConsumeQueue(topic, queueId);
         if (consumeQueue == null) {
             log.error("No such consume queue");
-            return response;
+            return new Pair<>(null, result);
         }
 
         MappedFile firstMappedFile = consumeQueue.getFirstMappedFile();
         if (firstMappedFile == null) {
             log.error("Consume queue has zero file");
-            return response;
+            return new Pair<>(null, result);
         }
 
         String firstName = firstMappedFile.getFileName();
         int queueUnit = persistentConfig.getQueueUnit();
         int maxQueueItemNumber = persistentConfig.getMaxQueueItemNumber();
         int left = length;
-        //要么全都读到，要么全都不读
         for (int i = 0; i < length;) {
             int index = (int) ((offset + i) / maxQueueItemNumber);
             MappedFile current = consumeQueue.getMappedFileByIndex(index);
             if (current == null) {
-                response.setResultType(AcquireResultType.OFFSET_INVALID);
                 log.error("Offset has over the limit");
-                return response;
+                break;
             }
             int start = (int) ((offset + i) * queueUnit % maxQueueItemNumber);
             List<Pair<Long, Integer>> list = current.readOffsetIndex(start, left);
-            if (left != 0 && list == null) {
-                return response;
+            if (list == null || list.size() == 0) {
+                log.warn("Read zero offset index, prove no more index");
+                break;
             }
             commitLogData.addAll(list);
             int readed = list.size();
@@ -142,12 +194,13 @@ public class MessageStoreCenter implements GeneralStoreService {
             }
             i = length - left;
         }
-        response.setResultType(AcquireResultType.ERROR);
+        result = AcquireResultType.ERROR;
         MappedFile firstCommit = commitLog.getFirstMappedFile();
 
         long nextOffset = offset + length;
         if (firstCommit == null) {
-            return response;
+            log.warn("There is no commitLog mapped file");
+            return new Pair<>(null, result);
         }
         String firstCommitName = firstCommit.getFileName();
         List<ReadyMessage> readyMessageList = new ArrayList<>();
@@ -161,16 +214,41 @@ public class MessageStoreCenter implements GeneralStoreService {
                     persistentConfig.getCommitLogMaxSize());
             MappedFile mappedFileByIndex = commitLog.getMappedFileByIndex(mappedIndex);
             if (mappedFileByIndex == null) {
-                return response;
+                log.warn("Doesnot have this message, problely something wrong");
+                break;
             }
             int offsetInpage = BrokerUtil.offsetInPage(curOffset, persistentConfig.getCommitLogMaxSize());
             Message message = mappedFileByIndex.readSingleMessage(offsetInpage);
             if (message == null) {
-                return response;
+                log.warn("Read null from mappedfile, offset record error");
+                break;
             }
             readyMessageList.add(new ReadyMessage(brokerController.getBrokerConfig().getBrokerName(),
                     queueId, offset + i, message));
         }
+
+        result = AcquireResultType.DONE;
+        return new Pair<>(readyMessageList, result);
+
+    }
+
+    public MQSimplePullResponse simplePullMessage(MQSimplePullRequest mqSimplePullRequest) {
+        MessageQueue messageQueue = mqSimplePullRequest.getMessageQueue();
+
+        int length = mqSimplePullRequest.getLength(), queueId = messageQueue.getQueueId();
+        long offset = mqSimplePullRequest.getOffset();
+        String topic = messageQueue.getTopic();
+
+        Pair<List<ReadyMessage>, AcquireResultType> result = read(topic, queueId, offset, length);
+
+        MQSimplePullResponse response = new MQSimplePullResponse();
+        List<ReadyMessage> readyMessageList = result.getKey();
+
+        long nextOffset = offset;
+        if (readyMessageList != null) {
+            nextOffset += readyMessageList.size();
+        }
+
         response.setResultType(AcquireResultType.DONE);
         response.setNextOffset(nextOffset);
         response.setMessages(readyMessageList);
@@ -190,10 +268,54 @@ public class MessageStoreCenter implements GeneralStoreService {
             ((AsyncFlushDiskService) flushDiskService).start();
             log.info("Async flush disk service start successfully");
         }
+        if (this.transmitCommitLogService != null) {
+            this.transmitCommitLogService.start();
+        }
     }
 
     @Override
     public void close() {
 
+    }
+
+    public TransmitCommitLogService getTransmitCommitLogService() {
+        return transmitCommitLogService;
+    }
+
+    public void putEntries(List<CommitEntry> entries) {
+        this.transmitCommitLogService.putEntries(entries);
+    }
+
+    class TransmitCommitLogService extends Thread {
+        private final Logger log = LoggerFactory.getLogger(TransmitCommitLogService.class);
+
+        private LinkedBlockingQueue<List<CommitEntry>> queue = new LinkedBlockingQueue<>(3000);
+
+        private boolean isStop = false;
+        @Override
+        public void run() {
+            while (!isStop) {
+                try {
+                    List<CommitEntry> entries = queue.take();
+                    putOffsetToQueue(entries);
+                } catch (InterruptedException e) {
+                    log.error("TransmitCommitLogService has been Interrupted");
+                }
+            }
+        }
+
+        public void putEntries(List<CommitEntry> entries) {
+            if (entries != null) {
+                try {
+                    queue.put(entries);
+                } catch (InterruptedException e) {
+                    log.error("TransmitCommitLogService has been Interrupted");
+                }
+            }
+        }
+
+        public void setStop(boolean stop) {
+            isStop = stop;
+        }
     }
 }

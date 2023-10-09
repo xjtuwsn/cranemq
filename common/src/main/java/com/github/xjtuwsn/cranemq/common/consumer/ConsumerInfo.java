@@ -27,8 +27,12 @@ public class ConsumerInfo implements Serializable {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         ConsumerInfo that = (ConsumerInfo) o;
         return Objects.equals(consumerGroup, that.consumerGroup) && messageModel == that.messageModel
                 && startConsume == that.startConsume && Objects.equals(subscriptionInfos, that.subscriptionInfos);

@@ -19,7 +19,7 @@ public class ConsumerTest {
         defaultPullConsumer.subscribe("topic1", "*");
         defaultPullConsumer.start();
         List<MessageQueue> list = defaultPullConsumer.listQueues();
-        // PullResult pull = defaultPullConsumer.pull(list.get(0), 11111110, 3);
-        // System.out.println(pull);
+         PullResult pull = defaultPullConsumer.pull(list.get(0), 100, 3);
+         System.out.println(pull);
     }
 }

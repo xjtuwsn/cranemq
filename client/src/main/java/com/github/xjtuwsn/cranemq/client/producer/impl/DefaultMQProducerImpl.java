@@ -2,6 +2,7 @@ package com.github.xjtuwsn.cranemq.client.producer.impl;
 
 import cn.hutool.core.collection.ConcurrentHashSet;
 import cn.hutool.core.util.StrUtil;
+import com.github.xjtuwsn.cranemq.client.WrapperFutureCommand;
 import com.github.xjtuwsn.cranemq.client.hook.SendCallback;
 import com.github.xjtuwsn.cranemq.client.producer.MQSelector;
 import com.github.xjtuwsn.cranemq.client.producer.balance.LoadBalanceStrategy;
@@ -65,7 +66,10 @@ public class DefaultMQProducerImpl implements MQProducerInner {
                                  LoadBalanceStrategy loadBalanceStrategy) {
         this.defaultMQProducer = defaultMQProducer;
         this.hook = hook;
-        this.registryAddress = registryAddress.split(";");
+        if (registryAddress != null) {
+            this.registryAddress = registryAddress.split(";");
+
+        }
         this.state = new AtomicInteger(0);
         this.loadBalanceStrategy = loadBalanceStrategy;
     }

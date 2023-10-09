@@ -5,7 +5,7 @@ import com.github.xjtuwsn.cranemq.client.consumer.PullResult;
 import com.github.xjtuwsn.cranemq.client.consumer.RebalanceService;
 import com.github.xjtuwsn.cranemq.client.consumer.impl.DefaultPullConsumerImpl;
 import com.github.xjtuwsn.cranemq.client.consumer.impl.DefaultPushConsumerImpl;
-import com.github.xjtuwsn.cranemq.client.consumer.push.PullRequest;
+import com.github.xjtuwsn.cranemq.client.consumer.push.PullMessageService;
 import com.github.xjtuwsn.cranemq.client.hook.InnerCallback;
 import com.github.xjtuwsn.cranemq.client.hook.SendCallback;
 import com.github.xjtuwsn.cranemq.client.processor.CommonProcessor;
@@ -15,7 +15,7 @@ import com.github.xjtuwsn.cranemq.client.producer.MQSelector;
 import com.github.xjtuwsn.cranemq.client.producer.balance.LoadBalanceStrategy;
 import com.github.xjtuwsn.cranemq.client.producer.balance.RandomStrategy;
 import com.github.xjtuwsn.cranemq.client.producer.impl.DefaultMQProducerImpl;
-import com.github.xjtuwsn.cranemq.client.producer.impl.WrapperFutureCommand;
+import com.github.xjtuwsn.cranemq.client.WrapperFutureCommand;
 import com.github.xjtuwsn.cranemq.client.producer.result.SendResult;
 import com.github.xjtuwsn.cranemq.client.producer.result.SendResultType;
 import com.github.xjtuwsn.cranemq.common.command.payloads.req.*;
@@ -85,11 +85,14 @@ public class ClientInstance {
 
     private RebalanceService rebalanceService;
 
+    private PullMessageService pullMessageService;
+
     public ClientInstance() {
         this.state = new AtomicInteger(0);
         this.clinetNumber = new AtomicInteger(0);
         this.remoteClent = new RemoteClent();
         this.rebalanceService = new RebalanceService(this);
+        this.pullMessageService = new PullMessageService(this);
     }
 
     public void start() {
@@ -161,6 +164,8 @@ public class ClientInstance {
             }
         });
         this.startScheduleTast();
+        this.rebalanceService.start();
+        this.pullMessageService.start();
         this.state.set(2);
     }
 
@@ -168,7 +173,9 @@ public class ClientInstance {
         if (this.producerRegister != null && this.producerRegister.size() != 0) {
             this.remoteClent.registerProcessor(ClientType.PRODUCER, new PruducerProcessor(this));
         }
-        if (this.pullConsumerRegister != null && this.pullConsumerRegister.size() != 0) {
+        if (this.pullConsumerRegister != null && this.pullConsumerRegister.size() != 0
+                || this.pushConsumerRegister != null && this.pushConsumerRegister.size() != 0) {
+
             this.remoteClent.registerProcessor(ClientType.CONSUMER, new ConsumerProcessor(this));
         }
         this.remoteClent.registerProcessor(ClientType.BOTH, new CommonProcessor(this));
@@ -268,7 +275,6 @@ public class ClientInstance {
 //            }
 
         }
-
         this.remoteClent.invoke(address, command);
     }
 
@@ -387,9 +393,6 @@ public class ClientInstance {
         }
     }
 
-    public void sendPullRequestSync(final WrapperFutureCommand wrappered) {
-
-    }
     public PullResult sendPullSync(final WrapperFutureCommand wrappered) {
         FutureCommand futureCommand = wrappered.getFutureCommand();
         if (this.hook != null) {
@@ -623,13 +626,13 @@ public class ClientInstance {
         futureCommand.setRequest(remoteCommand);
         WrapperFutureCommand wrappered = new WrapperFutureCommand(futureCommand, topic, -1, null);
         wrappered.setToRegistery(true);
-
         SendResult result = this.sendMessageSync(wrappered, false);
 
         if (result.getResultType() == SendResultType.SERVER_ERROR || result.getTopicRouteInfo() == null) {
             log.error("Topic {} cannot find correct broker", topic);
             return;
         }
+
         TopicRouteInfo old = this.topicTable.get(topic);
         this.markExpiredBroker(result.getTopicRouteInfo(), old);
         this.topicTable.put(topic, result.getTopicRouteInfo());
@@ -739,5 +742,9 @@ public class ClientInstance {
 
     public String getClientId() {
         return clientId;
+    }
+
+    public PullMessageService getPullMessageService() {
+        return pullMessageService;
     }
 }

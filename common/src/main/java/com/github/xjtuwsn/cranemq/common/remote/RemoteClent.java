@@ -58,7 +58,7 @@ public class RemoteClent implements RemoteService {
     public void registerProcessor(ClientType type, BaseProcessor processor) {
         this.processorTable.put(type, processor);
     }
-    private synchronized ChannelFuture createChannel(String address) {
+    private ChannelFuture createChannel(String address) {
         ChannelWrapper cw = this.channelTable.get(address);
         if (cw != null && cw.isOk()) {
             return cw.getChannelFuture();
@@ -96,7 +96,9 @@ public class RemoteClent implements RemoteService {
             log.error("Create channel error");
             return;
         }
-        channelFuture.channel().writeAndFlush(remoteCommand);
+
+        ChannelFuture channelFuture1 = channelFuture.channel().writeAndFlush(remoteCommand);
+
     }
     @Override
     public void start() {
@@ -153,7 +155,6 @@ public class RemoteClent implements RemoteService {
                 log.error("Receive null message from broker");
                 return;
             }
-
             Type type = remoteCommand.getHeader().getCommandType();
             if (!(type instanceof ResponseType)) {
                 log.error("Receive wrong type response, {}", type);

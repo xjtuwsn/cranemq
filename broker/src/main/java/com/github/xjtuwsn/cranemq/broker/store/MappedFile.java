@@ -1,6 +1,7 @@
 package com.github.xjtuwsn.cranemq.broker.store;
 
 import cn.hutool.core.lang.Pair;
+import com.github.xjtuwsn.cranemq.broker.store.cmtlog.CommitEntry;
 import com.github.xjtuwsn.cranemq.broker.store.comm.PutMessageResponse;
 import com.github.xjtuwsn.cranemq.broker.store.comm.StoreInnerMessage;
 import com.github.xjtuwsn.cranemq.broker.store.comm.StoreResponseType;
@@ -20,6 +21,8 @@ import java.nio.MappedByteBuffer;
 import java.nio.channels.FileChannel;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.ReentrantLock;
 
@@ -51,6 +54,7 @@ public class MappedFile {
     private ByteBuffer directBuffer;
     private OutOfHeapMemoryPool memoryPool;
     private ReentrantLock writeLock = new ReentrantLock();
+    private UnCommitEntryList unCommitEntryList;
     private Status status;
 
     enum Status {
@@ -115,6 +119,7 @@ public class MappedFile {
         if (this.memoryPool != null) {
             this.directBuffer = this.memoryPool.borrowMemmory();
         }
+        this.unCommitEntryList = new UnCommitEntryList();
 
     }
 
@@ -144,7 +149,7 @@ public class MappedFile {
             int total = this.calTotalLength(topicLen, tagLen, bodyLen);
 
             if (this.writePointer.get() + total >= this.fileSize) { // 写不下了
-                this.sweepThisFile();
+//                this.sweepThisFile();
                 return new PutMessageResponse(StoreResponseType.NO_ENOUGH_SPACE);
             }
 
@@ -167,6 +172,7 @@ public class MappedFile {
 
             writePointer.getAndAdd(total);
             long offset = BrokerUtil.calOffset(this.fileName, pos);
+            this.unCommitEntryList.append(pos, total, innerMessage.getTopic(), queueSelected, innerMessage.getTag());
 
 //            writeBuffer.position(pos);
 //            writeBuffer.limit(pos + total);
@@ -289,21 +295,19 @@ public class MappedFile {
         // 总长度int + topic长度int + topic + tag长度int + tag + body长度int + body + 队列号int
     }
 
-    public void doCommit(boolean force) {
+    public List<CommitEntry> doCommit(boolean force) {
         if (!persistentConfig.isEnableOutOfMemory() || this.directBuffer == null) {
-//            log.info("Do not need to commit");
-            return;
+            return null;
         }
         int last = commitPointer.get();
         int write = writePointer.get();
         if (last == write) {
-            return;
+            return null;
         }
         if (write - last < 4 * OS_PAGE && !force) {
-            // log.info("The buffer's data number is too less");
-            return;
+            return null;
         }
-
+        List<CommitEntry> commitEntries = this.unCommitEntryList.getCommitEntries(write);
         ByteBuffer buffer = directBuffer.slice();
         buffer.position(last);
         buffer.limit(write);
@@ -312,9 +316,10 @@ public class MappedFile {
             this.fileChannel.write(buffer);
             log.info("Finish one commit, commit {} --> {}", last, write);
             commitPointer.set(write);
+            return commitEntries;
         } catch (IOException e) {
             log.error("Move file channel posistion error");
-            return;
+            return null;
         }
     }
     // TODO 刷盘测试
@@ -379,7 +384,9 @@ public class MappedFile {
     public boolean canWrite() {
         return this.writePointer.get() != this.fileSize;
     }
-
+    public int getWrite() {
+        return this.writePointer.get();
+    }
     public void markFull() {
         this.status = Status.FULL;
         this.writePointer.set(fileSize);
@@ -413,6 +420,21 @@ public class MappedFile {
         return fileName;
     }
 
+    class UnCommitEntryList {
+        private LinkedBlockingQueue<CommitEntry> commitEntries = new LinkedBlockingQueue<>();
+
+        public void append(int offset, int size, String topic, int queueId, String tag) {
+            commitEntries.offer(new CommitEntry(topic, fileName, queueId, offset, size, tag));
+        }
+
+        public List<CommitEntry> getCommitEntries(int limit) {
+            List<CommitEntry> list = new ArrayList<>();
+            while (!commitEntries.isEmpty() && commitEntries.peek().getOffsetInPage() <= limit) {
+                list.add(commitEntries.poll());
+            }
+            return list;
+        }
+    }
     @Override
     public String toString() {
         return "MappedFile{" +

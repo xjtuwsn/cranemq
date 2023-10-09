@@ -1,5 +1,6 @@
-package com.github.xjtuwsn.cranemq.client.producer.impl;
+package com.github.xjtuwsn.cranemq.client;
 
+import com.github.xjtuwsn.cranemq.client.hook.PullCallback;
 import com.github.xjtuwsn.cranemq.client.hook.SendCallback;
 import com.github.xjtuwsn.cranemq.client.producer.MQSelector;
 import com.github.xjtuwsn.cranemq.common.command.FutureCommand;
@@ -26,13 +27,16 @@ public class WrapperFutureCommand {
     private AtomicLong startTime;
     private AtomicInteger currentRetryTime;
     private SendCallback callback;
+    private PullCallback pullCallback;
     private MQSelector selector;
     private Object arg;
 
     public WrapperFutureCommand(FutureCommand futureCommand, String topic, long timeout, SendCallback callback) {
         this(futureCommand, -1, timeout, callback, topic);
     }
-
+    public WrapperFutureCommand(FutureCommand futureCommand, String topic) {
+        this(futureCommand, -1, -1, null, topic);
+    }
     public WrapperFutureCommand(FutureCommand futureCommand, int maxRetryTime,
                                 long timeout, SendCallback callback, String topic) {
         this.futureCommand = futureCommand;
@@ -102,5 +106,13 @@ public class WrapperFutureCommand {
 
     public void setArg(Object arg) {
         this.arg = arg;
+    }
+
+    public PullCallback getPullCallback() {
+        return pullCallback;
+    }
+
+    public void setPullCallback(PullCallback pullCallback) {
+        this.pullCallback = pullCallback;
     }
 }

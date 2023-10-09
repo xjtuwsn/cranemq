@@ -45,6 +45,7 @@ public class BaseHandler extends SimpleChannelInboundHandler<RemoteCommand> {
     }
     @Override
     protected void channelRead0(ChannelHandlerContext channelHandlerContext, RemoteCommand request) throws Exception {
+        System.out.println("====" + request);
         if (request.getHeader().getCommandType() == RequestType.UPDATE_TOPIC_REQUEST) {
             MQUpdateTopicRequest messageProduceRequest = (MQUpdateTopicRequest) request.getPayLoad();
             String topic = messageProduceRequest.getTopic();

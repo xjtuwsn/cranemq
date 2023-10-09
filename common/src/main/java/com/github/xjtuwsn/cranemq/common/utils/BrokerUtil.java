@@ -91,4 +91,8 @@ public class BrokerUtil {
         return (int) (offset % fileSize);
     }
 
+    public static String offsetKey(String topic, String group) {
+        return topic + "@" + group;
+    }
+
 }

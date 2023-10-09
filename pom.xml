@@ -28,6 +28,7 @@
         <project.slf4j-simple.version>2.0.7</project.slf4j-simple.version>
         <project.hutool.version>5.8.20</project.hutool.version>
         <project.logback-classic.version>1.4.5</project.logback-classic.version>
+        <project.fastjson.version>1.2.83</project.fastjson.version>
     </properties>
     <dependencyManagement>
         <dependencies>
@@ -88,6 +89,11 @@
                 <groupId>ch.qos.logback</groupId>
                 <artifactId>logback-classic</artifactId>
                 <version>${project.logback-classic.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.alibaba</groupId>
+                <artifactId>fastjson</artifactId>
+                <version>${project.fastjson.version}</version>
             </dependency>
 
         </dependencies>

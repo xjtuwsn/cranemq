@@ -1,5 +1,8 @@
 package com.github.xjtuwsn.cranemq.client.processor;
 
+import com.github.xjtuwsn.cranemq.client.WrapperFutureCommand;
+import com.github.xjtuwsn.cranemq.client.consumer.PullResult;
+import com.github.xjtuwsn.cranemq.client.producer.result.SendResult;
 import com.github.xjtuwsn.cranemq.client.remote.ClientInstance;
 import com.github.xjtuwsn.cranemq.common.command.RemoteCommand;
 import com.github.xjtuwsn.cranemq.common.command.payloads.resp.MQNotifyChangedResponse;
@@ -40,13 +43,27 @@ public class ConsumerProcessor extends AbstractClientProcessor {
     @Override
     public void processNotifyChangedResponse(RemoteCommand remoteCommand, ExecutorService asyncHookService) {
         MQNotifyChangedResponse payLoad = (MQNotifyChangedResponse) remoteCommand.getPayLoad();
-        this.clientInstance.getRebalanceService().updateConsumerGroup(payLoad);
+        new Thread(() -> {
+            this.clientInstance.getRebalanceService().updateConsumerGroup(payLoad);
+        }).start();
 
     }
 
     @Override
     public void processPullResponse(RemoteCommand remoteCommand, ExecutorService asyncHookService) {
+        int responseCode = remoteCommand.getHeader().getStatus();
+        String correlationID = remoteCommand.getHeader().getCorrelationId();
         MQPullMessageResponse mqPullMessageResponse = (MQPullMessageResponse) remoteCommand.getPayLoad();
+        WrapperFutureCommand wrappered = this.clientInstance.getWrapperFuture(correlationID);
+        PullResult result = new PullResult();
+        result.setMessages(mqPullMessageResponse.getMessages());
+        result.setAcquireResultType(mqPullMessageResponse.getAcquireResultType());
+        result.setNextOffset(mqPullMessageResponse.getNextOffset());
 
+        if (wrappered.getPullCallback() != null) {
+            asyncHookService.execute(() -> {
+                wrappered.getPullCallback().onSuccess(result);
+            });
+        }
     }
 }

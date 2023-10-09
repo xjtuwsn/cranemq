@@ -22,4 +22,12 @@ public class PullRequest {
 
     private long offset;
 
+    @Override
+    public String toString() {
+        return "PullRequest{" +
+                "groupName='" + groupName + '\'' +
+                ", messageQueue=" + messageQueue +
+                ", offset=" + offset +
+                '}';
+    }
 }

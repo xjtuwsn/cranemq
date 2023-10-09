@@ -13,6 +13,7 @@ import java.io.File;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.Iterator;
+import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
@@ -35,10 +36,12 @@ public class CommitLog extends AbstractLinkedListOrganize implements GeneralStor
     private CommitService commitService;
     private ScheduledExecutorService commitScheduleService;
     private ScheduledExecutorService scanDirectMemoryService;
+    private MessageStoreCenter messageStoreCenter;
     private long recordOffset;
     private int recordSize;
 
-    public CommitLog(BrokerController brokerController) {
+    public CommitLog(BrokerController brokerController, MessageStoreCenter messageStoreCenter) {
+        this.messageStoreCenter = messageStoreCenter;
         this.brokerController = brokerController;
         init();
         if (brokerController.getPersistentConfig().isEnableOutOfMemory()) {
@@ -154,6 +157,15 @@ public class CommitLog extends AbstractLinkedListOrganize implements GeneralStor
 
         PutMessageResponse response = last.putMessage(innerMessage);
         while (response.getResponseType() == StoreResponseType.NO_ENOUGH_SPACE) {
+
+            commit(true);
+
+            last.doFlush();
+
+            last.markFull();
+
+            last.returnMemory();
+
             if (last.next != tail) {
                 last = last.next;
             }
@@ -177,9 +189,12 @@ public class CommitLog extends AbstractLinkedListOrganize implements GeneralStor
         this.tailLock.lock();
         return true;
     }
-    private void commit(boolean force) {
+    public void commit(boolean force) {
         MappedFile mappedFile = getLastFile();
-        mappedFile.doCommit(force);
+        List<CommitEntry> list = mappedFile.doCommit(force);
+        if (list != null) {
+            this.messageStoreCenter.putEntries(list);
+        }
     }
     public void release() {
         this.tailLock.unlock();

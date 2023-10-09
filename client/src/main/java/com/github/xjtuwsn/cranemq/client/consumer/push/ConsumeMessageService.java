@@ -1,9 +1,12 @@
 package com.github.xjtuwsn.cranemq.client.consumer.push;
 
 import com.github.xjtuwsn.cranemq.common.command.payloads.resp.MQPullMessageResponse;
+import com.github.xjtuwsn.cranemq.common.entity.MessageQueue;
+import com.github.xjtuwsn.cranemq.common.entity.ReadyMessage;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.List;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -13,41 +16,13 @@ import java.util.concurrent.atomic.AtomicInteger;
  * @author:wsn
  * @create:2023/10/08-15:32
  */
-public class ConsumeMessageService {
+public interface ConsumeMessageService {
 
-    private static final Logger log = LoggerFactory.getLogger(ConsumeMessageService.class);
-    private int capacity = 8000;
+    void start();
 
-    private LinkedBlockingQueue<MQPullMessageResponse> responseQueue = new LinkedBlockingQueue<>(8000);
+    void shutdown();
 
-    private AtomicInteger messageCount;
+    void submit(MessageQueue messageQueue, BrokerQueueSnapShot snapShot, List<ReadyMessage> messages);
 
-    public MQPullMessageResponse take() {
-        try {
-            MQPullMessageResponse take = responseQueue.take();
-            messageCount.addAndGet(-take.getMessageCount());
-            return take;
-        } catch (InterruptedException e) {
-            log.warn("Take has been Interrupted");
-        }
-        return null;
-    }
 
-    public void offer(MQPullMessageResponse mqPullMessageResponse) {
-        if (mqPullMessageResponse == null) {
-            log.warn("MQPushMessageResponse can not be null");
-            return;
-        }
-        messageCount.addAndGet(mqPullMessageResponse.getMessageCount());
-        responseQueue.offer(mqPullMessageResponse);
-    }
-    public double getUsageRate() {
-        if (messageCount.get() > 10000) {
-            return 10;
-        }
-        if (responseQueue.size() < capacity / 2) {
-            return 0;
-        }
-        return responseQueue.size() * 10.0 / capacity;
-    }
 }

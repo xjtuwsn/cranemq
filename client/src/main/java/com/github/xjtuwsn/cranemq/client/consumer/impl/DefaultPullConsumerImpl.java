@@ -4,7 +4,7 @@ import cn.hutool.core.collection.ConcurrentHashSet;
 import cn.hutool.core.util.StrUtil;
 import com.github.xjtuwsn.cranemq.client.consumer.DefaultPullConsumer;
 import com.github.xjtuwsn.cranemq.client.consumer.PullResult;
-import com.github.xjtuwsn.cranemq.client.producer.impl.WrapperFutureCommand;
+import com.github.xjtuwsn.cranemq.client.WrapperFutureCommand;
 import com.github.xjtuwsn.cranemq.client.remote.ClienFactory;
 import com.github.xjtuwsn.cranemq.client.remote.ClientInstance;
 import com.github.xjtuwsn.cranemq.common.command.FutureCommand;

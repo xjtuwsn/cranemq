@@ -71,7 +71,7 @@ public class TestSimple {
     }
     @Test
     public void test4() {
-        List<Integer> list = Arrays.asList(1, 2, 3, 4, 5, 6, 7, 8);
+        List<Integer> list = Arrays.asList(1, 2, 3, 4);
         Set<String> abc = Set.of("www");
         System.out.println(allocate(list, abc, "www"));
     }

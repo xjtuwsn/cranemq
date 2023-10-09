@@ -6,6 +6,7 @@ import org.slf4j.LoggerFactory;
 
 import java.util.List;
 import java.util.TreeMap;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
@@ -23,6 +24,8 @@ public class BrokerQueueSnapShot {
 
     private ReadWriteLock messageLock = new ReentrantReadWriteLock();
 
+    private AtomicBoolean expired = new AtomicBoolean(false);
+
     public void putMessage(List<ReadyMessage> readyMessages) {
         try {
             messageLock.writeLock().lock();
@@ -35,5 +38,16 @@ public class BrokerQueueSnapShot {
             messageLock.writeLock().unlock();
         }
 
+    }
+    public void removeMessages(List<ReadyMessage> messages) {
+
+    }
+
+    public void markExpired() {
+        this.expired.set(true);
+    }
+
+    public boolean isExpired() {
+        return this.expired.get();
     }
 }

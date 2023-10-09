@@ -11,5 +11,6 @@ public enum HandlerType {
     HEARTBEAT_REQUEST,
     PRODUCER_BATCH_REQUEST,
     CREATE_TOPIC,
-    SIMPLE_PULL
+    SIMPLE_PULL,
+    PULL
 }

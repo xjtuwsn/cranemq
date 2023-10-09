@@ -3,6 +3,8 @@ package com.github.xjtuwsn.cranemq.common.command.payloads.req;
 import com.github.xjtuwsn.cranemq.common.command.PayLoad;
 import lombok.*;
 
+import java.io.Serializable;
+
 /**
  * @project:cranemq
  * @file:MQUpdateTopicRequest
@@ -14,6 +16,6 @@ import lombok.*;
 @NoArgsConstructor
 @Getter
 @Setter
-public class MQUpdateTopicRequest implements PayLoad {
+public class MQUpdateTopicRequest implements PayLoad, Serializable {
     private String topic;
 }

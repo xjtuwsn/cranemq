@@ -145,4 +145,9 @@ public class ServerProcessor implements BaseProcessor {
         RemoteCommand resopnse = new RemoteCommand(responseHeader, response);
         ctx.writeAndFlush(resopnse);
     }
+
+    @Override
+    public void processPullRequest(ChannelHandlerContext ctx, RemoteCommand remoteCommand) {
+        System.out.println(remoteCommand);
+    }
 }

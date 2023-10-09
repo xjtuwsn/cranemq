@@ -134,6 +134,10 @@ public class RemoteServer implements RemoteService {
                     break;
                 case SIMPLE_PULL_MESSAGE_REQUEST:
                     doSimplePullProcess(channelHandlerContext, request);
+                    break;
+                case PULL_MESSAGE:
+                    doPullMesageProcess(channelHandlerContext, request);
+                    break;
                 default:
                     break;
             }
@@ -168,6 +172,14 @@ public class RemoteServer implements RemoteService {
             if (pool != null) {
                 pool.execute(() -> {
                     serverProcessor.processSimplePull(ctx, remoteCommand);
+                });
+            }
+        }
+        private void doPullMesageProcess(ChannelHandlerContext ctx, RemoteCommand remoteCommand) {
+            ExecutorService pool = getThreadPool(HandlerType.PULL);
+            if (pool != null) {
+                pool.execute(() -> {
+                    serverProcessor.processPullRequest(ctx, remoteCommand);
                 });
             }
         }

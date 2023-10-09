@@ -19,8 +19,8 @@ public class PushConsumerTest {
         defaultPushConsumer.subscribe("topic1", "*");
         defaultPushConsumer.registerListener(new CommonMessageListener() {
             @Override
-            public void consume(List<ReadyMessage> messages) {
-
+            public boolean consume(List<ReadyMessage> messages) {
+                return false;
             }
         });
         defaultPushConsumer.start();

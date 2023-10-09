@@ -35,11 +35,10 @@ public class RebalanceService {
     private ClientInstance clientInstance;
 
 
-    private PullMessageService pullMessageService;
+
 
     public RebalanceService(ClientInstance clientInstance) {
         this.clientInstance = clientInstance;
-        this.pullMessageService = new PullMessageService(clientInstance);
 
     }
     public void updateConsumerGroup(MQNotifyChangedResponse response) {
@@ -47,9 +46,12 @@ public class RebalanceService {
         groupConsumerTable.put(group, response.getClients());
         rebalanceNow(group);
     }
+    private void rebalanceWithQuery() {
+
+    }
     // TODO 测试
     private void rebalanceNow(String group) {
-
+        log.info("Do rebalance now {}", group);
         DefaultPushConsumerImpl consumer = clientInstance.getPushConsumerByGroup(group);
 
         if (consumer == null) {
@@ -59,9 +61,9 @@ public class RebalanceService {
         if (consumer.getMessageModel() == MessageModel.BRODERCAST) {
             return;
         }
-
         // 该消费者组所有topic
         Set<String> topicSet = consumer.getTopicSet();
+
         // 所有topic对应的队列
         List<MessageQueue> queues = clientInstance.listQueues(topicSet);
         if (queues == null || queues.size() == 0) {
@@ -97,7 +99,6 @@ public class RebalanceService {
                 allocatedSet.remove(entry.getKey());
             }
         }
-
         for (MessageQueue newQueue : allocatedSet) {
             BrokerQueueSnapShot brokerQueueSnapShot = new BrokerQueueSnapShot();
             PullRequest pullRequest = new PullRequest();
@@ -105,14 +106,13 @@ public class RebalanceService {
             pullRequest.setMessageQueue(newQueue);
             pullRequest.setSnapShot(brokerQueueSnapShot);
             hashMap.put(newQueue, brokerQueueSnapShot);
-
+            this.clientInstance.getPullMessageService().putRequestNow(pullRequest);
         }
     }
     private void removeMessageQueue(MessageQueue removedMq, BrokerQueueSnapShot removedSnap) {
         // TODO 保存message queue 的offset到broker 上锁
     }
     public void start() {
-        this.pullMessageService.start();
     }
     public void shutdown() {
 

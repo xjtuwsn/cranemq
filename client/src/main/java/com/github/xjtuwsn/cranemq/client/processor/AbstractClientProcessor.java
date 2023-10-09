@@ -1,6 +1,6 @@
 package com.github.xjtuwsn.cranemq.client.processor;
 
-import com.github.xjtuwsn.cranemq.client.producer.impl.WrapperFutureCommand;
+import com.github.xjtuwsn.cranemq.client.WrapperFutureCommand;
 import com.github.xjtuwsn.cranemq.client.producer.result.SendResult;
 import com.github.xjtuwsn.cranemq.client.producer.result.SendResultType;
 import com.github.xjtuwsn.cranemq.client.remote.ClientInstance;

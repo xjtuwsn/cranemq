@@ -36,4 +36,6 @@ public interface BaseProcessor {
     default void processCreateTopic(ChannelHandlerContext ctx, RemoteCommand remoteCommand) {}
     default void processHeartBeat(ChannelHandlerContext ctx, RemoteCommand remoteCommand) {}
     default void processSimplePull(ChannelHandlerContext ctx, RemoteCommand remoteCommand) {}
+
+    default void processPullRequest(ChannelHandlerContext ctx, RemoteCommand remoteCommand) {}
 }

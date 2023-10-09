@@ -32,7 +32,9 @@ public class ClientHousekeepingService implements ChannelEventListener {
     private static final Logger log = LoggerFactory.getLogger(ClientHousekeepingService.class);
     private BrokerController brokerController;
     private ConcurrentHashMap<String, ClientWrepper> produceTable = new ConcurrentHashMap<>();
+    // group: [clientId: client]
     private ConcurrentHashMap<String, ConcurrentHashMap<String, ClientWrepper>> consumerTable = new ConcurrentHashMap<>();
+    private ConcurrentHashMap<String, ConsumerInfo> groupProperity = new ConcurrentHashMap<>();
     private ScheduledExecutorService scanUnactiveService;
     private ExecutorService asyncNotifyConsumerService;
     private AtomicInteger activeNumber;
@@ -42,7 +44,7 @@ public class ClientHousekeepingService implements ChannelEventListener {
         this.scanUnactiveService = new ScheduledThreadPoolExecutor(2);
         this.scanUnactiveService.scheduleAtFixedRate(() -> {
             this.scanInactiveClient();
-        }, 500, 20 * 1000, TimeUnit.MILLISECONDS);
+        }, 500, 10 * 1000, TimeUnit.MILLISECONDS);
         asyncNotifyConsumerService = new ThreadPoolExecutor(6, 12, 60L,
                 TimeUnit.SECONDS, new LinkedBlockingDeque<>(1000),
                 new ThreadFactory() {
@@ -100,6 +102,7 @@ public class ClientHousekeepingService implements ChannelEventListener {
                 changed = true;
                 consumerTable.put(cg, new ConcurrentHashMap<>());
             }
+            groupProperity.put(cg, info);
             ConcurrentHashMap<String, ClientWrepper> map = consumerTable.get(cg);
             if (!map.containsKey(clientId)) {
                 changed = true;

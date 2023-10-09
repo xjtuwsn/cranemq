@@ -11,5 +11,5 @@ import java.util.List;
  * @create:2023/10/07-10:35
  */
 public interface CommonMessageListener extends MessageListener {
-    void consume(List<ReadyMessage> messages);
+    boolean consume(List<ReadyMessage> messages);
 }

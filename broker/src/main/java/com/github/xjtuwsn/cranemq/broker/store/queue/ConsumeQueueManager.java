@@ -117,6 +117,19 @@ public class ConsumeQueueManager implements GeneralStoreService {
         }
         return queueConcurrentHashMap.get(queueId);
     }
+    public int getQueueNumber(String topic) {
+        if (!queueTable.containsKey(topic)) {
+            return -1;
+        }
+        return queueTable.get(topic).size();
+    }
+    public long getQueueCurWritePos(String topic, int queueId) {
+        ConsumeQueue consumeQueue = queueTable.get(topic).get(queueId);
+        if (consumeQueue == null) {
+            return -1;
+        }
+        return consumeQueue.currentLastOffset();
+    }
     @Override
     public void close() {
 

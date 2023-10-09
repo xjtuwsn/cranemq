@@ -25,7 +25,9 @@ public class MQPullMessageResponse implements PayLoad {
     private long nextOffset;
 
     public int getMessageCount() {
-        if (messages == null) return 0;
+        if (messages == null) {
+            return 0;
+        }
         return messages.size();
     }
 }
