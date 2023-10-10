@@ -57,6 +57,9 @@ public class DefaultPushConsumer implements MQPushConsumer {
 
     @Override
     public void start() {
+        if (messageListener == null) {
+            throw new CraneClientException("Message listener can not be null");
+        }
         this.defaultPushConsumer.start();
     }
 
@@ -115,5 +118,9 @@ public class DefaultPushConsumer implements MQPushConsumer {
 
     public StartConsume getStartConsume() {
         return startConsume;
+    }
+
+    public MessageListener getMessageListener() {
+        return messageListener;
     }
 }

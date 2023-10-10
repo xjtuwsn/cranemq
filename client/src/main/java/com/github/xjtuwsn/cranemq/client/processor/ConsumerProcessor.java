@@ -4,13 +4,18 @@ import com.github.xjtuwsn.cranemq.client.WrapperFutureCommand;
 import com.github.xjtuwsn.cranemq.client.consumer.PullResult;
 import com.github.xjtuwsn.cranemq.client.producer.result.SendResult;
 import com.github.xjtuwsn.cranemq.client.remote.ClientInstance;
+import com.github.xjtuwsn.cranemq.common.command.Header;
 import com.github.xjtuwsn.cranemq.common.command.RemoteCommand;
 import com.github.xjtuwsn.cranemq.common.command.payloads.resp.MQNotifyChangedResponse;
 import com.github.xjtuwsn.cranemq.common.command.payloads.resp.MQPullMessageResponse;
+import com.github.xjtuwsn.cranemq.common.command.payloads.resp.MQRebalanceQueryResponse;
+import com.github.xjtuwsn.cranemq.common.entity.MessageQueue;
 import com.github.xjtuwsn.cranemq.common.remote.RemoteHook;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ExecutorService;
 
 /**
@@ -65,5 +70,19 @@ public class ConsumerProcessor extends AbstractClientProcessor {
                 wrappered.getPullCallback().onSuccess(result);
             });
         }
+    }
+
+    @Override
+    public void processQueryResponse(RemoteCommand remoteCommand, ExecutorService asyncHookService) {
+        Header header = remoteCommand.getHeader();
+        MQRebalanceQueryResponse mqRebalanceQueryResponse = (MQRebalanceQueryResponse) remoteCommand.getPayLoad();
+        String group = mqRebalanceQueryResponse.getGroup();
+        Set<String> clients = mqRebalanceQueryResponse.getClients();
+        Map<MessageQueue, Long> allOffset = mqRebalanceQueryResponse.getOffsets();
+
+        this.clientInstance.getRebalanceService().resetGroupConsumer(group, clients);
+        this.clientInstance.getPushConsumerByGroup(group).getOffsetManager().resetLocalOffset(group, allOffset);
+
+        this.clientInstance.getWrapperFuture(header.getCorrelationId()).setResponse(remoteCommand);
     }
 }

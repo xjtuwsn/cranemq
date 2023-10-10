@@ -26,11 +26,14 @@ public class BrokerQueueSnapShot {
 
     private AtomicBoolean expired = new AtomicBoolean(false);
 
+    private volatile long maxOffset = 0L;
+
     public void putMessage(List<ReadyMessage> readyMessages) {
         try {
             messageLock.writeLock().lock();
             for (ReadyMessage readyMessage : readyMessages) {
                 this.messages.put(readyMessage.getOffset(), readyMessage);
+                maxOffset = readyMessage.getOffset();
             }
         } catch (Exception e) {
             log.error("Put treemap occurs exception");
@@ -39,8 +42,25 @@ public class BrokerQueueSnapShot {
         }
 
     }
-    public void removeMessages(List<ReadyMessage> messages) {
+    public long removeMessages(List<ReadyMessage> messages) {
+        long result = -1L;
+        try {
+            messageLock.writeLock().lock();
+            result = maxOffset + 1;
+            for (ReadyMessage readyMessage : messages) {
+                long offset = readyMessage.getOffset();
+                this.messages.remove(offset);
+            }
+            if (!this.messages.isEmpty()) {
+                maxOffset = this.messages.firstKey();
+            }
+        } catch (Exception e) {
+            log.error("Remove message from treemap error");
+        } finally {
+            messageLock.writeLock().unlock();
+        }
 
+        return result;
     }
 
     public void markExpired() {

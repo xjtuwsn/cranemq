@@ -4,7 +4,10 @@ import cn.hutool.core.collection.ConcurrentHashSet;
 import com.github.xjtuwsn.cranemq.client.WrapperFutureCommand;
 import com.github.xjtuwsn.cranemq.client.consumer.DefaultPushConsumer;
 import com.github.xjtuwsn.cranemq.client.consumer.PullResult;
+import com.github.xjtuwsn.cranemq.client.consumer.listener.CommonMessageListener;
 import com.github.xjtuwsn.cranemq.client.consumer.listener.MessageListener;
+import com.github.xjtuwsn.cranemq.client.consumer.offset.BrokerOffsetManager;
+import com.github.xjtuwsn.cranemq.client.consumer.offset.OffsetManager;
 import com.github.xjtuwsn.cranemq.client.consumer.push.BrokerQueueSnapShot;
 import com.github.xjtuwsn.cranemq.client.consumer.push.CommonConsumeMessageService;
 import com.github.xjtuwsn.cranemq.client.consumer.push.ConsumeMessageService;
@@ -57,19 +60,23 @@ public class DefaultPushConsumerImpl {
     private QueueAllocation queueAllocation;
     private ConsumeMessageService commonMessageService;
 
+    private OffsetManager offsetManager;
+
     public DefaultPushConsumerImpl(DefaultPushConsumer defaultPushConsumer, RemoteHook hook) {
         this.defaultPushConsumer = defaultPushConsumer;
         this.hook = hook;
         this.clientId = TopicUtil.buildClientID("push_consumer");
         this.clientInstance = ClienFactory.newInstance().getOrCreate(clientId, hook);
         this.queueAllocation = new AverageQueueAllocation();
-        if (messageListener instanceof  CommonConsumeMessageService) {
-            commonMessageService = new CommonConsumeMessageService(messageListener);
+        if (defaultPushConsumer.getMessageModel() == MessageModel.CLUSTER) {
+            this.offsetManager = new BrokerOffsetManager();
         }
+
     }
     public void start() {
-        if (commonMessageService != null) {
-            commonMessageService.start();
+        this.messageListener = defaultPushConsumer.getMessageListener();
+        if (messageListener instanceof CommonMessageListener) {
+            commonMessageService = new CommonConsumeMessageService(messageListener, this);
         }
         this.clientInstance.registerPushConsumer(defaultPushConsumer.getConsumerGroup(), this);
         this.clientInstance.registerHook(hook);
@@ -89,7 +96,7 @@ public class DefaultPushConsumerImpl {
         MessageQueue queue = request.getMessageQueue();
         BrokerQueueSnapShot snapShot = request.getSnapShot();
         Header header = new Header(RequestType.PULL_MESSAGE, RpcType.ASYNC, TopicUtil.generateUniqueID());
-        PayLoad payLoad = new MQPullMessageRequest(group, queue);
+        PayLoad payLoad = new MQPullMessageRequest(group, queue, request.getOffset(), offsetManager.readOffset(queue));
         RemoteCommand remoteCommand = new RemoteCommand(header, payLoad);
         FutureCommand futureCommand = new FutureCommand(remoteCommand);
         WrapperFutureCommand wrappered = new WrapperFutureCommand(futureCommand, queue.getTopic());
@@ -104,12 +111,15 @@ public class DefaultPushConsumerImpl {
                 AcquireResultType type = pullResult.getAcquireResultType();
                 switch (type) {
                     case DONE:
+                        long prevOffset = request.getOffset();
+                        long nextOffset = pullResult.getNextOffset();
+                        request.setOffset(nextOffset);
                         List<ReadyMessage> messages = pullResult.getMessages();
                         snapShot.putMessage(messages);
                         if (commonMessageService != null) {
                             commonMessageService.submit(queue, snapShot, messages);
                         }
-                        clientInstance.getPullMessageService().putRequestDelay(request, 300);
+                        clientInstance.getPullMessageService().putRequestDelay(request, 200);
                         break;
                     case NO_MESSAGE:
                     case OFFSET_INVALID:
@@ -131,8 +141,13 @@ public class DefaultPushConsumerImpl {
     public void subscribe(String topic, String tags) {
         String[] tag = tags.split(",");
         Set<String> tagSet = new HashSet<>(Arrays.asList(tag));
-        SubscriptionInfo subscriptionInfo = new SubscriptionInfo(topic, tagSet);
-        this.topicTags.put(tags, subscriptionInfo);
+        SubscriptionInfo subscriptionInfo = topicTags.get(topic);
+        if (subscriptionInfo == null) {
+            subscriptionInfo = new SubscriptionInfo(topic, tagSet);
+            this.topicTags.put(topic, subscriptionInfo);
+        } else {
+            subscriptionInfo.getTag().addAll(tagSet);
+        }
         this.topicSet.add(topic);
     }
     public void bindRegistry(String address) {
@@ -144,9 +159,14 @@ public class DefaultPushConsumerImpl {
         }
         List<ReadyMessage> messages = pullResult.getMessages();
         Set<String> tag = info.getTag();
-        List<ReadyMessage> collect = messages.stream().filter(tag::contains).collect(Collectors.toList());
-        log.info("Before filter array is {}", messages);
-        log.info("After filter array is {}", collect);
+        List<ReadyMessage> collect = messages.stream().filter(e -> {
+            if (tag.contains("*")) {
+                return true;
+            }
+            return tag.contains(e);
+        }).collect(Collectors.toList());
+        // log.info("Before filter array is {}", messages);
+        // log.info("After filter array is {}", collect);
 
         pullResult.setMessages(collect);
     }
@@ -170,5 +190,9 @@ public class DefaultPushConsumerImpl {
     }
     public Set<SubscriptionInfo> getSubscriptionInfos() {
         return new HashSet<>(this.topicTags.values());
+    }
+
+    public OffsetManager getOffsetManager() {
+        return offsetManager;
     }
 }

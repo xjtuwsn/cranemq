@@ -27,6 +27,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.LinkedBlockingQueue;
 
@@ -89,7 +90,8 @@ public class MessageStoreCenter implements GeneralStoreService {
             if (putOffsetResp == null) {
                 return new PutMessageResponse(StoreResponseType.PARAMETER_ERROR);
             }
-
+            this.brokerController.getHoldRequestService().awakeNow(
+                    Arrays.asList(new Pair<>(innerMessage.getTopic(), innerMessage.getQueueId())));
             // 同步刷盘
             if (putOffsetResp.getResponseType() == StoreResponseType.STORE_OK) {
                 if (persistentConfig.getFlushDisk() == FlushDisk.SYNC) {
@@ -110,7 +112,6 @@ public class MessageStoreCenter implements GeneralStoreService {
 
         List<Pair<String, Integer>> queue = new ArrayList<>();
 
-        System.out.println("------commit-----" + entries);
         for (CommitEntry entry : entries) {
             String topic = entry.getTopic(), tag = entry.getTag();
             long offset = entry.getOffset();
@@ -124,7 +125,7 @@ public class MessageStoreCenter implements GeneralStoreService {
             }
 
         }
-
+        this.brokerController.getHoldRequestService().awakeNow(queue);
         /**
          * 唤醒push请求
          */
@@ -152,7 +153,7 @@ public class MessageStoreCenter implements GeneralStoreService {
         return consumeQueueManager.getQueueCurWritePos(topic, queueId);
     }
 
-    public Pair<List<ReadyMessage>, AcquireResultType> read(String topic, int queueId, long offset, int length) {
+    public Pair<Pair<List<ReadyMessage>, Long>, AcquireResultType> read(String topic, int queueId, long offset, int length) {
         List<Pair<Long, Integer>> commitLogData = new ArrayList<>();
 
         AcquireResultType result = AcquireResultType.NO_MESSAGE;
@@ -177,13 +178,13 @@ public class MessageStoreCenter implements GeneralStoreService {
             int index = (int) ((offset + i) / maxQueueItemNumber);
             MappedFile current = consumeQueue.getMappedFileByIndex(index);
             if (current == null) {
-                log.error("Offset has over the limit");
+                // log.error("Offset has over the limit");
                 break;
             }
             int start = (int) ((offset + i) * queueUnit % maxQueueItemNumber);
             List<Pair<Long, Integer>> list = current.readOffsetIndex(start, left);
             if (list == null || list.size() == 0) {
-                log.warn("Read zero offset index, prove no more index");
+                // log.warn("Read zero offset index, prove no more index");
                 break;
             }
             commitLogData.addAll(list);
@@ -194,17 +195,21 @@ public class MessageStoreCenter implements GeneralStoreService {
             }
             i = length - left;
         }
+
+        if (commitLogData.size() == 0) {
+            return new Pair<>(null, result);
+        }
         result = AcquireResultType.ERROR;
         MappedFile firstCommit = commitLog.getFirstMappedFile();
 
-        long nextOffset = offset + length;
+        long nextOffset = offset + commitLogData.size();
         if (firstCommit == null) {
-            log.warn("There is no commitLog mapped file");
+            // log.warn("There is no commitLog mapped file");
             return new Pair<>(null, result);
         }
         String firstCommitName = firstCommit.getFileName();
         List<ReadyMessage> readyMessageList = new ArrayList<>();
-        for (int i = 0; i < length; i++) {
+        for (int i = 0; i < Math.min(length, commitLogData.size()); i++) {
             Pair<Long, Integer> pair = commitLogData.get(i);
 
             long curOffset = pair.getKey();
@@ -214,13 +219,13 @@ public class MessageStoreCenter implements GeneralStoreService {
                     persistentConfig.getCommitLogMaxSize());
             MappedFile mappedFileByIndex = commitLog.getMappedFileByIndex(mappedIndex);
             if (mappedFileByIndex == null) {
-                log.warn("Doesnot have this message, problely something wrong");
+                // log.warn("Doesnot have this message, problely something wrong");
                 break;
             }
             int offsetInpage = BrokerUtil.offsetInPage(curOffset, persistentConfig.getCommitLogMaxSize());
             Message message = mappedFileByIndex.readSingleMessage(offsetInpage);
             if (message == null) {
-                log.warn("Read null from mappedfile, offset record error");
+                // log.warn("Read null from mappedfile, offset record error");
                 break;
             }
             readyMessageList.add(new ReadyMessage(brokerController.getBrokerConfig().getBrokerName(),
@@ -228,7 +233,7 @@ public class MessageStoreCenter implements GeneralStoreService {
         }
 
         result = AcquireResultType.DONE;
-        return new Pair<>(readyMessageList, result);
+        return new Pair<>(new Pair<>(readyMessageList, nextOffset), result);
 
     }
 
@@ -239,12 +244,12 @@ public class MessageStoreCenter implements GeneralStoreService {
         long offset = mqSimplePullRequest.getOffset();
         String topic = messageQueue.getTopic();
 
-        Pair<List<ReadyMessage>, AcquireResultType> result = read(topic, queueId, offset, length);
+        Pair<Pair<List<ReadyMessage>, Long>, AcquireResultType> result = read(topic, queueId, offset, length);
 
         MQSimplePullResponse response = new MQSimplePullResponse();
-        List<ReadyMessage> readyMessageList = result.getKey();
+        List<ReadyMessage> readyMessageList = result.getKey().getKey();
 
-        long nextOffset = offset;
+        long nextOffset = result.getKey().getValue();
         if (readyMessageList != null) {
             nextOffset += readyMessageList.size();
         }

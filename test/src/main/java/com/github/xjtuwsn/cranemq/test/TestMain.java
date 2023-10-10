@@ -21,7 +21,7 @@ public class TestMain {
     public static void main(String[] args) throws Exception {
 //        MqBroker broker = new MqBroker();
 //        broker.start();
-        String topic = "topic1";
+        String topic = "topic2";
         RemoteHook hook = new RemoteHook() {
             @Override
             public void beforeMessage() {

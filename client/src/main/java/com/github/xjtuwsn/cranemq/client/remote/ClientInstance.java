@@ -43,6 +43,7 @@ import com.github.xjtuwsn.cranemq.common.command.RemoteCommand;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
 
 /**
  * @project:cranemq
@@ -72,6 +73,7 @@ public class ClientInstance {
     private int maxSize = 22;
 
     private volatile ConcurrentHashMap<String, TopicRouteInfo> topicTable = new ConcurrentHashMap<>();
+    // brokerName: [id : address]
     private ConcurrentHashMap<String, HashMap<Integer, String>> brokerAddressTable = new ConcurrentHashMap<>();
     private ConcurrentHashMap<String, DefaultMQProducerImpl> producerRegister = new ConcurrentHashMap<>();
     private ConcurrentHashMap<String, DefaultPullConsumerImpl> pullConsumerRegister = new ConcurrentHashMap<>();
@@ -331,12 +333,16 @@ public class ClientInstance {
     private String selectProducedQueueAndChangeHeader(final WrapperFutureCommand wrappered, String topic) {
         MQSelector selector = wrappered.getSelector();
         MessageQueue queue = null;
-        if (selector == null) {
-            queue = this.loadBalanceStrategy.getNextQueue(topic, this.topicTable.get(topic));
+        if (wrappered.getQueuePicked() == null) {
+            if (selector == null) {
+                queue = this.loadBalanceStrategy.getNextQueue(topic, this.topicTable.get(topic));
+            } else {
+                TopicRouteInfo info = this.topicTable.get(topic);
+                List<MessageQueue> messageQueues = info.getAllQueueList();
+                queue = selector.select(messageQueues, wrappered.getArg());
+            }
         } else {
-            TopicRouteInfo info = this.topicTable.get(topic);
-            List<MessageQueue> messageQueues = info.getAllQueueList();
-            queue = selector.select(messageQueues, wrappered.getArg());
+            queue = wrappered.getQueuePicked();
         }
 
         if (queue == null) {
@@ -358,7 +364,39 @@ public class ClientInstance {
         }
 
     }
+    public void sendQueryMsgToAllBrokers(Set<String> topics, String group) {
+        WrapperFutureCommand wrapperFutureCommand = new WrapperFutureCommand(null, "");
+        // 初始化topic路由
+        for (String topic : topics) {
+            wrapperFutureCommand.setTopic(topic);
+            sendAdaptor(wrapperFutureCommand, null, false);
+        }
+        // 发往不同broker
+        Set<String> addrs = new HashSet<>(topics.stream().map(e -> {
+            TopicRouteInfo info = topicTable.get(e);
+            return info.getBrokerAddresses();
+        }).reduce(new ArrayList<>(), (a, b) -> {
+            a.addAll(b);
+            return a;
+        }));
 
+        for (String address : addrs) {
+            String id = TopicUtil.generateUniqueID();
+            Header header = new Header(RequestType.QUERY_INFO, RpcType.SYNC, id);
+            PayLoad payLoad = new MQReblanceQueryRequest(this.clientId, group, topics);
+            RemoteCommand remoteCommand = new RemoteCommand(header, payLoad);
+            FutureCommand futureCommand = new FutureCommand(remoteCommand);
+            WrapperFutureCommand wrappered = new WrapperFutureCommand(futureCommand, "");
+            requestTable.put(id, wrappered);
+            this.remoteClent.invoke(address, remoteCommand);
+            try {
+                futureCommand.get();
+            } catch (InterruptedException | ExecutionException e) {
+                throw new RuntimeException(e);
+            }
+        }
+
+    }
     public void sendHeartBeatToBroker() {
 
         MQHeartBeatRequest heartBeatRequest = new MQHeartBeatRequest(this.clientId);
@@ -398,7 +436,7 @@ public class ClientInstance {
         if (this.hook != null) {
             this.hook.beforeMessage();
         }
-        this.sendAdaptor(wrappered, null);
+        this.sendAdaptor(wrappered, null, true);
         PullResult result = null;
         RemoteCommand response = null;
         try {
@@ -421,7 +459,7 @@ public class ClientInstance {
             this.hook.beforeMessage();
         }
 
-        this.sendAdaptor(wrappered, null);
+        this.sendAdaptor(wrappered, null, true);
         if (isOneWay) {
             return null;
         }
@@ -445,7 +483,7 @@ public class ClientInstance {
 //            sendCore(wrappered, wrappered.getCallback());
 //        });
 
-        this.sendAdaptor(wrappered, wrappered.getCallback());
+        this.sendAdaptor(wrappered, wrappered.getCallback(), true);
     }
     private SendResult buildSendResult(RemoteCommand response, String correlationID) {
         if (response == null) {
@@ -472,9 +510,8 @@ public class ClientInstance {
         }
         return result;
     }
-    private void sendAdaptor(final WrapperFutureCommand wrappered, SendCallback callback) {
+    private void sendAdaptor(final WrapperFutureCommand wrappered, SendCallback callback, boolean proceed) {
         String topic = wrappered.getTopic();
-        RemoteCommand command = wrappered.getFutureCommand().getRequest();
         String address = "";
         // 查找路由的信息，地址就是注册中心地址
 
@@ -515,6 +552,9 @@ public class ClientInstance {
                 throw new CraneClientException("Semaphore has error");
             }
 
+        }
+        if (!proceed) {
+            return;
         }
         if (wrappered.getSelector() == null) {
             this.asyncSendThreadPool.execute(() -> {

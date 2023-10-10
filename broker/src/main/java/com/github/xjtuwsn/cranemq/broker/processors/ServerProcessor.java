@@ -1,9 +1,11 @@
 package com.github.xjtuwsn.cranemq.broker.processors;
 
 import com.github.xjtuwsn.cranemq.broker.BrokerController;
-import com.github.xjtuwsn.cranemq.common.command.payloads.req.MQSimplePullRequest;
+import com.github.xjtuwsn.cranemq.common.command.payloads.req.*;
+import com.github.xjtuwsn.cranemq.common.command.payloads.resp.MQRebalanceQueryResponse;
 import com.github.xjtuwsn.cranemq.common.command.payloads.resp.MQSimplePullResponse;
 import com.github.xjtuwsn.cranemq.common.command.types.AcquireResultType;
+import com.github.xjtuwsn.cranemq.common.entity.MessageQueue;
 import com.github.xjtuwsn.cranemq.common.remote.enums.ConnectionEventType;
 import com.github.xjtuwsn.cranemq.common.remote.event.ConnectionEvent;
 import com.github.xjtuwsn.cranemq.common.remote.RemoteServer;
@@ -13,9 +15,6 @@ import com.github.xjtuwsn.cranemq.broker.store.comm.StoreResponseType;
 import com.github.xjtuwsn.cranemq.common.command.Header;
 import com.github.xjtuwsn.cranemq.common.command.PayLoad;
 import com.github.xjtuwsn.cranemq.common.command.RemoteCommand;
-import com.github.xjtuwsn.cranemq.common.command.payloads.req.MQCreateTopicRequest;
-import com.github.xjtuwsn.cranemq.common.command.payloads.req.MQHeartBeatRequest;
-import com.github.xjtuwsn.cranemq.common.command.payloads.req.MQProduceRequest;
 import com.github.xjtuwsn.cranemq.common.command.payloads.resp.MQCreateTopicResponse;
 import com.github.xjtuwsn.cranemq.common.command.payloads.resp.MQProduceResponse;
 import com.github.xjtuwsn.cranemq.common.command.types.ResponseCode;
@@ -33,6 +32,8 @@ import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 /**
  * @project:cranemq
@@ -148,6 +149,27 @@ public class ServerProcessor implements BaseProcessor {
 
     @Override
     public void processPullRequest(ChannelHandlerContext ctx, RemoteCommand remoteCommand) {
-        System.out.println(remoteCommand);
+        MQPullMessageRequest mqPullMessageRequest = (MQPullMessageRequest) remoteCommand.getPayLoad();
+        Header header = remoteCommand.getHeader();
+        this.brokerController.getHoldRequestService().tryHoldRequest(mqPullMessageRequest, ctx.channel(),
+                header.getCorrelationId());
+    }
+
+    @Override
+    public void processQueryRequest(ChannelHandlerContext ctx, RemoteCommand remoteCommand) {
+        Header header = remoteCommand.getHeader();
+        MQReblanceQueryRequest mqReblanceQueryRequest = (MQReblanceQueryRequest) remoteCommand.getPayLoad();
+        String group = mqReblanceQueryRequest.getGroup();
+        Set<String> topics = mqReblanceQueryRequest.getTopics();
+        Set<String> groupClients = this.brokerController.getConsumerGroupManager().getGroupClients(group);
+        Map<MessageQueue, Long> allGroupOffset = this.brokerController.getOffsetManager()
+                        .getAllGroupOffset(group, topics);
+
+        header.setCommandType(ResponseType.QUERY_BROKER_RESPONSE);
+        MQRebalanceQueryResponse mqRebalanceQueryResponse = new MQRebalanceQueryResponse(group, groupClients,
+                allGroupOffset);
+        RemoteCommand response = new RemoteCommand(header, mqRebalanceQueryResponse);
+        ctx.writeAndFlush(response);
+
     }
 }

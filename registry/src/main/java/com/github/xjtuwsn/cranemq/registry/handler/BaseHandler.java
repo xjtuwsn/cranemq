@@ -29,7 +29,7 @@ public class BaseHandler extends SimpleChannelInboundHandler<RemoteCommand> {
     public BaseHandler() {
         build(MQConstant.DEFAULT_TOPIC_NAME);
         build("topic1");
-
+        build("topic2");
 
     }
     public void build(String topicName) {

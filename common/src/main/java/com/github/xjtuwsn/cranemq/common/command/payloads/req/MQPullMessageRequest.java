@@ -18,5 +18,10 @@ import lombok.*;
 public class MQPullMessageRequest implements PayLoad {
     private String groupName;
     private MessageQueue messageQueue;
+    private long offset;
+    private long commitOffset;
+    public String getTopic() {
+        return messageQueue.getTopic();
+    }
 
 }

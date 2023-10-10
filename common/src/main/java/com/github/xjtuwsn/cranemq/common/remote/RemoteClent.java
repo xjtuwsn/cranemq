@@ -165,6 +165,7 @@ public class RemoteClent implements RemoteService {
                     doProduceProcessor(remoteCommand);
                     break;
                 case QUERY_BROKER_RESPONSE:
+                    doQueryProcessor(remoteCommand);
                     break;
                 case UPDATE_TOPIC_RESPONSE:
                     doUpdateTopicProcessor(remoteCommand);
@@ -205,6 +206,9 @@ public class RemoteClent implements RemoteService {
         }
         private void doPullResponceProcessor(RemoteCommand remoteCommand) {
             processorTable.get(ClientType.CONSUMER).processPullResponse(remoteCommand, asyncCallBackService);
+        }
+        private void doQueryProcessor(RemoteCommand remoteCommand) {
+            processorTable.get(ClientType.CONSUMER).processQueryResponse(remoteCommand, asyncCallBackService);
         }
     }
     static class ChannelWrapper {

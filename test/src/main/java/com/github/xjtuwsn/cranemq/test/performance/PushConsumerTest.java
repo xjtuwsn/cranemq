@@ -16,11 +16,12 @@ public class PushConsumerTest {
     public static void main(String[] args) {
         DefaultPushConsumer defaultPushConsumer = new DefaultPushConsumer("group_push");
         defaultPushConsumer.bindRegistry("127.0.0.1:11111");
-        defaultPushConsumer.subscribe("topic1", "*");
+        defaultPushConsumer.subscribe("topic2", "*");
         defaultPushConsumer.registerListener(new CommonMessageListener() {
             @Override
             public boolean consume(List<ReadyMessage> messages) {
-                return false;
+                System.out.println(messages);
+                return true;
             }
         });
         defaultPushConsumer.start();

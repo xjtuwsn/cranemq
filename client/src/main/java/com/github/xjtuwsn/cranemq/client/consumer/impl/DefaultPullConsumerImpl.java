@@ -71,6 +71,7 @@ public class DefaultPullConsumerImpl {
         FutureCommand futureCommand = new FutureCommand(remoteCommand);
         WrapperFutureCommand wrappered = new WrapperFutureCommand(futureCommand, defaultPullConsumer.getMaxRetryTime(),
                 defaultPullConsumer.getMaxTimeoutMills(), null, messageQueue.getTopic());
+        wrappered.setQueuePicked(messageQueue);
         return this.clientInstance.sendPullSync(wrappered);
     }
     public void bindRegistry(String address) {

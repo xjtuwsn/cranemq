@@ -15,10 +15,7 @@ import io.netty.channel.Channel;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -28,7 +25,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  * @author:wsn
  * @create:2023/10/02-19:51
  */
-public class ClientHousekeepingService implements ChannelEventListener {
+public class ClientHousekeepingService implements ChannelEventListener, ConsumerGroupManager {
     private static final Logger log = LoggerFactory.getLogger(ClientHousekeepingService.class);
     private BrokerController brokerController;
     private ConcurrentHashMap<String, ClientWrepper> produceTable = new ConcurrentHashMap<>();
@@ -44,7 +41,7 @@ public class ClientHousekeepingService implements ChannelEventListener {
         this.scanUnactiveService = new ScheduledThreadPoolExecutor(2);
         this.scanUnactiveService.scheduleAtFixedRate(() -> {
             this.scanInactiveClient();
-        }, 500, 10 * 1000, TimeUnit.MILLISECONDS);
+        }, 500, 30 * 1000, TimeUnit.MILLISECONDS);
         asyncNotifyConsumerService = new ThreadPoolExecutor(6, 12, 60L,
                 TimeUnit.SECONDS, new LinkedBlockingDeque<>(1000),
                 new ThreadFactory() {
@@ -163,6 +160,18 @@ public class ClientHousekeepingService implements ChannelEventListener {
         // remoteaddress&channelId&clientId
         return sb.toString();
     }
+
+    @Override
+    public Set<String> getGroupClients(String group) {
+        ConcurrentHashMap<String, ClientWrepper> map = consumerTable.get(group);
+        Iterator<String> iterator = map.keys().asIterator();
+        Set<String> clients = new HashSet<>();
+        while (iterator.hasNext()) {
+            clients.add(iterator.next());
+        }
+        return clients;
+    }
+
     static class ClientWrepper {
         enum Role {
             PRODUCER,

@@ -1,14 +1,17 @@
 package com.github.xjtuwsn.cranemq.broker;
 
 import com.github.xjtuwsn.cranemq.broker.client.ClientHousekeepingService;
+import com.github.xjtuwsn.cranemq.broker.client.ConsumerGroupManager;
 import com.github.xjtuwsn.cranemq.broker.offset.ConsumerOffsetManager;
 import com.github.xjtuwsn.cranemq.broker.processors.ServerProcessor;
+import com.github.xjtuwsn.cranemq.broker.push.HoldRequestService;
 import com.github.xjtuwsn.cranemq.common.remote.enums.HandlerType;
 import com.github.xjtuwsn.cranemq.common.remote.RemoteServer;
 import com.github.xjtuwsn.cranemq.broker.store.GeneralStoreService;
 import com.github.xjtuwsn.cranemq.broker.store.MessageStoreCenter;
 import com.github.xjtuwsn.cranemq.broker.store.PersistentConfig;
 import com.github.xjtuwsn.cranemq.common.config.BrokerConfig;
+import com.github.xjtuwsn.cranemq.common.remote.event.ChannelEventListener;
 
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -25,6 +28,10 @@ public class BrokerController implements GeneralStoreService {
     private RemoteServer remoteServer;
     private ConsumerOffsetManager offsetManager;
     private MessageStoreCenter messageStoreCenter;
+
+    private HoldRequestService holdRequestService;
+
+    private ConsumerGroupManager consumerGroupManager;
     private ExecutorService producerMessageService;
     private ExecutorService createTopicService;
     private ExecutorService simplePullService;
@@ -42,10 +49,12 @@ public class BrokerController implements GeneralStoreService {
         this.persistentConfig = persistentConfig;
     }
     public boolean initialize() {
-        this.remoteServer = new RemoteServer(brokerConfig.getPort(), new ClientHousekeepingService(this));
+        this.consumerGroupManager = new ClientHousekeepingService(this);
+        this.remoteServer = new RemoteServer(brokerConfig.getPort(), (ChannelEventListener) consumerGroupManager);
         this.remoteServer.registerProcessor(new ServerProcessor(this, remoteServer));
         this.messageStoreCenter = new MessageStoreCenter(this);
         this.offsetManager = new ConsumerOffsetManager(this);
+        this.holdRequestService = new HoldRequestService(this);
         this.initThreadPool();
         this.registerThreadPool();
         return true;
@@ -116,7 +125,7 @@ public class BrokerController implements GeneralStoreService {
         this.messageStoreCenter.start();
 
         this.offsetManager.start();
-
+        this.holdRequestService.start();
 
         this.startScheduledTask();
     }
@@ -135,5 +144,17 @@ public class BrokerController implements GeneralStoreService {
 
     public MessageStoreCenter getMessageStoreCenter() {
         return messageStoreCenter;
+    }
+
+    public ConsumerOffsetManager getOffsetManager() {
+        return offsetManager;
+    }
+
+    public HoldRequestService getHoldRequestService() {
+        return holdRequestService;
+    }
+
+    public ConsumerGroupManager getConsumerGroupManager() {
+        return consumerGroupManager;
     }
 }

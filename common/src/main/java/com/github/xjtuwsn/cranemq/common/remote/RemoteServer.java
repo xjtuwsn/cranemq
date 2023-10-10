@@ -138,6 +138,8 @@ public class RemoteServer implements RemoteService {
                 case PULL_MESSAGE:
                     doPullMesageProcess(channelHandlerContext, request);
                     break;
+                case QUERY_INFO:
+                    doQueryInfoProcess(channelHandlerContext, request);
                 default:
                     break;
             }
@@ -180,6 +182,15 @@ public class RemoteServer implements RemoteService {
             if (pool != null) {
                 pool.execute(() -> {
                     serverProcessor.processPullRequest(ctx, remoteCommand);
+                });
+            }
+        }
+
+        private void doQueryInfoProcess(ChannelHandlerContext ctx, RemoteCommand remoteCommand) {
+            ExecutorService pool = getThreadPool(HandlerType.HEARTBEAT_REQUEST);
+            if (pool != null) {
+                pool.execute(() -> {
+                    serverProcessor.processQueryRequest(ctx, remoteCommand);
                 });
             }
         }

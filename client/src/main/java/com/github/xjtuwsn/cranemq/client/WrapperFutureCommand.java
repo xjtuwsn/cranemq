@@ -5,6 +5,7 @@ import com.github.xjtuwsn.cranemq.client.hook.SendCallback;
 import com.github.xjtuwsn.cranemq.client.producer.MQSelector;
 import com.github.xjtuwsn.cranemq.common.command.FutureCommand;
 import com.github.xjtuwsn.cranemq.common.command.RemoteCommand;
+import com.github.xjtuwsn.cranemq.common.entity.MessageQueue;
 import lombok.ToString;
 
 import java.util.concurrent.atomic.AtomicInteger;
@@ -30,6 +31,8 @@ public class WrapperFutureCommand {
     private PullCallback pullCallback;
     private MQSelector selector;
     private Object arg;
+    private MessageQueue queuePicked;
+    private String address;
 
     public WrapperFutureCommand(FutureCommand futureCommand, String topic, long timeout, SendCallback callback) {
         this(futureCommand, -1, timeout, callback, topic);
@@ -114,5 +117,25 @@ public class WrapperFutureCommand {
 
     public void setPullCallback(PullCallback pullCallback) {
         this.pullCallback = pullCallback;
+    }
+
+    public MessageQueue getQueuePicked() {
+        return queuePicked;
+    }
+
+    public void setQueuePicked(MessageQueue queuePicked) {
+        this.queuePicked = queuePicked;
+    }
+
+    public String getAddress() {
+        return address;
+    }
+
+    public void setAddress(String address) {
+        this.address = address;
+    }
+
+    public void setTopic(String topic) {
+        this.topic = topic;
     }
 }

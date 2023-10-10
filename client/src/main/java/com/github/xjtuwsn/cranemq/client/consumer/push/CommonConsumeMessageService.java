@@ -1,5 +1,6 @@
 package com.github.xjtuwsn.cranemq.client.consumer.push;
 
+import com.github.xjtuwsn.cranemq.client.consumer.impl.DefaultPushConsumerImpl;
 import com.github.xjtuwsn.cranemq.client.consumer.listener.CommonMessageListener;
 import com.github.xjtuwsn.cranemq.client.consumer.listener.MessageListener;
 import com.github.xjtuwsn.cranemq.common.entity.MessageQueue;
@@ -22,10 +23,12 @@ public class CommonConsumeMessageService implements ConsumeMessageService {
 
     private ExecutorService asyncDispatchService;
     private CommonMessageListener listener;
+    private DefaultPushConsumerImpl defaultPushConsumer;
 
-    public CommonConsumeMessageService(MessageListener listener) {
+    public CommonConsumeMessageService(MessageListener listener, DefaultPushConsumerImpl defaultPushConsumer) {
         this.listener = (CommonMessageListener) listener;
-        this.asyncDispatchService = new ThreadPoolExecutor(3, 6, 60L,
+        this.defaultPushConsumer = defaultPushConsumer;
+        this.asyncDispatchService = new ThreadPoolExecutor(4, 6, 60L,
                 TimeUnit.SECONDS, new LinkedBlockingDeque<>(2000),
                 new ThreadFactory() {
                     AtomicInteger index = new AtomicInteger(0);
@@ -55,7 +58,8 @@ public class CommonConsumeMessageService implements ConsumeMessageService {
                 }
                 if (result) {
                     log.info("Consume message finished");
-                    snapShot.removeMessages(messages);
+                    long lowestOfsset = snapShot.removeMessages(messages);
+                    this.defaultPushConsumer.getOffsetManager().record(messageQueue, lowestOfsset);
                 }
             });
         }

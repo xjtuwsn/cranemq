@@ -1,10 +1,13 @@
 package com.github.xjtuwsn.cranemq.broker.offset;
 
 import com.alibaba.fastjson.JSON;
+import com.alibaba.fastjson.JSONObject;
+import com.alibaba.fastjson.TypeReference;
 import com.github.xjtuwsn.cranemq.broker.BrokerController;
 import com.github.xjtuwsn.cranemq.broker.client.ConsumerGroupManager;
 import com.github.xjtuwsn.cranemq.common.consumer.ConsumerInfo;
 import com.github.xjtuwsn.cranemq.common.consumer.StartConsume;
+import com.github.xjtuwsn.cranemq.common.entity.MessageQueue;
 import com.github.xjtuwsn.cranemq.common.utils.BrokerUtil;
 import com.github.xjtuwsn.cranemq.common.utils.JSONUtil;
 import org.slf4j.Logger;
@@ -12,6 +15,9 @@ import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -68,6 +74,33 @@ public class ConsumerOffsetManager {
         }
         return offsetMap.get(key).get(queueId);
     }
+
+    public void updateOffset(String topic, String group, int queueId, long offset) {
+        String key = BrokerUtil.offsetKey(topic, group);
+        if (offset == -1) {
+            return;
+        }
+        offsetMap.get(key).put(queueId, offset);
+    }
+
+    public Map<MessageQueue, Long> getAllGroupOffset(String group, Set<String> topics) {
+        Map<MessageQueue, Long> map = new HashMap<>();
+        String brokerName = this.brokerController.getBrokerConfig().getBrokerName();
+        for (String topic : topics) {
+            String key = BrokerUtil.offsetKey(topic, group);
+            ConcurrentHashMap<Integer, Long> offsetMap = this.offsetMap.get(key);
+            if (offsetMap == null) {
+                continue;
+            }
+            for (Map.Entry<Integer, Long> entry : offsetMap.entrySet()) {
+                int queueId = entry.getKey();
+                long offset = entry.getValue();
+                MessageQueue messageQueue = new MessageQueue(topic, brokerName, queueId);
+                map.put(messageQueue, offset);
+            }
+        }
+        return map;
+    }
     public void start() {
         this.path = brokerController.getPersistentConfig().getConsumerOffsetPath();
         File dir = new File(brokerController.getPersistentConfig().getConfigPath());
@@ -75,16 +108,13 @@ public class ConsumerOffsetManager {
             dir.mkdir();
         }
         long start = System.nanoTime();
-        this.offsetMap = JSONUtil.loadJSON(path, ConcurrentHashMap.class);
-        getOffsetInQueue("Topic1", "ggg", 0);
-        getOffsetInQueue("Topic2", "ggg", 0);
-        getOffsetInQueue("Topic3", "ggg", 0);
-        getOffsetInQueue("Topic4", "ggg", 0);
-        getOffsetInQueue("Topic5", "ggg", 0);
-        System.out.println(offsetMap);
+        this.offsetMap = JSONObject.parseObject(JSONUtil.fileToString(path),
+                new TypeReference<ConcurrentHashMap<String, ConcurrentHashMap<Integer, Long>>>(){});
+
+
     }
 
     public void persistOffset() {
-        // JSONUtil.JSONStrToFile(offsetMap, path);
+        JSONUtil.JSONStrToFile(offsetMap, path);
     }
 }

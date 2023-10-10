@@ -38,7 +38,7 @@ public class PullMessageService extends Thread {
         try {
 
             PullRequest request = requestQueue.take();
-            log.warn("Take the request {}", request);
+            // log.warn("Take the request {}", request);
             clientInstance.getPushConsumerByGroup(request.getGroupName()).pull(request);
         } catch (InterruptedException e) {
             log.warn("Take request has been Interrupted");

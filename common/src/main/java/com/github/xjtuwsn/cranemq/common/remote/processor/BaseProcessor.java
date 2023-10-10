@@ -27,6 +27,8 @@ public interface BaseProcessor {
 
     default void processPullResponse(RemoteCommand remoteCommand, ExecutorService asyncHookService) {}
 
+    default void processQueryResponse(RemoteCommand remoteCommand, ExecutorService asyncHookService) {}
+
     // ---------------------- Consumer and Producer ----------------------
     default void processUpdateTopicResponse(RemoteCommand remoteCommand, ExecutorService asyncHookService) {}
 
@@ -38,4 +40,6 @@ public interface BaseProcessor {
     default void processSimplePull(ChannelHandlerContext ctx, RemoteCommand remoteCommand) {}
 
     default void processPullRequest(ChannelHandlerContext ctx, RemoteCommand remoteCommand) {}
+
+    default void processQueryRequest(ChannelHandlerContext ctx, RemoteCommand remoteCommand) {}
 }

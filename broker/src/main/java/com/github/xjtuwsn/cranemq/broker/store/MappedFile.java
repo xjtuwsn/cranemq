@@ -202,7 +202,7 @@ public class MappedFile {
     public Message readSingleMessage(int start) {
         int readPointer = getReadPointer();
         if (start >= readPointer) {
-            log.error("Out of limit");
+            // log.error("Out of limit");
             return null;
         }
         ByteBuffer byteBuffer = this.mappedByteBuffer.slice();
@@ -261,7 +261,7 @@ public class MappedFile {
     public Pair<Long, Integer> readSingleOffsetIndex(int start) {
         int readPointer = getReadPointer();
         if (start >= readPointer) {
-            log.error("Canot over the read pointer");
+            // log.error("Canot over the read pointer");
             return null;
         }
         ByteBuffer byteBuffer = this.mappedByteBuffer.slice();
@@ -274,7 +274,7 @@ public class MappedFile {
     public List<Pair<Long, Integer>> readOffsetIndex(int start, int number) {
         int readPointer = getReadPointer();
         if (start >= readPointer) {
-            log.error("Canot over the read pointer");
+            // log.error("Canot over the read pointer");
             return null;
         }
         ByteBuffer byteBuffer = this.mappedByteBuffer.slice();
