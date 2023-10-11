@@ -43,9 +43,9 @@ public class PersistentConfig {
 
     private int maxQueueSize = queueUnit * maxQueueItemNumber;
 
-    private long asyncCommitInterval = 3000;
+    private long asyncCommitInterval = 1000;
 
-    private long flushDiskInterval = 1000;
+    private long flushDiskInterval = 500;
 
     private FlushDisk flushDisk = FlushDisk.ASYNC;
 

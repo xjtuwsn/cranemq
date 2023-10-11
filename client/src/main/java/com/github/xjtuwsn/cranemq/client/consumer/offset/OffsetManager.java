@@ -11,9 +11,12 @@ import java.util.Map;
  * @create:2023/10/10-15:37
  */
 public interface OffsetManager {
+    void start();
 
-    void record(MessageQueue messageQueue, long offset);
+    void record(MessageQueue messageQueue, long offset, String group);
 
-    long readOffset(MessageQueue messageQueue);
+    long readOffset(MessageQueue messageQueue, String group);
     void resetLocalOffset(String group, Map<MessageQueue, Long> allOffsets);
+
+    void persistOffset();
 }

@@ -53,4 +53,10 @@ public class TopicUtil {
 
         return id.toString();
     }
+
+    public static String buildStoreID(String clientId) {
+        int index = clientId.indexOf("@");
+        String temp = "local" + clientId.substring(index);
+        return temp.replaceAll("@", "_");
+    }
 }

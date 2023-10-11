@@ -16,6 +16,7 @@ import lombok.*;
 @Getter
 @Setter
 public class MQPullMessageRequest implements PayLoad {
+    private String clientId;
     private String groupName;
     private MessageQueue messageQueue;
     private long offset;

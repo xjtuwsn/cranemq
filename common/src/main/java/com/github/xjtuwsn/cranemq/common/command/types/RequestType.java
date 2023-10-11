@@ -18,6 +18,7 @@ public enum RequestType implements Type {
     CREATE_TOPIC_REQUEST,
     SIMPLE_PULL_MESSAGE_REQUEST,
     PULL_MESSAGE,
-    QUERY_INFO
+    QUERY_INFO,
+    RECORD_OFFSET
 
 }

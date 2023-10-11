@@ -1,5 +1,6 @@
 package com.github.xjtuwsn.cranemq.test;
 
+import com.github.xjtuwsn.cranemq.client.consumer.DefaultPushConsumer;
 import com.github.xjtuwsn.cranemq.client.producer.MQSelector;
 import com.github.xjtuwsn.cranemq.common.entity.MessageQueue;
 import com.github.xjtuwsn.cranemq.common.remote.RemoteHook;
@@ -8,6 +9,7 @@ import com.github.xjtuwsn.cranemq.client.producer.balance.RoundRobinStrategy;
 import com.github.xjtuwsn.cranemq.common.entity.Message;
 import com.github.xjtuwsn.cranemq.common.remote.RemoteAddress;
 
+import java.util.Arrays;
 import java.util.List;
 
 /**
@@ -43,6 +45,8 @@ public class TestMain {
             producer.start();
             Message message1 = new Message(topic, "hhhh".getBytes());
             Message message2 = new Message(topic, "aaaa".getBytes());
+//            List<Message> list = Arrays.asList(message1, message2);
+//            producer.send(list);
             // producer.send(message2);
             long start = System.nanoTime();
             for (int i = 0; i < 5; i++) {
@@ -59,6 +63,7 @@ public class TestMain {
             double cost = (end - start) / 1e6;
             System.out.println("Single SYNC message cost " + cost + " ms totally");
 //            producer.shutdown();
+            DefaultPushConsumer defaultPushConsumer = new DefaultPushConsumer("12");
         });
         t.start();
     }

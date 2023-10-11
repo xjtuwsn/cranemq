@@ -17,6 +17,7 @@ import com.github.xjtuwsn.cranemq.common.command.payloads.req.MQCreateTopicReque
 import com.github.xjtuwsn.cranemq.common.command.payloads.req.MQSimplePullRequest;
 import com.github.xjtuwsn.cranemq.common.command.payloads.resp.MQSimplePullResponse;
 import com.github.xjtuwsn.cranemq.common.command.types.AcquireResultType;
+import com.github.xjtuwsn.cranemq.common.command.types.RequestType;
 import com.github.xjtuwsn.cranemq.common.config.FlushDisk;
 import com.github.xjtuwsn.cranemq.common.entity.Message;
 import com.github.xjtuwsn.cranemq.common.entity.MessageQueue;
@@ -62,9 +63,26 @@ public class MessageStoreCenter implements GeneralStoreService {
             this.transmitCommitLogService = new TransmitCommitLogService();
         }
     }
+    public PutMessageResponse putMessage(List<StoreInnerMessage> innerMessages) {
+        if (innerMessages == null || innerMessages.isEmpty()) {
+            return new PutMessageResponse(StoreResponseType.PARAMETER_ERROR);
+        }
+        PutMessageResponse response = new PutMessageResponse();
+        for (StoreInnerMessage innerMessage : innerMessages) {
+            PutMessageResponse res = this.putMessage(innerMessage);
+            if (res.getResponseType() != StoreResponseType.STORE_OK) {
+                log.error("Store batch message error");
+            }
+            response.setSize(response.getSize() + res.getSize());
+            response.setOffset(res.getOffset());
+        }
+        response.setResponseType(StoreResponseType.STORE_OK);
+        return response;
+    }
     public PutMessageResponse putMessage(StoreInnerMessage innerMessage) {
         if (innerMessage == null) {
             log.error("Null put message request");
+            return new PutMessageResponse(StoreResponseType.PARAMETER_ERROR);
         }
         long start = System.nanoTime();
         PutMessageResponse response = this.commitLog.writeMessage(innerMessage);

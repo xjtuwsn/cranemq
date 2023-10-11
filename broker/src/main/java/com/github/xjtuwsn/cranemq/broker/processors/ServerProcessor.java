@@ -4,7 +4,8 @@ import com.github.xjtuwsn.cranemq.broker.BrokerController;
 import com.github.xjtuwsn.cranemq.common.command.payloads.req.*;
 import com.github.xjtuwsn.cranemq.common.command.payloads.resp.MQRebalanceQueryResponse;
 import com.github.xjtuwsn.cranemq.common.command.payloads.resp.MQSimplePullResponse;
-import com.github.xjtuwsn.cranemq.common.command.types.AcquireResultType;
+import com.github.xjtuwsn.cranemq.common.command.types.*;
+import com.github.xjtuwsn.cranemq.common.entity.Message;
 import com.github.xjtuwsn.cranemq.common.entity.MessageQueue;
 import com.github.xjtuwsn.cranemq.common.remote.enums.ConnectionEventType;
 import com.github.xjtuwsn.cranemq.common.remote.event.ConnectionEvent;
@@ -17,9 +18,6 @@ import com.github.xjtuwsn.cranemq.common.command.PayLoad;
 import com.github.xjtuwsn.cranemq.common.command.RemoteCommand;
 import com.github.xjtuwsn.cranemq.common.command.payloads.resp.MQCreateTopicResponse;
 import com.github.xjtuwsn.cranemq.common.command.payloads.resp.MQProduceResponse;
-import com.github.xjtuwsn.cranemq.common.command.types.ResponseCode;
-import com.github.xjtuwsn.cranemq.common.command.types.ResponseType;
-import com.github.xjtuwsn.cranemq.common.command.types.RpcType;
 import com.github.xjtuwsn.cranemq.common.constant.MQConstant;
 import com.github.xjtuwsn.cranemq.common.remote.processor.BaseProcessor;
 import com.github.xjtuwsn.cranemq.common.route.BrokerData;
@@ -56,35 +54,61 @@ public class ServerProcessor implements BaseProcessor {
     }
     @Override
     public void processProduceMessage(ChannelHandlerContext ctx, RemoteCommand remoteCommand) {
-
         Header header = remoteCommand.getHeader();
-        MQProduceRequest messageProduceRequest = (MQProduceRequest) remoteCommand.getPayLoad();
-        StoreInnerMessage storeInnerMessage = new StoreInnerMessage(messageProduceRequest.getMessage(),
-                messageProduceRequest.getWriteQueue(), header.getCorrelationId());
-        log.info("Broker receve produce message: {}", messageProduceRequest);
-        long start = System.nanoTime();
-        PutMessageResponse putResp = this.brokerController.getMessageStoreCenter().putMessage(storeInnerMessage);
-        long end = System.nanoTime();
+        if (header.getCommandType() == RequestType.MESSAGE_PRODUCE_REQUEST) {
+            MQProduceRequest messageProduceRequest = (MQProduceRequest) remoteCommand.getPayLoad();
+            StoreInnerMessage storeInnerMessage = new StoreInnerMessage(messageProduceRequest.getMessage(),
+                    messageProduceRequest.getWriteQueue(), header.getCorrelationId());
+            log.info("Broker receve produce message: {}", messageProduceRequest);
+            long start = System.nanoTime();
+            PutMessageResponse putResp = this.brokerController.getMessageStoreCenter().putMessage(storeInnerMessage);
+            long end = System.nanoTime();
 
 
-        double cost = (end - start) / 1e6;
-        log.warn("Cost {} ms", cost);
-        /**
-         * 存储消息
-         * 等等操作
-         */
-        if (header.getRpcType() == RpcType.ONE_WAY) {
-            return;
+            double cost = (end - start) / 1e6;
+            log.warn("Cost {} ms", cost);
+
+            if (header.getRpcType() == RpcType.ONE_WAY) {
+                return;
+            }
+            Header responseHeader = new Header(ResponseType.PRODUCE_MESSAGE_RESPONSE, header.getRpcType(),
+                    header.getCorrelationId());
+            if (putResp.getResponseType() != StoreResponseType.STORE_OK) {
+                responseHeader.onFailure(ResponseCode.SERVER_ERROR);
+            }
+            PayLoad responsePayload = new MQProduceResponse("");
+            RemoteCommand response = new RemoteCommand(responseHeader, responsePayload);
+
+            ctx.writeAndFlush(response);
+        } else {
+            // todo 批量消息
+            MQBachProduceRequest mqBachProduceRequest = (MQBachProduceRequest) remoteCommand.getPayLoad();
+            List<Message> messages = mqBachProduceRequest.getMessages();
+            MessageQueue writeQueue = mqBachProduceRequest.getWriteQueue();
+
+            List<StoreInnerMessage> list = new ArrayList<>();
+
+            for (Message message : messages) {
+                StoreInnerMessage storeInnerMessage = new StoreInnerMessage(message,
+                        writeQueue, header.getCorrelationId());
+                list.add(storeInnerMessage);
+            }
+
+            PutMessageResponse putResp = this.brokerController.getMessageStoreCenter().putMessage(list);
+            if (header.getRpcType() == RpcType.ONE_WAY) {
+                return;
+            }
+            Header responseHeader = new Header(ResponseType.PRODUCE_MESSAGE_RESPONSE, header.getRpcType(),
+                    header.getCorrelationId());
+            if (putResp.getResponseType() != StoreResponseType.STORE_OK) {
+                responseHeader.onFailure(ResponseCode.SERVER_ERROR);
+            }
+            PayLoad responsePayload = new MQProduceResponse("");
+            RemoteCommand response = new RemoteCommand(responseHeader, responsePayload);
+
+            ctx.writeAndFlush(response);
         }
-        Header responseHeader = new Header(ResponseType.PRODUCE_MESSAGE_RESPONSE, header.getRpcType(),
-                header.getCorrelationId());
-        if (putResp.getResponseType() != StoreResponseType.STORE_OK) {
-            responseHeader.onFailure(ResponseCode.SERVER_ERROR);
-        }
-        PayLoad responsePayload = new MQProduceResponse("");
-        RemoteCommand response = new RemoteCommand(responseHeader, responsePayload);
 
-        ctx.writeAndFlush(response);
     }
     @Override
     public void processCreateTopic(ChannelHandlerContext ctx, RemoteCommand remoteCommand) {
@@ -171,5 +195,17 @@ public class ServerProcessor implements BaseProcessor {
         RemoteCommand response = new RemoteCommand(header, mqRebalanceQueryResponse);
         ctx.writeAndFlush(response);
 
+    }
+
+    @Override
+    public void processRecordOffsetRequest(ChannelHandlerContext ctx, RemoteCommand remoteCommand) {
+
+        MQRecordOffsetRequest offsetRequest = (MQRecordOffsetRequest) remoteCommand.getPayLoad();
+
+        Map<MessageQueue, Long> offsets = offsetRequest.getOffsets();
+
+        String group = offsetRequest.getGroup();
+
+        this.brokerController.getOffsetManager().updateOffsets(offsets, group);
     }
 }

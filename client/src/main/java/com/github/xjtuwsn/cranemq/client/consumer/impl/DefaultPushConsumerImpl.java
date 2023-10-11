@@ -1,6 +1,7 @@
 package com.github.xjtuwsn.cranemq.client.consumer.impl;
 
 import cn.hutool.core.collection.ConcurrentHashSet;
+import cn.hutool.core.lang.Pair;
 import com.github.xjtuwsn.cranemq.client.WrapperFutureCommand;
 import com.github.xjtuwsn.cranemq.client.consumer.DefaultPushConsumer;
 import com.github.xjtuwsn.cranemq.client.consumer.PullResult;
@@ -65,15 +66,21 @@ public class DefaultPushConsumerImpl {
     public DefaultPushConsumerImpl(DefaultPushConsumer defaultPushConsumer, RemoteHook hook) {
         this.defaultPushConsumer = defaultPushConsumer;
         this.hook = hook;
-        this.clientId = TopicUtil.buildClientID("push_consumer");
-        this.clientInstance = ClienFactory.newInstance().getOrCreate(clientId, hook);
+
         this.queueAllocation = new AverageQueueAllocation();
-        if (defaultPushConsumer.getMessageModel() == MessageModel.CLUSTER) {
-            this.offsetManager = new BrokerOffsetManager();
+    }
+    public DefaultPushConsumerImpl(DefaultPushConsumer defaultPushConsumer, RemoteHook hook,
+                                   String address, List<Pair<String, String>> topics) {
+        this(defaultPushConsumer, hook);
+        this.bindRegistry(address);
+        for (Pair<String, String> topic : topics) {
+            this.subscribe(topic.getKey(), topic.getValue());
         }
 
     }
     public void start() {
+        this.clientId = TopicUtil.buildClientID("push_consumer") + defaultPushConsumer.getId();
+        this.clientInstance = ClienFactory.newInstance().getOrCreate(clientId, hook);
         this.messageListener = defaultPushConsumer.getMessageListener();
         if (messageListener instanceof CommonMessageListener) {
             commonMessageService = new CommonConsumeMessageService(messageListener, this);
@@ -81,6 +88,14 @@ public class DefaultPushConsumerImpl {
         this.clientInstance.registerPushConsumer(defaultPushConsumer.getConsumerGroup(), this);
         this.clientInstance.registerHook(hook);
         this.clientInstance.start();
+        if (defaultPushConsumer.getMessageModel() == MessageModel.CLUSTER) {
+            this.offsetManager = new BrokerOffsetManager(this.clientInstance, this.defaultPushConsumer.getConsumerGroup());
+        } else {
+            this.offsetManager = this.clientInstance.getOffsetManager();
+        }
+        if (this.offsetManager != null) {
+            this.offsetManager.start();
+        }
 
     }
     public void shutdown() {
@@ -96,7 +111,8 @@ public class DefaultPushConsumerImpl {
         MessageQueue queue = request.getMessageQueue();
         BrokerQueueSnapShot snapShot = request.getSnapShot();
         Header header = new Header(RequestType.PULL_MESSAGE, RpcType.ASYNC, TopicUtil.generateUniqueID());
-        PayLoad payLoad = new MQPullMessageRequest(group, queue, request.getOffset(), offsetManager.readOffset(queue));
+        PayLoad payLoad = new MQPullMessageRequest(this.clientId, group, queue, request.getOffset(),
+                offsetManager.readOffset(queue, group));
         RemoteCommand remoteCommand = new RemoteCommand(header, payLoad);
         FutureCommand futureCommand = new FutureCommand(remoteCommand);
         WrapperFutureCommand wrappered = new WrapperFutureCommand(futureCommand, queue.getTopic());
@@ -107,16 +123,20 @@ public class DefaultPushConsumerImpl {
                     log.warn("Receive null pull result");
                     return;
                 }
-                filterTags(pullResult, topicTags.get(queue.getTopic()));
+                if (snapShot.isExpired()) {
+                    return;
+                }
                 AcquireResultType type = pullResult.getAcquireResultType();
                 switch (type) {
                     case DONE:
+                        filterTags(pullResult, topicTags.get(queue.getTopic()));
                         long prevOffset = request.getOffset();
                         long nextOffset = pullResult.getNextOffset();
                         request.setOffset(nextOffset);
                         List<ReadyMessage> messages = pullResult.getMessages();
                         snapShot.putMessage(messages);
                         if (commonMessageService != null) {
+
                             commonMessageService.submit(queue, snapShot, messages);
                         }
                         clientInstance.getPullMessageService().putRequestDelay(request, 200);
@@ -194,5 +214,9 @@ public class DefaultPushConsumerImpl {
 
     public OffsetManager getOffsetManager() {
         return offsetManager;
+    }
+
+    public DefaultPushConsumer getDefaultPushConsumer() {
+        return defaultPushConsumer;
     }
 }

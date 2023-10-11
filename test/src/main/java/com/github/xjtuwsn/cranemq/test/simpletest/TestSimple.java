@@ -1,6 +1,7 @@
 package com.github.xjtuwsn.cranemq.test.simpletest;
 
 import com.github.xjtuwsn.cranemq.broker.store.PersistentConfig;
+import com.github.xjtuwsn.cranemq.client.consumer.offset.LocalOffsetManager;
 import com.github.xjtuwsn.cranemq.common.entity.MessageQueue;
 import org.junit.Test;
 
@@ -94,4 +95,6 @@ public class TestSimple {
         }
         return result;
     }
+
+
 }

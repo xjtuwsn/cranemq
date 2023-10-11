@@ -36,6 +36,11 @@ public class DefaultPullConsumer implements MQPullConsumer {
     }
 
     @Override
+    public void setId(String id) {
+
+    }
+
+    @Override
     public void subscribe(String topic, String tags) {
         this.defaultPullConsumerImpl.subscribe(topic, tags);
     }

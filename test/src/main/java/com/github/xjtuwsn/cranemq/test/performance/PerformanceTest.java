@@ -19,7 +19,7 @@ import java.util.concurrent.*;
  */
 public class PerformanceTest {
     public static void main(String[] args) throws InterruptedException, IOException {
-        String topic = "topic1";
+        String topic = "topic2";
         RemoteHook hook = new RemoteHook() {
             @Override
             public void beforeMessage() {
@@ -31,7 +31,7 @@ public class PerformanceTest {
                 // System.out.println("response come");
             }
         };
-        int threadNum = 5, loop = 1;
+        int threadNum = 1, loop = 5000;
         CountDownLatch latch = new CountDownLatch(threadNum);
         ExecutorService threadPool = new ThreadPoolExecutor(10,
                 22, 60L, TimeUnit.SECONDS, new LinkedBlockingDeque<>(1000),
@@ -54,7 +54,6 @@ public class PerformanceTest {
                 for (int j = 0; j < loop; j++) {
                     producer.send(message1);
                 }
-                System.out.println(222);
                 latch.countDown();
             });
         }

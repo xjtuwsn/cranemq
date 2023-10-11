@@ -24,7 +24,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.locks.ReentrantLock;
 
 /**
  * @project:cranemq
@@ -58,8 +60,8 @@ public class HoldRequestService {
     }
     public void tryHoldRequest(MQPullMessageRequest pullMessageRequest, Channel channel, String id) {
         RequestWrapper requestWrapper = new RequestWrapper(pullMessageRequest, channel, id);
-        String topic = requestWrapper.getTopic(), group = requestWrapper.getGroup();
-        String key = BrokerUtil.offsetKey(topic, group);
+        String topic = requestWrapper.getTopic(), group = requestWrapper.getGroup(), clientId = pullMessageRequest.getClientId();
+        String key = BrokerUtil.holdRequestKey(topic, group, clientId);
         int queueId = requestWrapper.getQueueId();
         ConcurrentHashMap<Integer, RequestWrapper> temp = new ConcurrentHashMap<>();
         ConcurrentHashMap<Integer, RequestWrapper> map = requestTable.putIfAbsent(key, temp);
@@ -116,17 +118,32 @@ public class HoldRequestService {
     }
 
     private void readAndResopnse(RequestWrapper wrapper) {
-        Pair<Pair<List<ReadyMessage>, Long>, AcquireResultType> result = readFromFile(wrapper);
-        if (result == null || result.getValue() != AcquireResultType.DONE) {
-            return;
-        }
-        List<ReadyMessage> list = result.getKey().getKey();
-        long nextOffset = result.getKey().getValue();
+        long arriveTime = wrapper.getArriveTime();
+        long now = System.currentTimeMillis();
         Header header = new Header(ResponseType.PULL_RESPONSE, RpcType.ONE_WAY, wrapper.getId());
-        PayLoad payLoad = new MQPullMessageResponse(result.getValue(), wrapper.getGroup(), list, nextOffset);
+        PayLoad payLoad = null;
+        if (now - arriveTime >= brokerController.getBrokerConfig().getLongPollingTime()) {
+            payLoad = new MQPullMessageResponse(AcquireResultType.NO_MESSAGE, wrapper.getGroup(), null, wrapper.getOffset());
+        } else {
+            Pair<Pair<List<ReadyMessage>, Long>, AcquireResultType> result = readFromFile(wrapper);
+            if (result == null || result.getValue() != AcquireResultType.DONE) {
+                return;
+            }
+            List<ReadyMessage> list = result.getKey().getKey();
+            long nextOffset = result.getKey().getValue();
+            payLoad = new MQPullMessageResponse(result.getValue(), wrapper.getGroup(), list, nextOffset);
+        }
         RemoteCommand remoteCommand = new RemoteCommand(header, payLoad);
-        wrapper.getChannel().writeAndFlush(remoteCommand);
-        System.out.println(remoteCommand);
+
+        if (wrapper.isOk() && wrapper.valid.get()) {
+            synchronized (wrapper) {
+                if (wrapper.valid.get()) {
+                    wrapper.valid.set(false);
+                    wrapper.getChannel().writeAndFlush(remoteCommand);
+                }
+            }
+
+        }
         remove(wrapper);
     }
 
@@ -145,7 +162,12 @@ public class HoldRequestService {
             ConcurrentHashMap<Integer, RequestWrapper> value = outter.getValue();
             for (Map.Entry<Integer, RequestWrapper> inner : value.entrySet()) {
                 RequestWrapper wrapper = inner.getValue();
-                System.out.println(wrapper);
+                // 通道已经关闭
+                if (!wrapper.isOk()) {
+                    value.remove(inner.getKey());
+                    log.info("Channel has closed");
+                    continue;
+                }
                 asyncRead(wrapper);
             }
         }
@@ -154,6 +176,7 @@ public class HoldRequestService {
     private void remove(RequestWrapper wrapper) {
         String key = wrapper.getKey();
         int queueId = wrapper.getQueueId();
+        wrapper.valid.set(false);
         requestTable.get(key).remove(queueId);
     }
     public void start() {
@@ -167,6 +190,7 @@ public class HoldRequestService {
     }
 
     class RequestWrapper {
+        private String clientId;
         private String key;
         private String group;
         private String topic;
@@ -176,17 +200,19 @@ public class HoldRequestService {
         private long arriveTime;
         private Channel channel;
         private String id;
+        private AtomicBoolean valid = new AtomicBoolean(true);
         public RequestWrapper(MQPullMessageRequest request, Channel channel, String id) {
             this(request, channel, 0, id);
         }
         public RequestWrapper(MQPullMessageRequest request, Channel channel, long offset, String id) {
+            this.clientId = request.getClientId();
             this.group = request.getGroupName();
             this.messageQueue = request.getMessageQueue();
             this.topic = request.getTopic();
             this.offset = offset;
             this.channel = channel;
             this.arriveTime = System.currentTimeMillis();
-            this.key = BrokerUtil.offsetKey(topic, group);
+            this.key = BrokerUtil.holdRequestKey(topic, group, clientId);
             this.id = id;
         }
 
@@ -228,6 +254,10 @@ public class HoldRequestService {
 
         public String getId() {
             return id;
+        }
+
+        public boolean isOk() {
+            return channel != null && channel.isActive();
         }
 
         @Override

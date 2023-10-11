@@ -39,6 +39,7 @@ public class CommitLog extends AbstractLinkedListOrganize implements GeneralStor
     private MessageStoreCenter messageStoreCenter;
     private long recordOffset;
     private int recordSize;
+    private long lastCommit;
 
     public CommitLog(BrokerController brokerController, MessageStoreCenter messageStoreCenter) {
         this.messageStoreCenter = messageStoreCenter;

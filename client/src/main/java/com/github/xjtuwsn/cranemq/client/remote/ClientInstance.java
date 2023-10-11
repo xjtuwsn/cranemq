@@ -5,6 +5,8 @@ import com.github.xjtuwsn.cranemq.client.consumer.PullResult;
 import com.github.xjtuwsn.cranemq.client.consumer.RebalanceService;
 import com.github.xjtuwsn.cranemq.client.consumer.impl.DefaultPullConsumerImpl;
 import com.github.xjtuwsn.cranemq.client.consumer.impl.DefaultPushConsumerImpl;
+import com.github.xjtuwsn.cranemq.client.consumer.offset.LocalOffsetManager;
+import com.github.xjtuwsn.cranemq.client.consumer.offset.OffsetManager;
 import com.github.xjtuwsn.cranemq.client.consumer.push.PullMessageService;
 import com.github.xjtuwsn.cranemq.client.hook.InnerCallback;
 import com.github.xjtuwsn.cranemq.client.hook.SendCallback;
@@ -89,12 +91,16 @@ public class ClientInstance {
 
     private PullMessageService pullMessageService;
 
+    private OffsetManager offsetManager;
+
     public ClientInstance() {
         this.state = new AtomicInteger(0);
         this.clinetNumber = new AtomicInteger(0);
         this.remoteClent = new RemoteClent();
         this.rebalanceService = new RebalanceService(this);
         this.pullMessageService = new PullMessageService(this);
+        this.offsetManager = new LocalOffsetManager(this);
+
     }
 
     public void start() {
@@ -396,6 +402,18 @@ public class ClientInstance {
             }
         }
 
+    }
+    public void sendOffsetToBroker(RemoteCommand remoteCommand, Set<String> brokerNames) {
+
+        for (String name : brokerNames) {
+            HashMap<Integer, String> map = this.brokerAddressTable.get(name);
+            if (map != null) {
+                String addr = map.get(MQConstant.MASTER_ID);
+                this.asyncSendThreadPool.execute(() -> {
+                    this.remoteClent.invoke(addr, remoteCommand);
+                });
+            }
+        }
     }
     public void sendHeartBeatToBroker() {
 
@@ -749,6 +767,7 @@ public class ClientInstance {
     }
     public void registerPushConsumer(String group, DefaultPushConsumerImpl defaultPushConsumer) {
         int order = this.clinetNumber.getAndIncrement();
+        System.out.println(order);
         this.pushConsumerRegister.put(group, defaultPushConsumer);
     }
     public void setLoadBalanceStrategy(LoadBalanceStrategy loadBalanceStrategy) {
@@ -786,5 +805,9 @@ public class ClientInstance {
 
     public PullMessageService getPullMessageService() {
         return pullMessageService;
+    }
+
+    public OffsetManager getOffsetManager() {
+        return offsetManager;
     }
 }

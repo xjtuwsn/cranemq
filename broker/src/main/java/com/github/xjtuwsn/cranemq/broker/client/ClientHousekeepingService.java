@@ -28,12 +28,15 @@ import java.util.concurrent.atomic.AtomicInteger;
 public class ClientHousekeepingService implements ChannelEventListener, ConsumerGroupManager {
     private static final Logger log = LoggerFactory.getLogger(ClientHousekeepingService.class);
     private BrokerController brokerController;
-    private ConcurrentHashMap<String, ClientWrepper> produceTable = new ConcurrentHashMap<>();
+    private ConcurrentHashMap<String, ClientWrapper> produceTable = new ConcurrentHashMap<>();
     // group: [clientId: client]
-    private ConcurrentHashMap<String, ConcurrentHashMap<String, ClientWrepper>> consumerTable = new ConcurrentHashMap<>();
+    private ConcurrentHashMap<String, ConcurrentHashMap<String, ClientWrapper>> consumerTable = new ConcurrentHashMap<>();
     private ConcurrentHashMap<String, ConsumerInfo> groupProperity = new ConcurrentHashMap<>();
+
+    private ConcurrentHashMap<String, CopyOnWriteArrayList<ClientWrapper>> channelTable = new ConcurrentHashMap<>();
     private ScheduledExecutorService scanUnactiveService;
     private ExecutorService asyncNotifyConsumerService;
+    private ExecutorService asyncSweepService;
     private AtomicInteger activeNumber;
     public ClientHousekeepingService(BrokerController brokerController) {
         this.brokerController = brokerController;
@@ -51,6 +54,15 @@ public class ClientHousekeepingService implements ChannelEventListener, Consumer
                         return new Thread(r, "AsyncNotifyConsumerService NO." + index.getAndIncrement());
                     }
                 });
+        asyncSweepService = new ThreadPoolExecutor(3, 6, 60L,
+                TimeUnit.SECONDS, new LinkedBlockingDeque<>(1000),
+                new ThreadFactory() {
+                    AtomicInteger index = new AtomicInteger(0);
+                    @Override
+                    public Thread newThread(Runnable r) {
+                        return new Thread(r, "AsyncSweepService NO." + index.getAndIncrement());
+                    }
+                });
     }
     @Override
     public void onConnect(Channel channel) {
@@ -59,6 +71,9 @@ public class ClientHousekeepingService implements ChannelEventListener, Consumer
 
     @Override
     public void onDisconnect(Channel channel) {
+        asyncSweepService.execute(() -> {
+            doCloseChannel(channel);
+        });
         this.activeNumber.decrementAndGet();
     }
 
@@ -69,7 +84,45 @@ public class ClientHousekeepingService implements ChannelEventListener, Consumer
 
     @Override
     public void onException(Channel channel) {
+        asyncSweepService.execute(() -> {
+            doCloseChannel(channel);
+        });
         log.info("{} channel on Exception", channel);
+    }
+
+    private void doCloseChannel(Channel channel) {
+        if (channel == null) {
+            return;
+        }
+        String key = channel.id() + channel.remoteAddress().toString();
+        CopyOnWriteArrayList<ClientWrapper> list = channelTable.get(key);
+        if (list == null || list.isEmpty()) {
+            return;
+        }
+
+        for (ClientWrapper wrapper : list) {
+            // 生产者，从表中移除
+            String clientId = wrapper.getClientId();
+            if (wrapper.isProducer()) {
+                produceTable.remove(clientId);
+            } else { // 消费者
+                ConsumerInfo consumerInfo = wrapper.getConsumerInfo();
+                String group = consumerInfo.getConsumerGroup();
+                // 从生产者表中移除
+                ConcurrentHashMap<String, ClientWrapper> map = consumerTable.get(group);
+                if (map != null) {
+                    map.remove(clientId);
+                }
+                // 通知消费者组变化
+                consumerGroupChanged(group);
+
+            }
+        }
+        channel.close();
+
+        channelTable.remove(key);
+
+
     }
 
     @Override
@@ -79,13 +132,28 @@ public class ClientHousekeepingService implements ChannelEventListener, Consumer
         String clientId = request.getClientId();
 
         if (!this.produceTable.containsKey(clientId)) {
-            this.produceTable.put(clientId, new ClientWrepper(channel, clientId, groups));
+            ClientWrapper clientWrapper = new ClientWrapper(channel, clientId, groups);
+            this.produceTable.put(clientId, clientWrapper);
+            saveChannel(channel, clientWrapper);
         }
 
-        System.out.println(request);
-        ClientWrepper clientWrepper = produceTable.get(clientId);
-        clientWrepper.updateCommTime(System.currentTimeMillis());
+        ClientWrapper clientWrapper = produceTable.get(clientId);
+        clientWrapper.updateCommTime(System.currentTimeMillis());
 
+    }
+
+    private void saveChannel(Channel channel, ClientWrapper clientWrapper) {
+        if (channel == null) {
+            return;
+        }
+        String key = channel.id() + channel.remoteAddress().toString();
+        CopyOnWriteArrayList<ClientWrapper> list = new CopyOnWriteArrayList<>();
+        CopyOnWriteArrayList<ClientWrapper> clientWrappers = channelTable.putIfAbsent(key, list);
+        if (clientWrappers == null) {
+            list.add(clientWrapper);
+        } else {
+            clientWrappers.add(clientWrapper);
+        }
     }
 
     @Override
@@ -95,16 +163,23 @@ public class ClientHousekeepingService implements ChannelEventListener, Consumer
         for (ConsumerInfo info : consumerGroup) {
             String cg = info.getConsumerGroup();
             boolean changed = false;
-            if (!consumerTable.containsKey(cg)) {
+            ConcurrentHashMap<String, ClientWrapper> temp = new ConcurrentHashMap<>();
+            ConcurrentHashMap<String, ClientWrapper> prev = consumerTable.putIfAbsent(cg, temp);
+            if (prev == null) {
                 changed = true;
-                consumerTable.put(cg, new ConcurrentHashMap<>());
             }
             groupProperity.put(cg, info);
-            ConcurrentHashMap<String, ClientWrepper> map = consumerTable.get(cg);
-            if (!map.containsKey(clientId)) {
+            ConcurrentHashMap<String, ClientWrapper> map = consumerTable.get(cg);
+
+            ClientWrapper clientWrapper = new ClientWrapper(channel, clientId, info);
+            ClientWrapper prevWrapper = map.putIfAbsent(clientId, clientWrapper);
+            if (prevWrapper == null) {
                 changed = true;
-                map.put(clientId, new ClientWrepper(channel, clientId, info));
+                saveChannel(channel, clientWrapper);
             }
+            ClientWrapper cur = prevWrapper == null ? clientWrapper : prevWrapper;
+            cur.updateCommTime(System.currentTimeMillis());
+
             if (changed) {
                 consumerGroupChanged(cg);
             }
@@ -112,43 +187,42 @@ public class ClientHousekeepingService implements ChannelEventListener, Consumer
     }
     private void consumerGroupChanged(String groupName) {
         log.info("Consumer cluster {} has changed", groupName);
-        ConcurrentHashMap<String, ClientWrepper> map = consumerTable.get(groupName);
+        ConcurrentHashMap<String, ClientWrapper> map = consumerTable.get(groupName);
         Iterator<String> iterator = map.keys().asIterator();
         Set<String> clients = new HashSet<>();
         while (iterator.hasNext()) {
             clients.add(iterator.next());
         }
-        for (Map.Entry<String, ClientWrepper> entry : map.entrySet()) {
+        for (Map.Entry<String, ClientWrapper> entry : map.entrySet()) {
             asyncNotifyConsumerService.execute(() -> {
                 Header header = new Header(ResponseType.NOTIFY_CHAGED_RESPONSE, RpcType.ONE_WAY,
                         TopicUtil.generateUniqueID());
                 PayLoad payLoad = new MQNotifyChangedResponse(groupName, clients);
                 RemoteCommand remoteCommand = new RemoteCommand(header, payLoad);
-                System.out.println(remoteCommand);
                 entry.getValue().channel.writeAndFlush(remoteCommand);
             });
         }
     }
     private void scanInactiveClient() {
-        Iterator<Map.Entry<String, ClientWrepper>> iterator = this.produceTable.entrySet().iterator();
+        Iterator<Map.Entry<String, ClientWrapper>> iterator = this.produceTable.entrySet().iterator();
         doRemove(iterator);
-        Iterator<Map.Entry<String, ConcurrentHashMap<String, ClientWrepper>>> consumgerIntrator =
+        Iterator<Map.Entry<String, ConcurrentHashMap<String, ClientWrapper>>> consumgerIntrator =
                 this.consumerTable.entrySet().iterator();
         while (consumgerIntrator.hasNext()) {
-            Iterator<Map.Entry<String, ClientWrepper>> subiterator = consumgerIntrator.next().getValue().
+            Iterator<Map.Entry<String, ClientWrapper>> subiterator = consumgerIntrator.next().getValue().
                     entrySet().iterator();
             doRemove(subiterator);
         }
     }
-    private void doRemove(Iterator<Map.Entry<String, ClientWrepper>> iterator) {
+    private void doRemove(Iterator<Map.Entry<String, ClientWrapper>> iterator) {
         while (iterator.hasNext()) {
-            Map.Entry<String, ClientWrepper> next = iterator.next();
-            ClientWrepper clientWrepper = next.getValue();
+            Map.Entry<String, ClientWrapper> next = iterator.next();
+            ClientWrapper clientWrapper = next.getValue();
             long now = System.currentTimeMillis();
-            long last = clientWrepper.getLastCommTime();
+            long last = clientWrapper.getLastCommTime();
             if (now - last >= brokerController.getBrokerConfig().getKeepAliveTime()) {
-                log.info("Client {} has disconnected and will be removed", clientWrepper);
-                clientWrepper.close();
+                log.info("Client {} has disconnected and will be removed", clientWrapper);
+                clientWrapper.close();
                 iterator.remove();
             }
         }
@@ -163,7 +237,7 @@ public class ClientHousekeepingService implements ChannelEventListener, Consumer
 
     @Override
     public Set<String> getGroupClients(String group) {
-        ConcurrentHashMap<String, ClientWrepper> map = consumerTable.get(group);
+        ConcurrentHashMap<String, ClientWrapper> map = consumerTable.get(group);
         Iterator<String> iterator = map.keys().asIterator();
         Set<String> clients = new HashSet<>();
         while (iterator.hasNext()) {
@@ -172,7 +246,7 @@ public class ClientHousekeepingService implements ChannelEventListener, Consumer
         return clients;
     }
 
-    static class ClientWrepper {
+    static class ClientWrapper {
         enum Role {
             PRODUCER,
             CONSUMER
@@ -185,14 +259,14 @@ public class ClientHousekeepingService implements ChannelEventListener, Consumer
         private ConsumerInfo consumerInfo;
         private Set<String> groups;
 
-        public ClientWrepper(Channel channel, String clientId, Set<String> groups) {
+        public ClientWrapper(Channel channel, String clientId, Set<String> groups) {
             this.channel = channel;
             this.clientId = clientId;
             this.groups = groups;
             this.lastCommTime = System.currentTimeMillis();
             this.role = Role.PRODUCER;
         }
-        public ClientWrepper(Channel channel, String clientId, ConsumerInfo info) {
+        public ClientWrapper(Channel channel, String clientId, ConsumerInfo info) {
             this.channel = channel;
             this.clientId = clientId;
             this.consumerInfo = info;
@@ -209,6 +283,14 @@ public class ClientHousekeepingService implements ChannelEventListener, Consumer
         public void markConsuemr() {
             this.role = Role.CONSUMER;
         }
+
+        public boolean isProducer() {
+            return this.role == Role.PRODUCER;
+        }
+
+        public boolean isConsumer() {
+            return this.role == Role.CONSUMER;
+        }
         public void updateCommTime(long now) {
             this.lastCommTime = now;
         }
@@ -220,6 +302,14 @@ public class ClientHousekeepingService implements ChannelEventListener, Consumer
 
         public long getLastCommTime() {
             return lastCommTime;
+        }
+
+        public String getClientId() {
+            return clientId;
+        }
+
+        public ConsumerInfo getConsumerInfo() {
+            return consumerInfo;
         }
 
         @Override

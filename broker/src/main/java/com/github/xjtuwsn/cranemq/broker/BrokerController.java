@@ -37,6 +37,7 @@ public class BrokerController implements GeneralStoreService {
     private ExecutorService simplePullService;
     private ExecutorService handleHeartBeatService;
     private ExecutorService handlePullService;
+    private ExecutorService handleOffsetService;
     private ScheduledExecutorService saveOffsetService;
     private int coreSize = 10;
     private int maxSize = 20;
@@ -65,6 +66,7 @@ public class BrokerController implements GeneralStoreService {
         this.remoteServer.registerThreadPool(HandlerType.HEARTBEAT_REQUEST, this.handleHeartBeatService);
         this.remoteServer.registerThreadPool(HandlerType.SIMPLE_PULL, this.simplePullService);
         this.remoteServer.registerThreadPool(HandlerType.PULL, this.handlePullService);
+        this.remoteServer.registerThreadPool(HandlerType.RECORD_OFFSET, this.handleOffsetService);
     }
     private void initThreadPool() {
         this.producerMessageService = new ThreadPoolExecutor(coreSize, maxSize,
@@ -110,6 +112,15 @@ public class BrokerController implements GeneralStoreService {
                     @Override
                     public Thread newThread(Runnable r) {
                         return new Thread(r, "Pull Service NO." + idx.getAndIncrement());
+                    }
+                });
+        this.handleOffsetService = new ThreadPoolExecutor(coreSize / 3, maxSize / 3,
+                60L, TimeUnit.SECONDS, new LinkedBlockingDeque<>(3000),
+                new ThreadFactory() {
+                    AtomicInteger idx = new AtomicInteger(0);
+                    @Override
+                    public Thread newThread(Runnable r) {
+                        return new Thread(r, "Record Offset Service NO." + idx.getAndIncrement());
                     }
                 });
         this.saveOffsetService = new ScheduledThreadPoolExecutor(1);

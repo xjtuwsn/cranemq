@@ -22,7 +22,9 @@ public class PutMessageResponse {
     private long offset;
 
     private int size;
+
     private int queueOffset;
+
     private MappedFile mappedFile;
 
     public PutMessageResponse(StoreResponseType responseType, long offset, int size, MappedFile mappedFile) {

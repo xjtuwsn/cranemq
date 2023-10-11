@@ -95,4 +95,8 @@ public class BrokerUtil {
         return topic + "@" + group;
     }
 
+    public static String holdRequestKey(String topic, String group, String clientId) {
+        return topic + "@" + group + "@" + clientId;
+    }
+
 }

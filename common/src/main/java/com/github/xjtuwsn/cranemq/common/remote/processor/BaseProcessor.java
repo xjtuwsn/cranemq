@@ -42,4 +42,6 @@ public interface BaseProcessor {
     default void processPullRequest(ChannelHandlerContext ctx, RemoteCommand remoteCommand) {}
 
     default void processQueryRequest(ChannelHandlerContext ctx, RemoteCommand remoteCommand) {}
+
+    default void processRecordOffsetRequest(ChannelHandlerContext ctx, RemoteCommand remoteCommand) {}
 }

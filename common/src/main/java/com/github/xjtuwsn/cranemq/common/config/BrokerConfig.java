@@ -24,4 +24,6 @@ public class BrokerConfig {
 
     private long keepAliveTime = 1000 * 120;
 
+    private long longPollingTime = 1000 * 15;
+
 }

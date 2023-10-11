@@ -124,6 +124,7 @@ public class RemoteServer implements RemoteService {
             RequestType type = (RequestType) request.getHeader().getCommandType();
             switch (type) {
                 case MESSAGE_PRODUCE_REQUEST:
+                case MESSAGE_BATCH_PRODUCE_REAUEST:
                     doProducerMessageProcess(channelHandlerContext, request);
                     break;
                 case CREATE_TOPIC_REQUEST:
@@ -140,6 +141,9 @@ public class RemoteServer implements RemoteService {
                     break;
                 case QUERY_INFO:
                     doQueryInfoProcess(channelHandlerContext, request);
+                    break;
+                case RECORD_OFFSET:
+                    doRecordOffsetProcess(channelHandlerContext, request);
                 default:
                     break;
             }
@@ -191,6 +195,14 @@ public class RemoteServer implements RemoteService {
             if (pool != null) {
                 pool.execute(() -> {
                     serverProcessor.processQueryRequest(ctx, remoteCommand);
+                });
+            }
+        }
+        private void doRecordOffsetProcess(ChannelHandlerContext ctx, RemoteCommand remoteCommand) {
+            ExecutorService pool = getThreadPool(HandlerType.RECORD_OFFSET);
+            if (pool != null) {
+                pool.execute(() -> {
+                    serverProcessor.processRecordOffsetRequest(ctx, remoteCommand);
                 });
             }
         }

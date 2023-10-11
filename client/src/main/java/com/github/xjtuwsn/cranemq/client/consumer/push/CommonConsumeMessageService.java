@@ -59,7 +59,8 @@ public class CommonConsumeMessageService implements ConsumeMessageService {
                 if (result) {
                     log.info("Consume message finished");
                     long lowestOfsset = snapShot.removeMessages(messages);
-                    this.defaultPushConsumer.getOffsetManager().record(messageQueue, lowestOfsset);
+                    this.defaultPushConsumer.getOffsetManager().record(messageQueue, lowestOfsset,
+                            this.defaultPushConsumer.getDefaultPushConsumer().getConsumerGroup());
                 }
             });
         }

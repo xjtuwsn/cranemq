@@ -63,6 +63,7 @@ public class RebalanceService {
 
     }
     // TODO 启动时立即rebalance，但可能和心跳导致的冲突，consumer管理部分需要再看
+    // TODO 定时进行rebalance，定时向broker保存offset，消费有bug
     public void rebalanceNow(String group) {
         log.info("Do rebalance now {}", group);
         DefaultPushConsumerImpl consumer = clientInstance.getPushConsumerByGroup(group);
@@ -71,9 +72,7 @@ public class RebalanceService {
             log.warn("No such consumer, {}", group);
             return;
         }
-        if (consumer.getMessageModel() == MessageModel.BRODERCAST) {
-            return;
-        }
+
 
         // 该消费者组所有topic
         Set<String> topicSet = consumer.getTopicSet();
@@ -93,9 +92,14 @@ public class RebalanceService {
         }
 
         //重分配
-        List<MessageQueue> allocated
-                = queueAllocation.allocate(queues, groupConsumerTable.get(group), clientInstance.getClientId());
+        List<MessageQueue> allocated = null;
+        if (consumer.getMessageModel() == MessageModel.BRODERCAST) {
+            allocated = queues;
+        } else if (consumer.getMessageModel() == MessageModel.CLUSTER) {
+            allocated = queueAllocation.allocate(queues, groupConsumerTable.get(group), clientInstance.getClientId());
+        }
 
+        log.error("Got queues {}", allocated);
         Set<MessageQueue> allocatedSet = new HashSet<>(allocated);
         if (!queueSnap.containsKey(group)) {
             queueSnap.put(group, new ConcurrentHashMap<>());
@@ -107,7 +111,7 @@ public class RebalanceService {
             if (!allocatedSet.contains(entry.getKey())) {
                 MessageQueue removedMq = entry.getKey();
                 BrokerQueueSnapShot removedSnap = entry.getValue();
-                removeMessageQueue(removedMq, removedSnap);
+                removeMessageQueue(removedMq, removedSnap, group);
                 iterator.remove();
             } else {
                 allocatedSet.remove(entry.getKey());
@@ -119,13 +123,18 @@ public class RebalanceService {
             pullRequest.setGroupName(group);
             pullRequest.setMessageQueue(newQueue);
             pullRequest.setSnapShot(brokerQueueSnapShot);
-            pullRequest.setOffset(clientInstance.getPushConsumerByGroup(group).getOffsetManager().readOffset(newQueue));
+            pullRequest.setOffset(clientInstance.getPushConsumerByGroup(group).getOffsetManager().readOffset(newQueue, group));
             hashMap.put(newQueue, brokerQueueSnapShot);
             this.clientInstance.getPullMessageService().putRequestNow(pullRequest);
         }
     }
-    private void removeMessageQueue(MessageQueue removedMq, BrokerQueueSnapShot removedSnap) {
+    private void removeMessageQueue(MessageQueue removedMq, BrokerQueueSnapShot removedSnap, String group) {
         // TODO 保存message queue 的offset到broker 上锁
+        removedSnap.markExpired();
+
+        this.clientInstance.getPushConsumerByGroup(group).getOffsetManager().persistOffset();
+
+        queueSnap.get(group).remove(removedMq);
     }
     public void start() {
     }

@@ -64,7 +64,6 @@ public class ConsumerProcessor extends AbstractClientProcessor {
         result.setMessages(mqPullMessageResponse.getMessages());
         result.setAcquireResultType(mqPullMessageResponse.getAcquireResultType());
         result.setNextOffset(mqPullMessageResponse.getNextOffset());
-
         if (wrappered.getPullCallback() != null) {
             asyncHookService.execute(() -> {
                 wrappered.getPullCallback().onSuccess(result);

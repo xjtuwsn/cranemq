@@ -1,5 +1,6 @@
 package com.github.xjtuwsn.cranemq.broker.offset;
 
+import cn.hutool.core.util.StrUtil;
 import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONObject;
 import com.alibaba.fastjson.TypeReference;
@@ -112,6 +113,30 @@ public class ConsumerOffsetManager {
                 new TypeReference<ConcurrentHashMap<String, ConcurrentHashMap<Integer, Long>>>(){});
 
 
+    }
+
+    public void updateOffsets(Map<MessageQueue, Long> offsets, String group) {
+
+        if (offsets == null || offsets.isEmpty() || StrUtil.isEmpty(group)) {
+            return;
+        }
+
+        for (Map.Entry<MessageQueue, Long> entry : offsets.entrySet()) {
+
+            MessageQueue queue = entry.getKey();
+            long offset = entry.getValue();
+            String topic = queue.getTopic();
+            int queueId = queue.getQueueId();
+            String key = BrokerUtil.offsetKey(topic, group);
+
+            ConcurrentHashMap<Integer, Long> temp = new ConcurrentHashMap<>();
+            ConcurrentHashMap<Integer, Long> map = offsetMap.putIfAbsent(key, temp);
+            if (map == null) {
+                temp.put(queueId, offset);
+            } else {
+                map.put(queueId, offset);
+            }
+        }
     }
 
     public void persistOffset() {

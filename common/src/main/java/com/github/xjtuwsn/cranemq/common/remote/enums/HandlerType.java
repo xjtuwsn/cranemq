@@ -12,5 +12,6 @@ public enum HandlerType {
     PRODUCER_BATCH_REQUEST,
     CREATE_TOPIC,
     SIMPLE_PULL,
-    PULL
+    PULL,
+    RECORD_OFFSET
 }
