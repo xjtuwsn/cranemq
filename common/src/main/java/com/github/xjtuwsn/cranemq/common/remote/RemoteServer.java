@@ -144,6 +144,9 @@ public class RemoteServer implements RemoteService {
                     break;
                 case RECORD_OFFSET:
                     doRecordOffsetProcess(channelHandlerContext, request);
+                    break;
+                case LOCK_REQUEST:
+                    doLockRequestProcess(channelHandlerContext, request);
                 default:
                     break;
             }
@@ -203,6 +206,14 @@ public class RemoteServer implements RemoteService {
             if (pool != null) {
                 pool.execute(() -> {
                     serverProcessor.processRecordOffsetRequest(ctx, remoteCommand);
+                });
+            }
+        }
+        private void doLockRequestProcess(ChannelHandlerContext ctx, RemoteCommand remoteCommand) {
+            ExecutorService pool = getThreadPool(HandlerType.SIMPLE_PULL);
+            if (pool != null) {
+                pool.execute(() -> {
+                    serverProcessor.processLockRequest(ctx, remoteCommand);
                 });
             }
         }

@@ -29,6 +29,7 @@
         <project.hutool.version>5.8.20</project.hutool.version>
         <project.logback-classic.version>1.4.5</project.logback-classic.version>
         <project.fastjson.version>1.2.83</project.fastjson.version>
+        <project.caffeine.version>3.1.6</project.caffeine.version>
     </properties>
     <dependencyManagement>
         <dependencies>
@@ -95,6 +96,13 @@
                 <artifactId>fastjson</artifactId>
                 <version>${project.fastjson.version}</version>
             </dependency>
+            <!-- https://mvnrepository.com/artifact/com.github.ben-manes.caffeine/caffeine -->
+            <dependency>
+                <groupId>com.github.ben-manes.caffeine</groupId>
+                <artifactId>caffeine</artifactId>
+                <version>${project.caffeine.version}</version>
+            </dependency>
+
 
         </dependencies>
     </dependencyManagement>

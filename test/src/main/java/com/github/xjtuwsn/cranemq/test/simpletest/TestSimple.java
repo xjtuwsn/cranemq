@@ -1,8 +1,12 @@
 package com.github.xjtuwsn.cranemq.test.simpletest;
 
+import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
+import com.github.benmanes.caffeine.cache.Expiry;
 import com.github.xjtuwsn.cranemq.broker.store.PersistentConfig;
 import com.github.xjtuwsn.cranemq.client.consumer.offset.LocalOffsetManager;
 import com.github.xjtuwsn.cranemq.common.entity.MessageQueue;
+import org.checkerframework.checker.index.qual.NonNegative;
 import org.junit.Test;
 
 import java.lang.reflect.Method;
@@ -95,6 +99,62 @@ public class TestSimple {
         }
         return result;
     }
+    @Test
+    public void test5() {
+        ConcurrentHashMap<Integer, Object> locks = new ConcurrentHashMap<>();
+        locks.put(1, new Object());
+        ExecutorService service = Executors.newFixedThreadPool(2);
+        for (int i = 0; i < 2; i++) {
+            service.execute(() -> {
+                Object lock = locks.get(1);
+                synchronized (lock) {
+                    System.out.println(Thread.currentThread().getName());
+                    try {
+                        Thread.sleep(10 * 1000);
+                    } catch (InterruptedException e) {
+                        throw new RuntimeException(e);
+                    }
+                }
+            });
+        }
+        while (true) {
 
+        }
+    }
+    @Test
+    public void test6() {
+        Cache<Integer, Integer> cache = Caffeine.newBuilder()
+                .expireAfter(new Expiry<Integer, Integer>() {
+                    @Override
+                    public long expireAfterCreate(Integer integer, Integer integer2, long l) {
+                        return TimeUnit.SECONDS.toNanos(7);
+                    }
+
+                    @Override
+                    public long expireAfterUpdate(Integer integer, Integer integer2, long l, @NonNegative long l1) {
+                        return TimeUnit.SECONDS.toNanos(5) + l1;
+                    }
+
+                    @Override
+                    public long expireAfterRead(Integer integer, Integer integer2, long l, @NonNegative long l1) {
+                        return l1;
+                    }
+                }).build();
+        cache.put(1, 1);
+        for (int i = 0; i < 20; i++) {
+            System.out.println("第" + i + "s");
+            System.out.println(cache.getIfPresent(1));
+            if (i == 2) {
+                cache.put(1, 1);
+
+            }
+            try {
+                Thread.sleep(1000);
+            } catch (InterruptedException e) {
+                throw new RuntimeException(e);
+            }
+        }
+
+    }
 
 }

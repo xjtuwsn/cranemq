@@ -180,7 +180,10 @@ public class RemoteClent implements RemoteService {
                     doNotifyChangedProcessor(remoteCommand);
                     break;
                 case PULL_RESPONSE:
-                    doPullResponceProcessor(remoteCommand);
+                    doPullResponseProcessor(remoteCommand);
+                    break;
+                case LOCK_RESPONSE:
+                    doLockResponse(remoteCommand);
                     break;
                 default:
                     break;
@@ -204,11 +207,14 @@ public class RemoteClent implements RemoteService {
         private void doNotifyChangedProcessor(RemoteCommand remoteCommand) {
             processorTable.get(ClientType.CONSUMER).processNotifyChangedResponse(remoteCommand, asyncCallBackService);
         }
-        private void doPullResponceProcessor(RemoteCommand remoteCommand) {
+        private void doPullResponseProcessor(RemoteCommand remoteCommand) {
             processorTable.get(ClientType.CONSUMER).processPullResponse(remoteCommand, asyncCallBackService);
         }
         private void doQueryProcessor(RemoteCommand remoteCommand) {
             processorTable.get(ClientType.CONSUMER).processQueryResponse(remoteCommand, asyncCallBackService);
+        }
+        private void doLockResponse(RemoteCommand remoteCommand) {
+            processorTable.get(ClientType.CONSUMER).processLockResponse(remoteCommand, asyncCallBackService);
         }
     }
     static class ChannelWrapper {

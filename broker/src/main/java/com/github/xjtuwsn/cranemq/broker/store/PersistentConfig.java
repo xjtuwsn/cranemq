@@ -51,7 +51,7 @@ public class PersistentConfig {
 
     private int defaultQueueNumber = 4;
 
-    private int maxSingleReadLength = 32;
+    private int maxSingleReadLength = 16;
 
 
 }

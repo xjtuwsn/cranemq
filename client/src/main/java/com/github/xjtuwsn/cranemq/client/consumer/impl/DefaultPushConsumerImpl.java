@@ -7,12 +7,10 @@ import com.github.xjtuwsn.cranemq.client.consumer.DefaultPushConsumer;
 import com.github.xjtuwsn.cranemq.client.consumer.PullResult;
 import com.github.xjtuwsn.cranemq.client.consumer.listener.CommonMessageListener;
 import com.github.xjtuwsn.cranemq.client.consumer.listener.MessageListener;
+import com.github.xjtuwsn.cranemq.client.consumer.listener.OrderedMessageListener;
 import com.github.xjtuwsn.cranemq.client.consumer.offset.BrokerOffsetManager;
 import com.github.xjtuwsn.cranemq.client.consumer.offset.OffsetManager;
-import com.github.xjtuwsn.cranemq.client.consumer.push.BrokerQueueSnapShot;
-import com.github.xjtuwsn.cranemq.client.consumer.push.CommonConsumeMessageService;
-import com.github.xjtuwsn.cranemq.client.consumer.push.ConsumeMessageService;
-import com.github.xjtuwsn.cranemq.client.consumer.push.PullRequest;
+import com.github.xjtuwsn.cranemq.client.consumer.push.*;
 import com.github.xjtuwsn.cranemq.client.consumer.rebalance.AverageQueueAllocation;
 import com.github.xjtuwsn.cranemq.client.consumer.rebalance.QueueAllocation;
 import com.github.xjtuwsn.cranemq.client.hook.PullCallback;
@@ -59,15 +57,18 @@ public class DefaultPushConsumerImpl {
     private RemoteHook hook;
     private ClientInstance clientInstance;
     private QueueAllocation queueAllocation;
-    private ConsumeMessageService commonMessageService;
+    private ConsumeMessageService consumeMessageService;
 
     private OffsetManager offsetManager;
+    
+    private MessageQueueLock messageQueueLock;
 
     public DefaultPushConsumerImpl(DefaultPushConsumer defaultPushConsumer, RemoteHook hook) {
         this.defaultPushConsumer = defaultPushConsumer;
         this.hook = hook;
 
         this.queueAllocation = new AverageQueueAllocation();
+        this.messageQueueLock = new MessageQueueLock();
     }
     public DefaultPushConsumerImpl(DefaultPushConsumer defaultPushConsumer, RemoteHook hook,
                                    String address, List<Pair<String, String>> topics) {
@@ -83,8 +84,11 @@ public class DefaultPushConsumerImpl {
         this.clientInstance = ClienFactory.newInstance().getOrCreate(clientId, hook);
         this.messageListener = defaultPushConsumer.getMessageListener();
         if (messageListener instanceof CommonMessageListener) {
-            commonMessageService = new CommonConsumeMessageService(messageListener, this);
+            consumeMessageService = new CommonConsumeMessageService(messageListener, this);
+        } else if (messageListener instanceof OrderedMessageListener) {
+            consumeMessageService = new OrderedConsumeMessageService(messageListener, this);
         }
+        this.consumeMessageService.start();
         this.clientInstance.registerPushConsumer(defaultPushConsumer.getConsumerGroup(), this);
         this.clientInstance.registerHook(hook);
         this.clientInstance.start();
@@ -135,9 +139,9 @@ public class DefaultPushConsumerImpl {
                         request.setOffset(nextOffset);
                         List<ReadyMessage> messages = pullResult.getMessages();
                         snapShot.putMessage(messages);
-                        if (commonMessageService != null) {
+                        if (consumeMessageService != null) {
 
-                            commonMessageService.submit(queue, snapShot, messages);
+                            consumeMessageService.submit(queue, snapShot, messages);
                         }
                         clientInstance.getPullMessageService().putRequestDelay(request, 200);
                         break;
@@ -218,5 +222,13 @@ public class DefaultPushConsumerImpl {
 
     public DefaultPushConsumer getDefaultPushConsumer() {
         return defaultPushConsumer;
+    }
+
+    public MessageQueueLock getMessageQueueLock() {
+        return messageQueueLock;
+    }
+
+    public ClientInstance getClientInstance() {
+        return clientInstance;
     }
 }

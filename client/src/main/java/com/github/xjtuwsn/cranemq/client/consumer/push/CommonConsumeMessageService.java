@@ -28,7 +28,7 @@ public class CommonConsumeMessageService implements ConsumeMessageService {
     public CommonConsumeMessageService(MessageListener listener, DefaultPushConsumerImpl defaultPushConsumer) {
         this.listener = (CommonMessageListener) listener;
         this.defaultPushConsumer = defaultPushConsumer;
-        this.asyncDispatchService = new ThreadPoolExecutor(4, 6, 60L,
+        this.asyncDispatchService = new ThreadPoolExecutor(COUSMER_CORE_SIZE, COUSMER_MAX_SIZE, 60L,
                 TimeUnit.SECONDS, new LinkedBlockingDeque<>(2000),
                 new ThreadFactory() {
                     AtomicInteger index = new AtomicInteger(0);

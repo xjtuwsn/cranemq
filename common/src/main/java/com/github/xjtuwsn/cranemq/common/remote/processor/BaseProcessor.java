@@ -29,6 +29,8 @@ public interface BaseProcessor {
 
     default void processQueryResponse(RemoteCommand remoteCommand, ExecutorService asyncHookService) {}
 
+    default void processLockResponse(RemoteCommand remoteCommand, ExecutorService asyncHookService) {}
+
     // ---------------------- Consumer and Producer ----------------------
     default void processUpdateTopicResponse(RemoteCommand remoteCommand, ExecutorService asyncHookService) {}
 
@@ -44,4 +46,5 @@ public interface BaseProcessor {
     default void processQueryRequest(ChannelHandlerContext ctx, RemoteCommand remoteCommand) {}
 
     default void processRecordOffsetRequest(ChannelHandlerContext ctx, RemoteCommand remoteCommand) {}
+    default void processLockRequest(ChannelHandlerContext ctx, RemoteCommand remoteCommand) {}
 }

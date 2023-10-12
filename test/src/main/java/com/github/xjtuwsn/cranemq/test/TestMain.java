@@ -49,13 +49,14 @@ public class TestMain {
 //            producer.send(list);
             // producer.send(message2);
             long start = System.nanoTime();
-            for (int i = 0; i < 5; i++) {
-
-                producer.send(message2, new MQSelector() {
+            for (int i = 0; i < 64; i++) {
+                Message message = new Message(topic, ("" + i).getBytes());
+                producer.send(message, new MQSelector() {
                     @Override
                     public MessageQueue select(List<MessageQueue> queues, Object arg) {
-                        int index = (int) arg;
-                        return queues.get((index + 1) % queues.size());
+//                        int index = (int) arg;
+//                        return queues.get((index + 1) % queues.size());
+                        return queues.get(0);
                     }
                 }, i);
             }

@@ -30,7 +30,7 @@ public abstract class AbstractClientProcessor implements BaseProcessor {
         this.clientInstance = clientInstance;
     }
 
-    protected void parseResponseWithRetry(RemoteCommand remoteCommand,
+    protected WrapperFutureCommand parseResponseWithRetry(RemoteCommand remoteCommand,
                                           ExecutorService asyncHookService) {
         RpcType rpcType = remoteCommand.getHeader().getRpcType();
         int responseCode = remoteCommand.getHeader().getStatus();
@@ -38,13 +38,13 @@ public abstract class AbstractClientProcessor implements BaseProcessor {
         WrapperFutureCommand wrappered = this.clientInstance.getWrapperFuture(correlationID);
         if (wrappered == null) {
             log.warn("Request {} has been removed before", correlationID);
-            return;
+            return null;
         }
         if (responseCode != ResponseCode.SUCCESS) {
             log.warn("Request {} has occured a mistake, reason is {}", correlationID, responseCode);
             if (wrappered.isDone()) {
                 this.clientInstance.removeWrapperFuture(correlationID);
-                return;
+                return wrappered;
             }
             if (!wrappered.isNeedRetry()) {
                 wrappered.cancel();
@@ -76,6 +76,7 @@ public abstract class AbstractClientProcessor implements BaseProcessor {
             }
             log.info("Request {} get Success response", correlationID);
         }
+        return wrappered;
     }
 
 }

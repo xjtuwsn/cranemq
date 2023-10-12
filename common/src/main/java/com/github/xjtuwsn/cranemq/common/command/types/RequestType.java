@@ -19,6 +19,7 @@ public enum RequestType implements Type {
     SIMPLE_PULL_MESSAGE_REQUEST,
     PULL_MESSAGE,
     QUERY_INFO,
-    RECORD_OFFSET
+    RECORD_OFFSET,
+    LOCK_REQUEST
 
 }

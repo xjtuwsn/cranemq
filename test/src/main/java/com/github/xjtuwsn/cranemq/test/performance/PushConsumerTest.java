@@ -2,12 +2,15 @@ package com.github.xjtuwsn.cranemq.test.performance;
 
 import com.github.xjtuwsn.cranemq.client.consumer.DefaultPushConsumer;
 import com.github.xjtuwsn.cranemq.client.consumer.listener.CommonMessageListener;
+import com.github.xjtuwsn.cranemq.client.consumer.listener.OrderedMessageListener;
 import com.github.xjtuwsn.cranemq.common.consumer.MessageModel;
 import com.github.xjtuwsn.cranemq.common.consumer.StartConsume;
 import com.github.xjtuwsn.cranemq.common.entity.ReadyMessage;
 import com.github.xjtuwsn.cranemq.common.remote.RemoteHook;
 
 import java.util.List;
+import java.util.Random;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * @project:cranemq
@@ -21,12 +24,18 @@ public class PushConsumerTest {
                 .consumerId("1")
                 .consumerGroup("group_push")
                 .bindRegistry("127.0.0.1:11111")
-                .messageModel(MessageModel.BRODERCAST)
+                .messageModel(MessageModel.CLUSTER)
                 .startConsume(StartConsume.FROM_FIRST_OFFSET)
-                .subscribe("topic1", "*")
-                .messageListener(new CommonMessageListener() {
+                .subscribe("topic2", "*")
+                .messageListener(new OrderedMessageListener() {
+                    AtomicInteger index = new AtomicInteger(5);
                     @Override
                     public boolean consume(List<ReadyMessage> messages) {
+                        try {
+                            Thread.sleep((new Random().nextInt(5) + 1) * 1000L);
+                        } catch (InterruptedException e) {
+                            throw new RuntimeException(e);
+                        }
                         for (ReadyMessage message : messages) {
                             int queueId = message.getQueueId();
                             String content = new String(message.getBody());

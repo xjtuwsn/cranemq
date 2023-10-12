@@ -17,7 +17,8 @@ import java.util.concurrent.atomic.AtomicInteger;
  * @create:2023/10/08-15:32
  */
 public interface ConsumeMessageService {
-
+    public static final int COUSMER_CORE_SIZE = 4;
+    public static final int COUSMER_MAX_SIZE = 8;
     void start();
 
     void shutdown();

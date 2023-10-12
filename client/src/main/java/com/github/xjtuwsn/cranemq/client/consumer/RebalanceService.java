@@ -6,13 +6,19 @@ import com.github.xjtuwsn.cranemq.client.consumer.push.BrokerQueueSnapShot;
 import com.github.xjtuwsn.cranemq.client.consumer.push.PullMessageService;
 import com.github.xjtuwsn.cranemq.client.consumer.push.PullRequest;
 import com.github.xjtuwsn.cranemq.client.consumer.rebalance.QueueAllocation;
+import com.github.xjtuwsn.cranemq.client.hook.InnerCallback;
+import com.github.xjtuwsn.cranemq.client.producer.result.SendResult;
+import com.github.xjtuwsn.cranemq.client.producer.result.SendResultType;
 import com.github.xjtuwsn.cranemq.client.remote.ClientInstance;
 import com.github.xjtuwsn.cranemq.common.command.FutureCommand;
 import com.github.xjtuwsn.cranemq.common.command.Header;
 import com.github.xjtuwsn.cranemq.common.command.PayLoad;
 import com.github.xjtuwsn.cranemq.common.command.RemoteCommand;
+import com.github.xjtuwsn.cranemq.common.command.payloads.req.MQLockRequest;
 import com.github.xjtuwsn.cranemq.common.command.payloads.req.MQReblanceQueryRequest;
+import com.github.xjtuwsn.cranemq.common.command.payloads.resp.MQLockRespnse;
 import com.github.xjtuwsn.cranemq.common.command.payloads.resp.MQNotifyChangedResponse;
+import com.github.xjtuwsn.cranemq.common.command.types.LockType;
 import com.github.xjtuwsn.cranemq.common.command.types.RequestType;
 import com.github.xjtuwsn.cranemq.common.command.types.RpcType;
 import com.github.xjtuwsn.cranemq.common.consumer.MessageModel;
@@ -23,6 +29,7 @@ import org.slf4j.LoggerFactory;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
@@ -42,7 +49,6 @@ public class RebalanceService {
     // group : [clientId: queues]
 
     private ClientInstance clientInstance;
-
 
 
 
@@ -73,10 +79,10 @@ public class RebalanceService {
             return;
         }
 
-
         // 该消费者组所有topic
         Set<String> topicSet = consumer.getTopicSet();
         this.clientInstance.sendQueryMsgToAllBrokers(topicSet, group);
+
         // 所有topic对应的队列
         List<MessageQueue> queues = clientInstance.listQueues(topicSet);
         if (queues == null || queues.size() == 0) {
@@ -99,6 +105,8 @@ public class RebalanceService {
             allocated = queueAllocation.allocate(queues, groupConsumerTable.get(group), clientInstance.getClientId());
         }
 
+        this.clientInstance.getPushConsumerByGroup(group).getMessageQueueLock().resetLock(allocated);
+
         log.error("Got queues {}", allocated);
         Set<MessageQueue> allocatedSet = new HashSet<>(allocated);
         if (!queueSnap.containsKey(group)) {
@@ -117,7 +125,26 @@ public class RebalanceService {
                 allocatedSet.remove(entry.getKey());
             }
         }
+
+
+
         for (MessageQueue newQueue : allocatedSet) {
+            if (consumer.getMessageModel() == MessageModel.CLUSTER) {
+                // 先申请队列的锁
+                Header header = new Header(RequestType.LOCK_REQUEST, RpcType.ASYNC, TopicUtil.generateUniqueID());
+                PayLoad payLoad = new MQLockRequest(group, newQueue, clientInstance.getClientId(), LockType.APPLY);
+                RemoteCommand remoteCommand = new RemoteCommand(header, payLoad);
+                FutureCommand futureCommand = new FutureCommand(remoteCommand);
+                WrapperFutureCommand wrappered = new WrapperFutureCommand(futureCommand, 2, -1,
+                        null, newQueue.getTopic());
+                wrappered.setQueuePicked(newQueue);
+                SendResult result = clientInstance.sendMessageSync(wrappered, false);
+                if (result.getResultType() != SendResultType.SEDN_OK) {
+                    log.error("Apply for message queue lock failed after 3 retry");
+                    continue;
+                }
+            }
+
             BrokerQueueSnapShot brokerQueueSnapShot = new BrokerQueueSnapShot();
             PullRequest pullRequest = new PullRequest();
             pullRequest.setGroupName(group);
@@ -136,9 +163,17 @@ public class RebalanceService {
 
         queueSnap.get(group).remove(removedMq);
     }
+
+    public ConcurrentHashMap<MessageQueue, BrokerQueueSnapShot> getQueueSnap(String group) {
+        return queueSnap.get(group);
+    }
+
     public void start() {
     }
     public void shutdown() {
 
     }
+
+
+
 }

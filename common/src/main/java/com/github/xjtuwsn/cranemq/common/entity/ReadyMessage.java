@@ -13,6 +13,7 @@ import lombok.*;
 @NoArgsConstructor
 @Getter
 @Setter
+@ToString
 public class ReadyMessage extends Message {
     private String brokerName;
     private int queueId;

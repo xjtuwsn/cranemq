@@ -16,4 +16,5 @@ public enum ResponseType implements Type {
     SIMPLE_PULL_RESPONSE,
     NOTIFY_CHAGED_RESPONSE,
     PULL_RESPONSE,
+    LOCK_RESPONSE
 }

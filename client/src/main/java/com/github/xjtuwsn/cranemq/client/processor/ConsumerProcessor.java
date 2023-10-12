@@ -2,6 +2,8 @@ package com.github.xjtuwsn.cranemq.client.processor;
 
 import com.github.xjtuwsn.cranemq.client.WrapperFutureCommand;
 import com.github.xjtuwsn.cranemq.client.consumer.PullResult;
+import com.github.xjtuwsn.cranemq.client.hook.InnerCallback;
+import com.github.xjtuwsn.cranemq.client.hook.SendCallback;
 import com.github.xjtuwsn.cranemq.client.producer.result.SendResult;
 import com.github.xjtuwsn.cranemq.client.remote.ClientInstance;
 import com.github.xjtuwsn.cranemq.common.command.Header;
@@ -83,5 +85,24 @@ public class ConsumerProcessor extends AbstractClientProcessor {
         this.clientInstance.getPushConsumerByGroup(group).getOffsetManager().resetLocalOffset(group, allOffset);
 
         this.clientInstance.getWrapperFuture(header.getCorrelationId()).setResponse(remoteCommand);
+    }
+
+    @Override
+    public void processLockResponse(RemoteCommand remoteCommand, ExecutorService asyncHookService) {
+        WrapperFutureCommand wrappered = this.parseResponseWithRetry(remoteCommand, asyncHookService);
+        SendCallback callback = wrappered.getCallback();
+        if (callback == null) { // 同步
+
+        } else {
+            InnerCallback innerCallback = (InnerCallback) callback;
+            if (asyncHookService != null) {
+                asyncHookService.execute(() -> {
+                    innerCallback.onResponse(remoteCommand);
+                });
+            } else {
+                innerCallback.onResponse(remoteCommand);
+            }
+        }
+
     }
 }

@@ -2,8 +2,7 @@ package com.github.xjtuwsn.cranemq.broker.processors;
 
 import com.github.xjtuwsn.cranemq.broker.BrokerController;
 import com.github.xjtuwsn.cranemq.common.command.payloads.req.*;
-import com.github.xjtuwsn.cranemq.common.command.payloads.resp.MQRebalanceQueryResponse;
-import com.github.xjtuwsn.cranemq.common.command.payloads.resp.MQSimplePullResponse;
+import com.github.xjtuwsn.cranemq.common.command.payloads.resp.*;
 import com.github.xjtuwsn.cranemq.common.command.types.*;
 import com.github.xjtuwsn.cranemq.common.entity.Message;
 import com.github.xjtuwsn.cranemq.common.entity.MessageQueue;
@@ -16,8 +15,6 @@ import com.github.xjtuwsn.cranemq.broker.store.comm.StoreResponseType;
 import com.github.xjtuwsn.cranemq.common.command.Header;
 import com.github.xjtuwsn.cranemq.common.command.PayLoad;
 import com.github.xjtuwsn.cranemq.common.command.RemoteCommand;
-import com.github.xjtuwsn.cranemq.common.command.payloads.resp.MQCreateTopicResponse;
-import com.github.xjtuwsn.cranemq.common.command.payloads.resp.MQProduceResponse;
 import com.github.xjtuwsn.cranemq.common.constant.MQConstant;
 import com.github.xjtuwsn.cranemq.common.remote.processor.BaseProcessor;
 import com.github.xjtuwsn.cranemq.common.route.BrokerData;
@@ -207,5 +204,18 @@ public class ServerProcessor implements BaseProcessor {
         String group = offsetRequest.getGroup();
 
         this.brokerController.getOffsetManager().updateOffsets(offsets, group);
+    }
+
+    @Override
+    public void processLockRequest(ChannelHandlerContext ctx, RemoteCommand remoteCommand) {
+        Header header = remoteCommand.getHeader();
+        MQLockRequest mqLockRequest = (MQLockRequest) remoteCommand.getPayLoad();
+
+        Header responseHeader = new Header(ResponseType.LOCK_RESPONSE, header.getRpcType(), header.getCorrelationId());
+        PayLoad mqLockRespnse = new MQLockRespnse(true);
+
+        RemoteCommand response = new RemoteCommand(responseHeader, mqLockRespnse);
+
+        ctx.writeAndFlush(response);
     }
 }

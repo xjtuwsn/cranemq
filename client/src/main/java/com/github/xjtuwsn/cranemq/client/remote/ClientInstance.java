@@ -22,6 +22,7 @@ import com.github.xjtuwsn.cranemq.client.producer.result.SendResult;
 import com.github.xjtuwsn.cranemq.client.producer.result.SendResultType;
 import com.github.xjtuwsn.cranemq.common.command.payloads.req.*;
 import com.github.xjtuwsn.cranemq.common.command.payloads.resp.MQCreateTopicResponse;
+import com.github.xjtuwsn.cranemq.common.command.payloads.resp.MQLockRespnse;
 import com.github.xjtuwsn.cranemq.common.command.payloads.resp.MQSimplePullResponse;
 import com.github.xjtuwsn.cranemq.common.command.payloads.resp.MQUpdateTopicResponse;
 import com.github.xjtuwsn.cranemq.common.command.types.*;
@@ -249,38 +250,6 @@ public class ClientInstance {
             address = this.registryAddress;
         } else {
             address = this.selectProducedQueueAndChangeHeader(wrappered, topic);
-//            try {
-//                TopicRouteInfo routeInfo = this.topicTable.get(topic);
-//                // 不包含路由，去注册中心找
-//                if (routeInfo == null) {
-//                    this.updateSemphore.acquire();
-//                    if (!this.topicTable.containsKey(topic)) {
-//                        this.getTopicInfoSync(topic);
-//                    }
-//                    this.updateSemphore.release();
-//                    routeInfo = this.topicTable.get(topic);
-//                }
-//                // 如果注册中心也没有，先查找默认路由，根据默认路由信息，向集群中所有节点创建topic
-//                if (routeInfo == null) {
-//                    String defaultTopic = MQConstant.DEFAULT_TOPIC_NAME;
-//                    TopicRouteInfo defaultInfo = this.topicTable.get(defaultTopic);
-//                    if (defaultInfo == null) {
-//                        this.updateSemphore.acquire();
-//                        if (!this.topicTable.containsKey(topic)) {
-//                            this.getTopicInfoSync(defaultTopic);
-//                        }
-//                        this.updateSemphore.release();
-//                        defaultInfo = this.topicTable.get(defaultTopic);
-//                    }
-//                    if (!this.topicTable.containsKey(topic)) {
-//                        this.createTopicInCluster(defaultInfo, topic);
-//                    }
-//                }
-//                // 根据路由选择一个队列地址
-//                address = this.selectProducedQueueAndChangeHeader(wrappered, topic);
-//            } catch (InterruptedException e) {
-//                throw new CraneClientException("Semaphore has error");
-//            }
 
         }
         this.remoteClent.invoke(address, command);
@@ -524,6 +493,11 @@ public class ClientInstance {
                 result.setResultType(SendResultType.SERVER_ERROR);
             } else {
                 result.setTopicRouteInfo(mqCreateTopicResponse.getSingleBrokerInfo());
+            }
+        } else if (response.getHeader().getCommandType() == ResponseType.LOCK_RESPONSE) {
+            MQLockRespnse mqLockRespnse = (MQLockRespnse) response.getPayLoad();
+            if (!mqLockRespnse.isSuccess()) {
+                result.setResultType(SendResultType.SERVER_ERROR);
             }
         }
         return result;

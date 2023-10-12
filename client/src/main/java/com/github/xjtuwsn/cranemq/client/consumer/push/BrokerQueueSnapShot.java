@@ -26,6 +26,10 @@ public class BrokerQueueSnapShot {
 
     private AtomicBoolean expired = new AtomicBoolean(false);
 
+    private AtomicBoolean locked = new AtomicBoolean(false);
+
+    private long lastLockTime = System.currentTimeMillis();
+
     private volatile long maxOffset = 0L;
 
     public void putMessage(List<ReadyMessage> readyMessages) {
@@ -52,7 +56,7 @@ public class BrokerQueueSnapShot {
                 this.messages.remove(offset);
             }
             if (!this.messages.isEmpty()) {
-                maxOffset = this.messages.firstKey();
+                result = this.messages.firstKey();
             }
         } catch (Exception e) {
             log.error("Remove message from treemap error");
@@ -69,5 +73,8 @@ public class BrokerQueueSnapShot {
 
     public boolean isExpired() {
         return this.expired.get();
+    }
+    public void renewLockTime() {
+        this.lastLockTime = System.currentTimeMillis();
     }
 }
