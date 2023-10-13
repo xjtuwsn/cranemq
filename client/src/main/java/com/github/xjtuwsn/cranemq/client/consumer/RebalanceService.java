@@ -97,7 +97,7 @@ public class RebalanceService {
             return;
         }
 
-        //重分配
+        // 重分配，广播模式获得所有，集群模式进行分配
         List<MessageQueue> allocated = null;
         if (consumer.getMessageModel() == MessageModel.BRODERCAST) {
             allocated = queues;
@@ -107,13 +107,13 @@ public class RebalanceService {
 
         this.clientInstance.getPushConsumerByGroup(group).getMessageQueueLock().resetLock(allocated);
 
-        log.error("Got queues {}", allocated);
         Set<MessageQueue> allocatedSet = new HashSet<>(allocated);
         if (!queueSnap.containsKey(group)) {
             queueSnap.put(group, new ConcurrentHashMap<>());
         }
         ConcurrentHashMap<MessageQueue, BrokerQueueSnapShot> hashMap = queueSnap.get(group);
         Iterator<Map.Entry<MessageQueue, BrokerQueueSnapShot>> iterator = hashMap.entrySet().iterator();
+        // 删除被分配走的队列
         while (iterator.hasNext()) {
             Map.Entry<MessageQueue, BrokerQueueSnapShot> entry = iterator.next();
             if (!allocatedSet.contains(entry.getKey())) {
@@ -127,9 +127,9 @@ public class RebalanceService {
         }
 
 
-
+        // 新分配到的队列，如果是集群的顺序消费，先向服务端申请分布式锁，然后构建拉取请求
         for (MessageQueue newQueue : allocatedSet) {
-            if (consumer.getMessageModel() == MessageModel.CLUSTER) {
+            if (consumer.needLock()) {
                 // 先申请队列的锁
                 Header header = new Header(RequestType.LOCK_REQUEST, RpcType.ASYNC, TopicUtil.generateUniqueID());
                 PayLoad payLoad = new MQLockRequest(group, newQueue, clientInstance.getClientId(), LockType.APPLY);
@@ -155,10 +155,43 @@ public class RebalanceService {
             this.clientInstance.getPullMessageService().putRequestNow(pullRequest);
         }
     }
+
+    /**
+     * 从当前client中删除不再属于自己的队列信息
+     * @param removedMq
+     * @param removedSnap
+     * @param group
+     */
     private void removeMessageQueue(MessageQueue removedMq, BrokerQueueSnapShot removedSnap, String group) {
         // TODO 保存message queue 的offset到broker 上锁
+        DefaultPushConsumerImpl consumer = clientInstance.getPushConsumerByGroup(group);
+
+        // 将消费快照标记位过期，其它线程不再消费
         removedSnap.markExpired();
 
+        // 如果是顺序消费，则需要等待当前正在消费的队列消费完成，然后释放队列锁
+        if (consumer.needLock()) {
+            if (removedSnap.tryLock()) {
+                Header header = new Header(RequestType.LOCK_REQUEST, RpcType.ASYNC, TopicUtil.generateUniqueID());
+                PayLoad payLoad = new MQLockRequest(group, removedMq, clientInstance.getClientId(), LockType.RELEASE);
+                RemoteCommand remoteCommand = new RemoteCommand(header, payLoad);
+                FutureCommand futureCommand = new FutureCommand(remoteCommand);
+                WrapperFutureCommand wrappered = new WrapperFutureCommand(futureCommand, 2, -1,
+                        null, removedMq.getTopic());
+                wrappered.setQueuePicked(removedMq);
+                SendResult result = clientInstance.sendMessageSync(wrappered, false);
+                if (result.getResultType() != SendResultType.SEDN_OK) {
+                    log.error("Release lock failed");
+                    return;
+                }
+
+            } else {
+                log.error("Cannot get the lock off snapshot, will remove in next rebalance");
+                return;
+            }
+        }
+
+        // 向服务端同步当前队列消费位移
         this.clientInstance.getPushConsumerByGroup(group).getOffsetManager().persistOffset();
 
         queueSnap.get(group).remove(removedMq);

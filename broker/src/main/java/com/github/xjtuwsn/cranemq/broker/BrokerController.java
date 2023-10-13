@@ -1,6 +1,7 @@
 package com.github.xjtuwsn.cranemq.broker;
 
 import com.github.xjtuwsn.cranemq.broker.client.ClientHousekeepingService;
+import com.github.xjtuwsn.cranemq.broker.client.ClientLockMananger;
 import com.github.xjtuwsn.cranemq.broker.client.ConsumerGroupManager;
 import com.github.xjtuwsn.cranemq.broker.offset.ConsumerOffsetManager;
 import com.github.xjtuwsn.cranemq.broker.processors.ServerProcessor;
@@ -12,6 +13,7 @@ import com.github.xjtuwsn.cranemq.broker.store.MessageStoreCenter;
 import com.github.xjtuwsn.cranemq.broker.store.PersistentConfig;
 import com.github.xjtuwsn.cranemq.common.config.BrokerConfig;
 import com.github.xjtuwsn.cranemq.common.remote.event.ChannelEventListener;
+import org.checkerframework.checker.units.qual.C;
 
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -32,6 +34,7 @@ public class BrokerController implements GeneralStoreService {
     private HoldRequestService holdRequestService;
 
     private ConsumerGroupManager consumerGroupManager;
+    private ClientLockMananger clientLockMananger;
     private ExecutorService producerMessageService;
     private ExecutorService createTopicService;
     private ExecutorService simplePullService;
@@ -56,6 +59,7 @@ public class BrokerController implements GeneralStoreService {
         this.messageStoreCenter = new MessageStoreCenter(this);
         this.offsetManager = new ConsumerOffsetManager(this);
         this.holdRequestService = new HoldRequestService(this);
+        this.clientLockMananger = new ClientLockMananger();
         this.initThreadPool();
         this.registerThreadPool();
         return true;
@@ -167,5 +171,9 @@ public class BrokerController implements GeneralStoreService {
 
     public ConsumerGroupManager getConsumerGroupManager() {
         return consumerGroupManager;
+    }
+
+    public ClientLockMananger getClientLockMananger() {
+        return clientLockMananger;
     }
 }

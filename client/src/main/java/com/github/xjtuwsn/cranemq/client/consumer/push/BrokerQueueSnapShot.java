@@ -77,4 +77,24 @@ public class BrokerQueueSnapShot {
     public void renewLockTime() {
         this.lastLockTime = System.currentTimeMillis();
     }
+
+    public boolean tryLock() {
+        long start = System.currentTimeMillis();
+        while (!this.locked.compareAndSet(false, true)) {
+            try {
+                Thread.sleep(20);
+            } catch (InterruptedException e) {
+                log.error("CAS has been interrupted");
+            }
+            long now = System.currentTimeMillis();
+            if (now - start > 1000) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    public boolean releaseLock() {
+        return this.locked.compareAndSet(true, false);
+    }
 }

@@ -31,11 +31,11 @@ public class PushConsumerTest {
                     AtomicInteger index = new AtomicInteger(5);
                     @Override
                     public boolean consume(List<ReadyMessage> messages) {
-                        try {
-                            Thread.sleep((new Random().nextInt(5) + 1) * 1000L);
-                        } catch (InterruptedException e) {
-                            throw new RuntimeException(e);
-                        }
+//                        try {
+//                            Thread.sleep((new Random().nextInt(5) + 1) * 1000L);
+//                        } catch (InterruptedException e) {
+//                            throw new RuntimeException(e);
+//                        }
                         for (ReadyMessage message : messages) {
                             int queueId = message.getQueueId();
                             String content = new String(message.getBody());

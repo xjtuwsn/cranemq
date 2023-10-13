@@ -18,7 +18,7 @@ import java.util.concurrent.locks.ReentrantLock;
  * @author:wsn
  * @create:2023/10/12-17:24
  */
-// TODO 添加消费者申请锁的各个逻辑，检查在第一次访问队列时，根据offset判断释放本地队列锁的逻辑是否争取
+// TODO 添加消费者申请锁的各个逻辑，检查在第一次访问队列时，根据offset判断释放本地队列锁的逻辑是否正确
 public class ClientLockMananger {
 
     private static final Logger log = LoggerFactory.getLogger(ClientLockMananger.class);
@@ -37,7 +37,7 @@ public class ClientLockMananger {
                         .expireAfter(new Expiry<MessageQueue, QueueLock>() {
                             @Override
                             public long expireAfterCreate(MessageQueue messageQueue, QueueLock queueLock, long l) {
-                                return TimeUnit.SECONDS.toNanos(1);
+                                return TimeUnit.MINUTES.toNanos(1);
                             }
 
                             @Override
@@ -59,7 +59,7 @@ public class ClientLockMananger {
             if (queueLock == null) {
                 cache.put(messageQueue, new QueueLock(clientId));
             }
-            log.info("Client {}, group {} acquire the lock", clientId, group);
+            log.info("Client {}, group {} acquire the lock, queue {}", clientId, group, messageQueue);
             return true;
         } catch (Exception e) {
             log.error("Execpiton when apply for lock");
@@ -76,12 +76,14 @@ public class ClientLockMananger {
             if (cache == null) {
                 return false;
             }
-            QueueLock queueLock = cache.getIfPresent(messageQueue);
+            QueueLock queueLock = cache.getIfPresent(new MessageQueue(messageQueue.getTopic(), messageQueue.getBrokerName(),
+                    messageQueue.getQueueId()));
             if (queueLock == null || !queueLock.isMine(clientId)) {
                 return false;
             }
             queueLock.renew();
             cache.put(messageQueue, queueLock);
+            log.info("Client {}, group {} renew the lock, queue {}", clientId, group, messageQueue);
             return true;
         } catch (Exception e) {
             log.error("Execpiton when renew for lock");
@@ -106,6 +108,7 @@ public class ClientLockMananger {
                 return false;
             }
             cache.invalidate(messageQueue);
+            log.info("Client {}, group {} release the lock, queue {}", clientId, group, messageQueue);
             return true;
         } catch (Exception e) {
             log.error("Execpiton when release a lock");
@@ -128,6 +131,14 @@ public class ClientLockMananger {
         }
         public void renew() {
             this.applyTime = System.currentTimeMillis();
+        }
+
+        @Override
+        public String toString() {
+            return "QueueLock{" +
+                    "ownerId='" + ownerId + '\'' +
+                    ", applyTime=" + applyTime +
+                    '}';
         }
     }
 }

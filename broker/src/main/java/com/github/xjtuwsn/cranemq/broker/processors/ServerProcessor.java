@@ -210,9 +210,25 @@ public class ServerProcessor implements BaseProcessor {
     public void processLockRequest(ChannelHandlerContext ctx, RemoteCommand remoteCommand) {
         Header header = remoteCommand.getHeader();
         MQLockRequest mqLockRequest = (MQLockRequest) remoteCommand.getPayLoad();
+        String group = mqLockRequest.getGroup(), clientId = mqLockRequest.getClientId();
+        MessageQueue messageQueue = mqLockRequest.getMessageQueue();
+        boolean res = false;
+        System.out.println(mqLockRequest.getLockType());
+        switch (mqLockRequest.getLockType()) {
+            case APPLY:
+                res = brokerController.getClientLockMananger().applyLock(group, messageQueue, clientId);
+                break;
+            case RENEW:
+                res = brokerController.getClientLockMananger().renewLock(group, messageQueue, clientId);
+                break;
+            case RELEASE:
+                res = brokerController.getClientLockMananger().releaseLock(group, messageQueue, clientId);
+            default:
+                break;
+        }
 
         Header responseHeader = new Header(ResponseType.LOCK_RESPONSE, header.getRpcType(), header.getCorrelationId());
-        PayLoad mqLockRespnse = new MQLockRespnse(true);
+        PayLoad mqLockRespnse = new MQLockRespnse(res);
 
         RemoteCommand response = new RemoteCommand(responseHeader, mqLockRespnse);
 

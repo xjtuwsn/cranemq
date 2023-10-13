@@ -143,7 +143,8 @@ public class DefaultPushConsumerImpl {
 
                             consumeMessageService.submit(queue, snapShot, messages);
                         }
-                        clientInstance.getPullMessageService().putRequestDelay(request, 200);
+                        // clientInstance.getPullMessageService().putRequestDelay(request, 200);
+                        clientInstance.getPullMessageService().putRequestNow(request);
                         break;
                     case NO_MESSAGE:
                     case OFFSET_INVALID:
@@ -230,5 +231,10 @@ public class DefaultPushConsumerImpl {
 
     public ClientInstance getClientInstance() {
         return clientInstance;
+    }
+
+    public boolean needLock() {
+        return this.getMessageModel() == MessageModel.CLUSTER && messageListener != null
+                && (messageListener instanceof OrderedMessageListener);
     }
 }

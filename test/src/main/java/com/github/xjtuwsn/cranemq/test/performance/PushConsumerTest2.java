@@ -2,6 +2,7 @@ package com.github.xjtuwsn.cranemq.test.performance;
 
 import com.github.xjtuwsn.cranemq.client.consumer.DefaultPushConsumer;
 import com.github.xjtuwsn.cranemq.client.consumer.listener.CommonMessageListener;
+import com.github.xjtuwsn.cranemq.client.consumer.listener.OrderedMessageListener;
 import com.github.xjtuwsn.cranemq.common.consumer.MessageModel;
 import com.github.xjtuwsn.cranemq.common.consumer.StartConsume;
 import com.github.xjtuwsn.cranemq.common.entity.ReadyMessage;
@@ -20,10 +21,10 @@ public class PushConsumerTest2 {
                 .consumerId("2")
                 .consumerGroup("group_push")
                 .bindRegistry("127.0.0.1:11111")
-                .messageModel(MessageModel.BRODERCAST)
+                .messageModel(MessageModel.CLUSTER)
                 .startConsume(StartConsume.FROM_LAST_OFFSET)
                 .subscribe("topic2", "*")
-                .messageListener(new CommonMessageListener() {
+                .messageListener(new OrderedMessageListener() {
                     @Override
                     public boolean consume(List<ReadyMessage> messages) {
                         for (ReadyMessage message : messages) {

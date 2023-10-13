@@ -83,15 +83,17 @@ public class OrderedConsumeMessageService implements ConsumeMessageService {
                     synchronized (lock) {
                         long curOffset = messages.get(0).getOffset();
                         long expectOffset = this.defaultPushConsumer.getOffsetManager().readOffset(messageQueue, group);
-                        if (curOffset == expectOffset) {
+                        if (curOffset == expectOffset || expectOffset == -1) {
                             break;
                         }
                     }
                 }
 
                 boolean result = false;
-                if (listener != null) {
+                if (listener != null && !snapShot.isExpired()) {
+                    snapShot.tryLock();
                     result = listener.consume(messages);
+                    snapShot.releaseLock();
                 }
                 if (result) {
                     log.info("Consume message finished");
@@ -128,7 +130,6 @@ public class OrderedConsumeMessageService implements ConsumeMessageService {
                             if (mqLockRespnse.isSuccess()) {
                                 snapShot.renewLockTime();
                             }
-                            System.out.println(mqLockRespnse.isSuccess() + ", " + group);
                         }
                     }, messageQueue.getTopic());
             wrappered.setQueuePicked(messageQueue);
