@@ -12,6 +12,7 @@ import com.github.xjtuwsn.cranemq.client.consumer.offset.BrokerOffsetManager;
 import com.github.xjtuwsn.cranemq.client.consumer.offset.OffsetManager;
 import com.github.xjtuwsn.cranemq.client.consumer.push.*;
 import com.github.xjtuwsn.cranemq.client.consumer.rebalance.AverageQueueAllocation;
+import com.github.xjtuwsn.cranemq.client.consumer.rebalance.ConsistentHashAllocation;
 import com.github.xjtuwsn.cranemq.client.consumer.rebalance.QueueAllocation;
 import com.github.xjtuwsn.cranemq.client.hook.PullCallback;
 import com.github.xjtuwsn.cranemq.client.remote.ClienFactory;
@@ -48,7 +49,7 @@ public class DefaultPushConsumerImpl {
     private static final Logger log = LoggerFactory.getLogger(DefaultPushConsumerImpl.class);
     private DefaultPushConsumer defaultPushConsumer;
     private String clientId;
-
+    // topic: subscritions
     private Map<String, SubscriptionInfo> topicTags = new ConcurrentHashMap<>();
 
     private Set<String> topicSet = new ConcurrentHashSet<>();
@@ -67,16 +68,14 @@ public class DefaultPushConsumerImpl {
         this.defaultPushConsumer = defaultPushConsumer;
         this.hook = hook;
 
-        this.queueAllocation = new AverageQueueAllocation();
+        this.queueAllocation = new ConsistentHashAllocation();
         this.messageQueueLock = new MessageQueueLock();
     }
     public DefaultPushConsumerImpl(DefaultPushConsumer defaultPushConsumer, RemoteHook hook,
                                    String address, List<Pair<String, String>> topics) {
         this(defaultPushConsumer, hook);
         this.bindRegistry(address);
-        for (Pair<String, String> topic : topics) {
-            this.subscribe(topic.getKey(), topic.getValue());
-        }
+        this.subscribe(topics);
 
     }
     public void start() {
@@ -162,6 +161,11 @@ public class DefaultPushConsumerImpl {
         };
         wrappered.setPullCallback(pullCallback);
         this.clientInstance.sendMessageAsync(wrappered);
+    }
+    public void subscribe(List<Pair<String, String>> infos) {
+        for (Pair<String, String> topic : infos) {
+            this.subscribe(topic.getKey(), topic.getValue());
+        }
     }
     public void subscribe(String topic, String tags) {
         String[] tag = tags.split(",");

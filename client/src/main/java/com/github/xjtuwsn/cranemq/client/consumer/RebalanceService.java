@@ -104,7 +104,7 @@ public class RebalanceService {
         } else if (consumer.getMessageModel() == MessageModel.CLUSTER) {
             allocated = queueAllocation.allocate(queues, groupConsumerTable.get(group), clientInstance.getClientId());
         }
-
+        log.error("Got queue {}", allocated);
         this.clientInstance.getPushConsumerByGroup(group).getMessageQueueLock().resetLock(allocated);
 
         Set<MessageQueue> allocatedSet = new HashSet<>(allocated);

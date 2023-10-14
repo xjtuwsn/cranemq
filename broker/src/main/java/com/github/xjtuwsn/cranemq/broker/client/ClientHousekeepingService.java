@@ -90,6 +90,7 @@ public class ClientHousekeepingService implements ChannelEventListener, Consumer
         log.info("{} channel on Exception", channel);
     }
 
+    // TODO 消费者客户端下线时释放分布式锁
     private void doCloseChannel(Channel channel) {
         if (channel == null) {
             return;
@@ -113,6 +114,8 @@ public class ClientHousekeepingService implements ChannelEventListener, Consumer
                 if (map != null) {
                     map.remove(clientId);
                 }
+
+                brokerController.getClientLockMananger().releaseLock(group, null, clientId);
                 // 通知消费者组变化
                 consumerGroupChanged(group);
 

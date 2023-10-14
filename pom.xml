@@ -14,6 +14,7 @@
         <module>test</module>
         <module>client</module>
         <module>registry</module>
+        <module>extention</module>
     </modules>
 
     <properties>
@@ -23,14 +24,14 @@
         <project.nettey.version>4.1.86.Final</project.nettey.version>
         <project.junit.version>4.13.2</project.junit.version>
         <project.lombok.version>1.18.24</project.lombok.version>
-        <project.slf4j-api.version>2.0.7</project.slf4j-api.version>
+        <project.slf4j-api.version>1.7.36</project.slf4j-api.version>
         <project.hessian.version>4.0.66</project.hessian.version>
-        <project.slf4j-simple.version>2.0.7</project.slf4j-simple.version>
         <project.hutool.version>5.8.20</project.hutool.version>
-        <project.logback-classic.version>1.4.5</project.logback-classic.version>
+        <project.logback-classic.version>1.2.9</project.logback-classic.version>
         <project.fastjson.version>1.2.83</project.fastjson.version>
         <project.caffeine.version>3.1.6</project.caffeine.version>
         <project.spring.version>5.3.27</project.spring.version>
+        <project.juava.version>32.1.2-jre</project.juava.version>
     </properties>
     <dependencyManagement>
         <dependencies>
@@ -77,11 +78,7 @@
                 <artifactId>hessian</artifactId>
                 <version>${project.hessian.version}</version>
             </dependency>
-<!--            <dependency>-->
-<!--                <groupId>org.slf4j</groupId>-->
-<!--                <artifactId>slf4j-simple</artifactId>-->
-<!--                <version>${project.slf4j-simple.version}</version>-->
-<!--            </dependency>-->
+
             <dependency>
                 <groupId>cn.hutool</groupId>
                 <artifactId>hutool-all</artifactId>
@@ -119,6 +116,12 @@
                 <artifactId>spring-beans</artifactId>
                 <version>${project.spring.version}</version>
             </dependency>
+            <dependency>
+                <groupId>com.google.guava</groupId>
+                <artifactId>guava</artifactId>
+                <version>${project.juava.version}</version>
+            </dependency>
+
         </dependencies>
     </dependencyManagement>
 </project>

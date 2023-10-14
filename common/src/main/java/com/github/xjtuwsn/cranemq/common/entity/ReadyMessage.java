@@ -24,4 +24,11 @@ public class ReadyMessage extends Message {
         this.queueId = queueId;
         this.offset = offset;
     }
+
+    public boolean matchs(String topic, String tag) {
+        if (!topic.equals(this.getTopic()) || !"*".equals(tag) && !tag.equals(this.getTag())) {
+            return false;
+        }
+        return true;
+    }
 }

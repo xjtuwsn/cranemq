@@ -44,7 +44,6 @@ public class NettyDecoder extends ByteToMessageDecoder {
         in.readBytes(data);
 
         Object obj = serializer.deserialize(data, genericClass);
-
         out.add(obj);
     }
 }

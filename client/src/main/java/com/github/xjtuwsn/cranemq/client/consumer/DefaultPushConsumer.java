@@ -82,7 +82,12 @@ public class DefaultPushConsumer implements MQPushConsumer {
         }
         this.defaultPushConsumer.subscribe(topic, tags);
     }
-
+    public void subscribe(List<Pair<String, String>> topics) {
+        if (topics == null) {
+            throw new CraneClientException("Topic or Tags cannot be null");
+        }
+        this.defaultPushConsumer.subscribe(topics);
+    }
     @Override
     public void bindRegistry(String address) {
         if (address == null) {
@@ -214,10 +219,28 @@ public class DefaultPushConsumer implements MQPushConsumer {
             this.topics.add(new Pair<>(topic, tag));
             return this;
         }
+        public Builder subscribe(List<Pair<String, String>> infos) {
+            this.topics = infos;
+            return this;
+        }
 
         public DefaultPushConsumer build() {
             return new DefaultPushConsumer(consumerGroup, messageModel, startConsume, messageListener, id, hook,
                     registerAddress, topics);
+        }
+
+        @Override
+        public String toString() {
+            return "Builder{" +
+                    "consumerGroup='" + consumerGroup + '\'' +
+                    ", messageModel=" + messageModel +
+                    ", startConsume=" + startConsume +
+                    ", messageListener=" + messageListener +
+                    ", id='" + id + '\'' +
+                    ", hook=" + hook +
+                    ", registerAddress='" + registerAddress + '\'' +
+                    ", topics=" + topics +
+                    '}';
         }
     }
 }

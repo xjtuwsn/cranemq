@@ -66,7 +66,6 @@ public class DefaultMQProducer implements MQProducer {
 
     @Override
     public void shutdown() {
-        System.out.println(1111);
         this.defaultMQProducerImpl.close();
     }
 

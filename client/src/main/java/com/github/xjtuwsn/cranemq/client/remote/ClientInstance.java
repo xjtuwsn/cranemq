@@ -741,7 +741,6 @@ public class ClientInstance {
     }
     public void registerPushConsumer(String group, DefaultPushConsumerImpl defaultPushConsumer) {
         int order = this.clinetNumber.getAndIncrement();
-        System.out.println(order);
         this.pushConsumerRegister.put(group, defaultPushConsumer);
     }
     public void setLoadBalanceStrategy(LoadBalanceStrategy loadBalanceStrategy) {

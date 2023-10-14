@@ -213,7 +213,6 @@ public class ServerProcessor implements BaseProcessor {
         String group = mqLockRequest.getGroup(), clientId = mqLockRequest.getClientId();
         MessageQueue messageQueue = mqLockRequest.getMessageQueue();
         boolean res = false;
-        System.out.println(mqLockRequest.getLockType());
         switch (mqLockRequest.getLockType()) {
             case APPLY:
                 res = brokerController.getClientLockMananger().applyLock(group, messageQueue, clientId);

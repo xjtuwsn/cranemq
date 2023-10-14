@@ -41,8 +41,6 @@ public class DefaultMQProducerImpl implements MQProducerInner {
 
     private RemoteHook hook;
 
-
-
     private ClientInstance clientInstance;
     private RemoteAddress address;
     private String[] registryAddress;

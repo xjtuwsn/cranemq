@@ -108,7 +108,6 @@ public class OrderedConsumeMessageService implements ConsumeMessageService {
     private void renewLock() {
         ConcurrentHashMap<MessageQueue, BrokerQueueSnapShot> map =
                 this.defaultPushConsumer.getClientInstance().getRebalanceService().getQueueSnap(group);
-        System.out.println(map);
         if (map == null) {
             return;
         }

@@ -1,0 +1,9 @@
+cranemq:
+  producer:
+    group: asd
+  registry:
+    address: 127.0.0.1:11111
+  consumer:
+    group: group_push
+    model: cluster
+    start: last
