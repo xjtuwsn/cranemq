@@ -17,4 +17,5 @@ public interface ChannelEventListener {
     void onException(Channel channel);
     void onProducerHeartBeat(MQHeartBeatRequest request, Channel channel);
     void onConsumerHeartBeat(MQHeartBeatRequest request, Channel channel);
+    default void onBrokerHeartBeat(Channel channel, String brokerName, int brokerId) {}
 }

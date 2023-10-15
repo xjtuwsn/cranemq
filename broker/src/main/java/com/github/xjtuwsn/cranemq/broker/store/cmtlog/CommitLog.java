@@ -145,7 +145,10 @@ public class CommitLog extends AbstractLinkedListOrganize implements GeneralStor
     }
     @Override
     public void close() {
-
+        this.commit(true);
+        MappedFile lastFile = getLastFile();
+        lastFile.doFlush();
+        lastFile.returnMemory();
     }
 
     public PutMessageResponse writeMessage(StoreInnerMessage innerMessage) {

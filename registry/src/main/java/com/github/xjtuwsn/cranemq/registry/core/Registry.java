@@ -4,7 +4,7 @@ import com.github.xjtuwsn.cranemq.common.command.RemoteCommand;
 import com.github.xjtuwsn.cranemq.common.remote.codec.NettyDecoder;
 import com.github.xjtuwsn.cranemq.common.remote.codec.NettyEncoder;
 import com.github.xjtuwsn.cranemq.common.remote.serialize.impl.Hessian1Serializer;
-import com.github.xjtuwsn.cranemq.registry.handler.BaseHandler;
+import com.github.xjtuwsn.cranemq.registry.handler.RegistryHandler;
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelInitializer;
@@ -44,7 +44,7 @@ public class Registry {
                             ch.pipeline()
                                     .addLast(new NettyDecoder(RemoteCommand.class, new Hessian1Serializer()))
                                     .addLast(new NettyEncoder(RemoteCommand.class, new Hessian1Serializer()))
-                                    .addLast(new BaseHandler());
+                                    .addLast(new RegistryHandler());
                         }
                     });
             ChannelFuture channelFuture = serverBootstrap.bind(port).sync();

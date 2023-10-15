@@ -298,7 +298,8 @@ public class MessageStoreCenter implements GeneralStoreService {
 
     @Override
     public void close() {
-
+        this.commitLog.close();
+        this.consumeQueueManager.close();
     }
 
     public TransmitCommitLogService getTransmitCommitLogService() {

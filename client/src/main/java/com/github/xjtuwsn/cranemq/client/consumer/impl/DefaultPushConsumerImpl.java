@@ -102,6 +102,9 @@ public class DefaultPushConsumerImpl {
 
     }
     public void shutdown() {
+        this.offsetManager.persistOffset();
+
+        this.clientInstance.unregsiterPushConsumer(defaultPushConsumer.getConsumerGroup());
 
     }
     // TODO 发送拉的请求，broker处理长轮询，这边设置回调处理

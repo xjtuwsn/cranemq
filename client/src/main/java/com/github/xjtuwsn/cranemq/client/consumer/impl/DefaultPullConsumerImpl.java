@@ -38,6 +38,7 @@ public class DefaultPullConsumerImpl {
 
     private String[] registryAddress;
     private String clientId;
+    private String id;
 
     private ClientInstance clientInstance;
 
@@ -91,11 +92,11 @@ public class DefaultPullConsumerImpl {
     public void start() {
         this.checkConfig();
         this.clientInstance.registerHook(this.hook);
-        this.clientInstance.registerPullConsumer(this);
+        id = this.clientInstance.registerPullConsumer(this);
         this.clientInstance.start();
     }
     public void shutdown() {
-        this.clientInstance.shutdown();
+        this.clientInstance.unregsiterPullConsumer(id);
     }
 
     private void checkConfig() throws CraneClientException {

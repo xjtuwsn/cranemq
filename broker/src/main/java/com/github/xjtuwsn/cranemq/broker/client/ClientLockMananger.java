@@ -8,7 +8,9 @@ import org.checkerframework.checker.index.qual.NonNegative;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReentrantLock;
 
@@ -92,7 +94,29 @@ public class ClientLockMananger {
         }
         return false;
     }
+    public void releaseLock(String group, String clientId) {
+        try {
+            lock.lock();
+            Cache<MessageQueue, QueueLock> cache = lockTable.get(group);
+            if (cache == null) {
+                return;
+            }
+            ConcurrentMap<MessageQueue, QueueLock> map = cache.asMap();
 
+            for (Map.Entry<MessageQueue, QueueLock> entry : map.entrySet()) {
+                MessageQueue messageQueue = entry.getKey();
+                QueueLock queueLock = entry.getValue();
+                if (queueLock.isMine(clientId)) {
+                    cache.invalidate(messageQueue);
+                }
+            }
+
+        } catch (Exception e) {
+            log.error("Execption when release lock");
+        } finally {
+            lock.unlock();
+        }
+    }
     public boolean releaseLock(String group, MessageQueue messageQueue, String clientId) {
         try {
             lock.lock();

@@ -12,7 +12,7 @@ public enum RequestType implements Type {
     MESSAGE_BATCH_PRODUCE_REAUEST,
     HEARTBEAT,
     // 向注册中心更新topic请求
-    UPDATE_TOPIC_REQUEST,
+    QUERY_TOPIC_REQUEST,
     // 拉取消息请求
     MESSAGE_PULL_REQUEST,
     CREATE_TOPIC_REQUEST,
@@ -20,6 +20,7 @@ public enum RequestType implements Type {
     PULL_MESSAGE,
     QUERY_INFO,
     RECORD_OFFSET,
-    LOCK_REQUEST
+    LOCK_REQUEST,
+    UPDATE_TOPIC_REQUEST
 
 }

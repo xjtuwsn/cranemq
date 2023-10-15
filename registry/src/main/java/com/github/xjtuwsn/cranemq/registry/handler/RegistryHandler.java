@@ -3,8 +3,8 @@ package com.github.xjtuwsn.cranemq.registry.handler;
 import com.github.xjtuwsn.cranemq.common.command.Header;
 import com.github.xjtuwsn.cranemq.common.command.PayLoad;
 import com.github.xjtuwsn.cranemq.common.command.RemoteCommand;
-import com.github.xjtuwsn.cranemq.common.command.payloads.req.MQUpdateTopicRequest;
-import com.github.xjtuwsn.cranemq.common.command.payloads.resp.MQUpdateTopicResponse;
+import com.github.xjtuwsn.cranemq.common.command.payloads.req.MQQueryTopicRequest;
+import com.github.xjtuwsn.cranemq.common.command.payloads.resp.MQQueryTopicResponse;
 import com.github.xjtuwsn.cranemq.common.command.types.RequestType;
 import com.github.xjtuwsn.cranemq.common.command.types.ResponseType;
 import com.github.xjtuwsn.cranemq.common.constant.MQConstant;
@@ -24,9 +24,9 @@ import java.util.concurrent.ConcurrentHashMap;
  * @author:wsn
  * @create:2023/09/29-14:39
  */
-public class BaseHandler extends SimpleChannelInboundHandler<RemoteCommand> {
+public class RegistryHandler extends SimpleChannelInboundHandler<RemoteCommand> {
     private ConcurrentHashMap<String, TopicRouteInfo> map = new ConcurrentHashMap<>();
-    public BaseHandler() {
+    public RegistryHandler() {
         build(MQConstant.DEFAULT_TOPIC_NAME);
         build("topic1");
         build("topic2");
@@ -46,13 +46,13 @@ public class BaseHandler extends SimpleChannelInboundHandler<RemoteCommand> {
     @Override
     protected void channelRead0(ChannelHandlerContext channelHandlerContext, RemoteCommand request) throws Exception {
         System.out.println("====" + request);
-        if (request.getHeader().getCommandType() == RequestType.UPDATE_TOPIC_REQUEST) {
-            MQUpdateTopicRequest messageProduceRequest = (MQUpdateTopicRequest) request.getPayLoad();
+        if (request.getHeader().getCommandType() == RequestType.QUERY_TOPIC_REQUEST) {
+            MQQueryTopicRequest messageProduceRequest = (MQQueryTopicRequest) request.getPayLoad();
             String topic = messageProduceRequest.getTopic();
-            Header header = new Header(ResponseType.UPDATE_TOPIC_RESPONSE,
+            Header header = new Header(ResponseType.QUERY_TOPIC_RESPONSE,
                     request.getHeader().getRpcType(), request.getHeader().getCorrelationId());
             TopicRouteInfo info = this.map.get(topic);
-            PayLoad payLoad = new MQUpdateTopicResponse(topic, info);
+            PayLoad payLoad = new MQQueryTopicResponse(topic, info);
             RemoteCommand command = new RemoteCommand(header, payLoad);
             channelHandlerContext.writeAndFlush(command);
         }

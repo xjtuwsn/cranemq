@@ -167,7 +167,7 @@ public class RemoteClent implements RemoteService {
                 case QUERY_BROKER_RESPONSE:
                     doQueryProcessor(remoteCommand);
                     break;
-                case UPDATE_TOPIC_RESPONSE:
+                case QUERY_TOPIC_RESPONSE:
                     doUpdateTopicProcessor(remoteCommand);
                     break;
                 case CREATE_TOPIC_RESPONSE:

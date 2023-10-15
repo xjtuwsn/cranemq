@@ -18,6 +18,7 @@ import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.util.Iterator;
+import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -132,7 +133,11 @@ public class ConsumeQueueManager implements GeneralStoreService {
     }
     @Override
     public void close() {
-
+        for (Map<Integer, ConsumeQueue> consumeQueueMap : queueTable.values()) {
+            for (ConsumeQueue queue : consumeQueueMap.values()) {
+                queue.close();
+            }
+        }
     }
     class CreateQueueService extends CreateServiceThread {
         private final Logger log = LoggerFactory.getLogger(CreateQueueService.class);

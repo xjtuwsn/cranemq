@@ -147,6 +147,12 @@ public class RemoteServer implements RemoteService {
                     break;
                 case LOCK_REQUEST:
                     doLockRequestProcess(channelHandlerContext, request);
+                    break;
+                case QUERY_TOPIC_REQUEST:
+                    doQueryTopicProcess(channelHandlerContext, request);
+                    break;
+                case UPDATE_TOPIC_REQUEST:
+                    doUpdateTopicProcess(channelHandlerContext, request);
                 default:
                     break;
             }
@@ -217,6 +223,23 @@ public class RemoteServer implements RemoteService {
                 });
             }
         }
+        private void doQueryTopicProcess(ChannelHandlerContext ctx, RemoteCommand remoteCommand) {
+            ExecutorService pool = getThreadPool(HandlerType.QUERY_INFO);
+            if (pool != null) {
+                pool.execute(() -> {
+                    serverProcessor.processQueryRouteRequest(ctx, remoteCommand);
+                });
+            }
+        }
+
+        private void doUpdateTopicProcess(ChannelHandlerContext ctx, RemoteCommand remoteCommand) {
+            ExecutorService pool = getThreadPool(HandlerType.UPDATE_INFO);
+            if (pool != null) {
+                pool.execute(() -> {
+                    serverProcessor.processUpdateRequest(ctx, remoteCommand);
+                });
+            }
+        }
     }
 
     // TODO 连接与断联、心跳等发布事件
@@ -258,6 +281,10 @@ public class RemoteServer implements RemoteService {
                             case CONSUMER_HEARTBEAT:
                                 RemoteServer.this.channelEventListener.onConsumerHeartBeat(event.getHeartBeatRequest(),
                                         channel);
+                                break;
+                            case BROKER_HEARTBEAT:
+                                RemoteServer.this.channelEventListener.onBrokerHeartBeat(channel, event.getBrokerName(),
+                                        event.getBrokerId());
                             default:
                                 break;
                         }

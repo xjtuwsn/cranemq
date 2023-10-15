@@ -186,7 +186,13 @@ public class HoldRequestService {
     }
 
     public void shutdown() {
-
+        for (ConcurrentHashMap<Integer, RequestWrapper> wrappers : requestTable.values()) {
+            for (RequestWrapper wrapper : wrappers.values()) {
+                wrapper.getChannel().close();
+            }
+        }
+        requestTable.clear();
+        topicQueryTable.clear();
     }
 
     class RequestWrapper {

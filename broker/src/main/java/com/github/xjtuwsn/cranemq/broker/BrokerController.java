@@ -143,10 +143,13 @@ public class BrokerController implements GeneralStoreService {
         this.holdRequestService.start();
 
         this.startScheduledTask();
+        Runtime.getRuntime().addShutdownHook(new Thread(this::close));
     }
     @Override
     public void close() {
-
+        this.remoteServer.shutdown();
+        this.messageStoreCenter.close();
+        this.holdRequestService.shutdown();
     }
 
     public BrokerConfig getBrokerConfig() {

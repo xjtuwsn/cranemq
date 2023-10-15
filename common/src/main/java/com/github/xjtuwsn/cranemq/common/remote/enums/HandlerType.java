@@ -13,5 +13,7 @@ public enum HandlerType {
     CREATE_TOPIC,
     SIMPLE_PULL,
     PULL,
-    RECORD_OFFSET
+    RECORD_OFFSET,
+    QUERY_INFO,
+    UPDATE_INFO
 }

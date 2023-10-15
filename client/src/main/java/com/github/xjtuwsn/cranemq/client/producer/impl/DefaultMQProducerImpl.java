@@ -45,6 +45,7 @@ public class DefaultMQProducerImpl implements MQProducerInner {
     private RemoteAddress address;
     private String[] registryAddress;
     private String clientID;
+    private String id;
     private LoadBalanceStrategy loadBalanceStrategy;
     private ConcurrentHashSet<String> topicSet = new ConcurrentHashSet<>();
     /**
@@ -86,7 +87,7 @@ public class DefaultMQProducerImpl implements MQProducerInner {
             this.clientInstance.setLoadBalanceStrategy(this.loadBalanceStrategy);
         }
         this.clientInstance.registerHook(hook);
-        this.clientInstance.registerProducer(this);
+        id = this.clientInstance.registerProducer(this);
         this.state.set(1);
         this.clientInstance.sendHeartBeatToBroker();
         this.clientInstance.start();
@@ -174,7 +175,7 @@ public class DefaultMQProducerImpl implements MQProducerInner {
 
 
     public void close() throws CraneClientException {
-        this.clientInstance.shutdown();
+        this.clientInstance.unregsiterProducer(id);
     }
 
 

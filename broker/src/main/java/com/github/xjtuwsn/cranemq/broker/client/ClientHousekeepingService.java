@@ -114,8 +114,8 @@ public class ClientHousekeepingService implements ChannelEventListener, Consumer
                 if (map != null) {
                     map.remove(clientId);
                 }
-
-                brokerController.getClientLockMananger().releaseLock(group, null, clientId);
+                // 释放该客户端所有分布式锁
+                brokerController.getClientLockMananger().releaseLock(group, clientId);
                 // 通知消费者组变化
                 consumerGroupChanged(group);
 

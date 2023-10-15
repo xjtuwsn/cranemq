@@ -146,7 +146,10 @@ public class ConsumeQueue extends AbstractLinkedListOrganize implements GeneralS
     }
     @Override
     public void close() {
-
+        MappedFile lastMappedFile = getLastMappedFile();
+        if (lastMappedFile != null) {
+            lastMappedFile.doFlush();
+        }
     }
 
     @Override
