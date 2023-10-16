@@ -96,7 +96,7 @@ public class OrderedConsumeMessageService implements ConsumeMessageService {
                     snapShot.releaseLock();
                 }
                 if (result) {
-                    log.info("Consume message finished");
+                    // log.info("Consume message finished");
                     long lowestOfsset = snapShot.removeMessages(messages);
                     this.defaultPushConsumer.getOffsetManager().record(messageQueue, lowestOfsset, group);
                 }

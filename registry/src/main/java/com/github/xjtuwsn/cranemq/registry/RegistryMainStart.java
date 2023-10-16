@@ -1,7 +1,5 @@
 package com.github.xjtuwsn.cranemq.registry;
 
-import com.github.xjtuwsn.cranemq.registry.core.Registry;
-
 /**
  * @project:cranemq
  * @file:RegistryMain
@@ -10,8 +8,6 @@ import com.github.xjtuwsn.cranemq.registry.core.Registry;
  */
 public class RegistryMainStart {
     public static void main(String[] args) {
-        Registry registry = new Registry();
-        registry.start();
         start(build(args));
     }
 

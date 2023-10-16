@@ -30,6 +30,7 @@ import org.slf4j.LoggerFactory;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.LinkedBlockingQueue;
 
 /**
@@ -184,7 +185,7 @@ public class MessageStoreCenter implements GeneralStoreService {
 
         MappedFile firstMappedFile = consumeQueue.getFirstMappedFile();
         if (firstMappedFile == null) {
-            log.error("Consume queue has zero file");
+//            log.error("Consume queue has zero file, {}, {}", topic, queueId);
             return new Pair<>(null, result);
         }
 
@@ -196,13 +197,13 @@ public class MessageStoreCenter implements GeneralStoreService {
             int index = (int) ((offset + i) / maxQueueItemNumber);
             MappedFile current = consumeQueue.getMappedFileByIndex(index);
             if (current == null) {
-                // log.error("Offset has over the limit");
+//                 log.error("Offset has over the limit");
                 break;
             }
-            int start = (int) ((offset + i) * queueUnit % maxQueueItemNumber);
+            int start = (int) ((offset + i) % maxQueueItemNumber) * queueUnit;
             List<Pair<Long, Integer>> list = current.readOffsetIndex(start, left);
             if (list == null || list.size() == 0) {
-                // log.warn("Read zero offset index, prove no more index");
+//                log.warn("Read zero offset index, prove no more index");
                 break;
             }
             commitLogData.addAll(list);
@@ -222,7 +223,7 @@ public class MessageStoreCenter implements GeneralStoreService {
 
         long nextOffset = offset + commitLogData.size();
         if (firstCommit == null) {
-            // log.warn("There is no commitLog mapped file");
+//             log.warn("There is no commitLog mapped file");
             return new Pair<>(null, result);
         }
         String firstCommitName = firstCommit.getFileName();
@@ -237,13 +238,15 @@ public class MessageStoreCenter implements GeneralStoreService {
                     persistentConfig.getCommitLogMaxSize());
             MappedFile mappedFileByIndex = commitLog.getMappedFileByIndex(mappedIndex);
             if (mappedFileByIndex == null) {
-                // log.warn("Doesnot have this message, problely something wrong");
+                System.out.println(offset);
+                 log.warn("Doesnot have this message, problely something wrong, " +
+                         "topic {}, queueId {}", topic, queueId);
                 break;
             }
             int offsetInpage = BrokerUtil.offsetInPage(curOffset, persistentConfig.getCommitLogMaxSize());
             Message message = mappedFileByIndex.readSingleMessage(offsetInpage);
             if (message == null) {
-                // log.warn("Read null from mappedfile, offset record error");
+//                 log.warn("Read null from mappedfile, offset record error");
                 break;
             }
             readyMessageList.add(new ReadyMessage(brokerController.getBrokerConfig().getBrokerName(),
@@ -276,6 +279,10 @@ public class MessageStoreCenter implements GeneralStoreService {
         response.setNextOffset(nextOffset);
         response.setMessages(readyMessageList);
         return response;
+    }
+
+    public Map<String, QueueData> getAllQueueData() {
+        return this.consumeQueueManager.getAllQueueData();
     }
     @Override
     public void start() {

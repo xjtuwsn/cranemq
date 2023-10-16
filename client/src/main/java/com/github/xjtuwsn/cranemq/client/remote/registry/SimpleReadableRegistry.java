@@ -15,7 +15,7 @@ import com.github.xjtuwsn.cranemq.common.command.types.RequestType;
 import com.github.xjtuwsn.cranemq.common.command.types.RpcType;
 import com.github.xjtuwsn.cranemq.common.remote.RegistryCallback;
 import com.github.xjtuwsn.cranemq.common.remote.RemoteHook;
-import com.github.xjtuwsn.cranemq.common.remote.RemoteRegistry;
+import com.github.xjtuwsn.cranemq.common.remote.ReadableRegistry;
 import com.github.xjtuwsn.cranemq.common.route.TopicRouteInfo;
 import com.github.xjtuwsn.cranemq.common.utils.TopicUtil;
 import org.slf4j.Logger;
@@ -27,12 +27,12 @@ import org.slf4j.LoggerFactory;
  * @author:wsn
  * @create:2023/10/15-15:33
  */
-public class SimpleRegistry implements RemoteRegistry {
-    private static final Logger log = LoggerFactory.getLogger(SimpleRegistry.class);
+public class SimpleReadableRegistry implements ReadableRegistry {
+    private static final Logger log = LoggerFactory.getLogger(SimpleReadableRegistry.class);
 
     private ClientInstance clientInstance;
 
-    public SimpleRegistry(ClientInstance clientInstance) {
+    public SimpleReadableRegistry(ClientInstance clientInstance) {
         this.clientInstance = clientInstance;
     }
     @Override
@@ -75,16 +75,6 @@ public class SimpleRegistry implements RemoteRegistry {
         });
         wrappered.setToRegistery(true);
         this.clientInstance.sendMessageAsync(wrappered);
-    }
-
-    @Override
-    public void uploadRouteInfo(TopicRouteInfo info) {
-
-    }
-
-    @Override
-    public void append() {
-
     }
 
     @Override

@@ -10,6 +10,9 @@ import com.github.xjtuwsn.cranemq.common.remote.RemoteHook;
 
 import java.util.List;
 import java.util.Random;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -20,45 +23,32 @@ import java.util.concurrent.atomic.AtomicInteger;
  */
 public class PushConsumerTest {
     public static void main(String[] args) {
+        AtomicInteger sum = new AtomicInteger(0);
         DefaultPushConsumer.builder()
                 .consumerId("1")
                 .consumerGroup("group_push")
                 .bindRegistry("127.0.0.1:11111")
                 .messageModel(MessageModel.CLUSTER)
                 .startConsume(StartConsume.FROM_FIRST_OFFSET)
-                .subscribe("topic2", "*")
-                .messageListener(new OrderedMessageListener() {
-                    AtomicInteger index = new AtomicInteger(5);
+                .subscribe("topic4", "*")
+                .messageListener(new CommonMessageListener() {
                     @Override
                     public boolean consume(List<ReadyMessage> messages) {
-//                        try {
-//                            Thread.sleep((new Random().nextInt(5) + 1) * 1000L);
-//                        } catch (InterruptedException e) {
-//                            throw new RuntimeException(e);
+                        sum.addAndGet(messages.size());
+//                        for (ReadyMessage message : messages) {
+//                            int queueId = message.getQueueId();
+//                            String content = new String(message.getBody());
+//                            System.out.println("queueId: " + queueId + ", content: " + content);
 //                        }
-                        for (ReadyMessage message : messages) {
-                            int queueId = message.getQueueId();
-                            String content = new String(message.getBody());
-                            System.out.println("queueId: " + queueId + ", content: " + content);
-                        }
                         return true;
                     }
                 }).build().start();
-
-//        DefaultPushConsumer defaultPushConsumer = new DefaultPushConsumer("group_push");
-//        defaultPushConsumer.bindRegistry("127.0.0.1:11111");
-//        defaultPushConsumer.subscribe("topic2", "*");
-//        defaultPushConsumer.registerListener(new CommonMessageListener() {
-//            @Override
-//            public boolean consume(List<ReadyMessage> messages) {
-//                for (ReadyMessage message : messages) {
-//                    int queueId = message.getQueueId();
-//                    String content = new String(message.getBody());
-//                    System.out.println("queueId: " + queueId + ", content: " + content);
-//                }
-//                return true;
-//            }
-//        });
-//        defaultPushConsumer.start();
+        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+            System.out.println(sum.get());
+        }));
+        ScheduledExecutorService timer = new ScheduledThreadPoolExecutor(1);
+        timer.scheduleAtFixedRate(() -> {
+            System.out.println(" ---- " + sum.get() + " ---- " );
+        }, 1 * 1000, 1 * 1000, TimeUnit.MILLISECONDS);
     }
 }

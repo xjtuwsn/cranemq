@@ -117,6 +117,7 @@ public class DefaultPushConsumerImpl {
         MessageQueue queue = request.getMessageQueue();
         BrokerQueueSnapShot snapShot = request.getSnapShot();
         Header header = new Header(RequestType.PULL_MESSAGE, RpcType.ASYNC, TopicUtil.generateUniqueID());
+
         PayLoad payLoad = new MQPullMessageRequest(this.clientId, group, queue, request.getOffset(),
                 offsetManager.readOffset(queue, group));
         RemoteCommand remoteCommand = new RemoteCommand(header, payLoad);

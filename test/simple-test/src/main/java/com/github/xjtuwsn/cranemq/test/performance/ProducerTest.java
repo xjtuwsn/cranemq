@@ -1,5 +1,6 @@
 package com.github.xjtuwsn.cranemq.test.performance;
 
+import com.github.xjtuwsn.cranemq.client.producer.balance.RoundRobinStrategy;
 import com.github.xjtuwsn.cranemq.common.remote.RemoteHook;
 import com.github.xjtuwsn.cranemq.client.producer.DefaultMQProducer;
 import com.github.xjtuwsn.cranemq.common.entity.Message;
@@ -27,28 +28,20 @@ public class ProducerTest {
                     }
                 },
                 new ThreadPoolExecutor.AbortPolicy());
-        int thread = 16, number = 100;
-        RemoteAddress remoteAddress = new RemoteAddress("127.0.0.1", 9999);
-        DefaultMQProducer producer = new DefaultMQProducer("group1", new RemoteHook() {
-            @Override
-            public void beforeMessage() {
-                System.out.println(111);
-            }
+        int thread = 10, number = 20000;
 
-            @Override
-            public void afterMessage() {
-                System.out.println("response come");
-            }
-        });
-
-        producer.setBrokerAddress(remoteAddress);
+        DefaultMQProducer producer = new DefaultMQProducer("group_push");
+        producer.bindRegistery("127.0.0.1:11111");
+        producer.setLoadBalanceStrategy(new RoundRobinStrategy());
         producer.start();
+        byte[] data = new byte[5 * 1024];
+        Message message1 = new Message("topic4", data);
         for (int i = 0; i < thread; i++) {
             int cur = i;
             service.execute(() -> {
 
                 for (int j = 0; j < number; j++) {
-                    Message message1 = new Message("topic1", (cur + "-" + j).getBytes());
+
                     producer.send(message1);
                 }
 

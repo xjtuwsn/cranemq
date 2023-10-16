@@ -37,6 +37,7 @@ public class TopicInfoHolder {
         if (brokerTopicTable.containsKey(brokerName)) {
             brokerTopicTable.put(brokerName, new HashSet<>());
         }
+        log.info("broker: {}, id: {}, data: {}, address: {}",brokerName, id, queueDatas, address);
         for (Map.Entry<String, QueueData> outter : queueDatas.entrySet()) {
             String topic = outter.getKey();
             QueueData queueData = outter.getValue();
@@ -53,6 +54,24 @@ public class TopicInfoHolder {
             }
             originData.putAddress(id, address);
             originData.putQueueData(id, queueData);
+        }
+    }
+
+    public void removerBrokerData(String brokerName, int brokerId) {
+        Set<String> topics = brokerTopicTable.get(brokerName);
+        if (topics == null) {
+            return;
+        }
+        for (String topic : topics) {
+            ConcurrentHashMap<String, BrokerData> map = topicTable.get(topic);
+            if (map == null) {
+                continue;
+            }
+            BrokerData brokerData = map.get(brokerName);
+            if (brokerData == null) {
+                continue;
+            }
+            brokerData.remove(brokerId);
         }
     }
 }

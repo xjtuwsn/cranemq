@@ -78,7 +78,6 @@ public class HoldRequestService {
         } else {
             sets.add(key);
         }
-
         long offset = 0L;
         if (pullMessageRequest.getOffset() == -1) {
             offset = brokerController.getOffsetManager().getOffsetInQueue(topic, group, queueId);
@@ -116,7 +115,6 @@ public class HoldRequestService {
             readAndResopnse(wrapper);
         });
     }
-
     private void readAndResopnse(RequestWrapper wrapper) {
         long arriveTime = wrapper.getArriveTime();
         long now = System.currentTimeMillis();
@@ -126,12 +124,14 @@ public class HoldRequestService {
             payLoad = new MQPullMessageResponse(AcquireResultType.NO_MESSAGE, wrapper.getGroup(), null, wrapper.getOffset());
         } else {
             Pair<Pair<List<ReadyMessage>, Long>, AcquireResultType> result = readFromFile(wrapper);
-            if (result == null || result.getValue() != AcquireResultType.DONE) {
+            if (result == null || result.getValue() != AcquireResultType.DONE || result.getKey() == null
+                    || result.getKey().getKey() == null || result.getKey().getKey().isEmpty()) {
                 return;
             }
             List<ReadyMessage> list = result.getKey().getKey();
             long nextOffset = result.getKey().getValue();
             payLoad = new MQPullMessageResponse(result.getValue(), wrapper.getGroup(), list, nextOffset);
+
         }
         RemoteCommand remoteCommand = new RemoteCommand(header, payLoad);
 

@@ -17,6 +17,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.File;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -130,6 +131,17 @@ public class ConsumeQueueManager implements GeneralStoreService {
             return -1;
         }
         return consumeQueue.currentLastOffset();
+    }
+    public Map<String, QueueData> getAllQueueData() {
+        Map<String, QueueData> map = new HashMap<>();
+        for (Map.Entry<String, ConcurrentHashMap<Integer, ConsumeQueue>> entry : queueTable.entrySet()) {
+            String topic = entry.getKey();
+            int number = entry.getValue().size();
+
+            QueueData queueData = new QueueData(this.brokerController.getBrokerConfig().getBrokerName(), number, number);
+            map.put(topic, queueData);
+        }
+        return map;
     }
     @Override
     public void close() {

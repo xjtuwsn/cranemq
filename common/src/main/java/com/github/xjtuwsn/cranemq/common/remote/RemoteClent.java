@@ -64,6 +64,7 @@ public class RemoteClent implements RemoteService {
             return cw.getChannelFuture();
         }
         String[] hostAndPort = address.split(":");
+        System.out.println(address);
         try {
             Bootstrap bootstrap1 = new Bootstrap();
             ChannelFuture cf = bootstrap1.group(workerGroup)
@@ -76,8 +77,6 @@ public class RemoteClent implements RemoteService {
                                     .addLast(new NettyEncoder(RemoteCommand.class, new Hessian1Serializer()))
                                     .addLast(new NettyDecoder(RemoteCommand.class, new Hessian1Serializer()))
                                     .addLast(new NettyClientHandler());
-
-
                         }
                     })
                     .connect(hostAndPort[0], Integer.parseInt(hostAndPort[1])).sync();
@@ -96,7 +95,6 @@ public class RemoteClent implements RemoteService {
             log.error("Create channel error");
             return;
         }
-
         ChannelFuture channelFuture1 = channelFuture.channel().writeAndFlush(remoteCommand);
 
     }

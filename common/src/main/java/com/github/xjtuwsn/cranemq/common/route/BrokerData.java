@@ -45,4 +45,8 @@ public class BrokerData implements Serializable {
     public QueueData getMasterQueueData() {
         return this.queueDataMap.get(MQConstant.MASTER_ID);
     }
+    public void remove(int brokerId) {
+        this.brokerAddressMap.remove(brokerId);
+        this.queueDataMap.remove(brokerId);
+    }
 }

@@ -6,6 +6,8 @@ import com.github.xjtuwsn.cranemq.broker.client.ConsumerGroupManager;
 import com.github.xjtuwsn.cranemq.broker.offset.ConsumerOffsetManager;
 import com.github.xjtuwsn.cranemq.broker.processors.ServerProcessor;
 import com.github.xjtuwsn.cranemq.broker.push.HoldRequestService;
+import com.github.xjtuwsn.cranemq.broker.registry.SimpleWritableRegistry;
+import com.github.xjtuwsn.cranemq.common.remote.WritableRegistry;
 import com.github.xjtuwsn.cranemq.common.remote.enums.HandlerType;
 import com.github.xjtuwsn.cranemq.common.remote.RemoteServer;
 import com.github.xjtuwsn.cranemq.broker.store.GeneralStoreService;
@@ -13,6 +15,7 @@ import com.github.xjtuwsn.cranemq.broker.store.MessageStoreCenter;
 import com.github.xjtuwsn.cranemq.broker.store.PersistentConfig;
 import com.github.xjtuwsn.cranemq.common.config.BrokerConfig;
 import com.github.xjtuwsn.cranemq.common.remote.event.ChannelEventListener;
+import com.github.xjtuwsn.cranemq.common.utils.NetworkUtil;
 import org.checkerframework.checker.units.qual.C;
 
 import java.util.concurrent.*;
@@ -42,6 +45,9 @@ public class BrokerController implements GeneralStoreService {
     private ExecutorService handlePullService;
     private ExecutorService handleOffsetService;
     private ScheduledExecutorService saveOffsetService;
+
+    private ScheduledExecutorService heartBeatSendService;
+    private WritableRegistry writableRegistry;
     private int coreSize = 10;
     private int maxSize = 20;
     public BrokerController() {
@@ -60,6 +66,7 @@ public class BrokerController implements GeneralStoreService {
         this.offsetManager = new ConsumerOffsetManager(this);
         this.holdRequestService = new HoldRequestService(this);
         this.clientLockMananger = new ClientLockMananger();
+        this.writableRegistry = new SimpleWritableRegistry(this);
         this.initThreadPool();
         this.registerThreadPool();
         return true;
@@ -128,16 +135,24 @@ public class BrokerController implements GeneralStoreService {
                     }
                 });
         this.saveOffsetService = new ScheduledThreadPoolExecutor(1);
+        this.heartBeatSendService = new ScheduledThreadPoolExecutor(1);
     }
     public void startScheduledTask() {
         this.saveOffsetService.scheduleAtFixedRate(() -> {
             this.offsetManager.persistOffset();
         }, 100, 5 * 1000, TimeUnit.MILLISECONDS);
+
+        this.heartBeatSendService.scheduleAtFixedRate(() -> {
+            this.writableRegistry.uploadRouteInfo(this.brokerConfig.getBrokerName(), this.brokerConfig.getBrokerId(),
+                    NetworkUtil.getLocalAddress() + ":" + this.brokerConfig.getPort(),
+                    this.messageStoreCenter.getAllQueueData());
+        }, 0, 30 * 1000, TimeUnit.MILLISECONDS);
     }
     @Override
     public void start() {
         this.remoteServer.start();
         this.messageStoreCenter.start();
+        this.writableRegistry.start();
 
         this.offsetManager.start();
         this.holdRequestService.start();

@@ -80,10 +80,8 @@ public class ConsumerProcessor extends AbstractClientProcessor {
         String group = mqRebalanceQueryResponse.getGroup();
         Set<String> clients = mqRebalanceQueryResponse.getClients();
         Map<MessageQueue, Long> allOffset = mqRebalanceQueryResponse.getOffsets();
-
         this.clientInstance.getRebalanceService().resetGroupConsumer(group, clients);
         this.clientInstance.getPushConsumerByGroup(group).getOffsetManager().resetLocalOffset(group, allOffset);
-
         this.clientInstance.getWrapperFuture(header.getCorrelationId()).setResponse(remoteCommand);
     }
 

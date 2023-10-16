@@ -14,7 +14,7 @@ import java.nio.channels.FileChannel;
  * @create:2023/10/03-20:58
  */
 public class MappedByteBufferTest {
-    private static String path = "D:\\cranemq\\store\\test.txt";
+    private static String path = "D:\\cranemq\\store\\00000000000000000000";
     private static File file;
     private static FileChannel fileChannel;
     private static MappedByteBuffer mappedByteBuffer;
@@ -57,7 +57,7 @@ public class MappedByteBufferTest {
     }
     @Test
     public void test2() throws IOException {
-        String path = "E:\\edgedown\\out\\00000000000000000000";
+        String path = "D:\\cranemq\\store\\00000000000000000000";
         FileInputStream fis = new FileInputStream(path);
         DataInputStream dis = new DataInputStream(fis);
         while (true) {

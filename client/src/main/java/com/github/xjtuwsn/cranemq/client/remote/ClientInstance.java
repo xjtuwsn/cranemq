@@ -19,7 +19,7 @@ import com.github.xjtuwsn.cranemq.client.producer.impl.DefaultMQProducerImpl;
 import com.github.xjtuwsn.cranemq.client.WrapperFutureCommand;
 import com.github.xjtuwsn.cranemq.client.producer.result.SendResult;
 import com.github.xjtuwsn.cranemq.client.producer.result.SendResultType;
-import com.github.xjtuwsn.cranemq.client.remote.registry.SimpleRegistry;
+import com.github.xjtuwsn.cranemq.client.remote.registry.SimpleReadableRegistry;
 import com.github.xjtuwsn.cranemq.common.command.payloads.req.*;
 import com.github.xjtuwsn.cranemq.common.command.payloads.resp.MQCreateTopicResponse;
 import com.github.xjtuwsn.cranemq.common.command.payloads.resp.MQLockRespnse;
@@ -32,7 +32,7 @@ import com.github.xjtuwsn.cranemq.common.entity.ClientType;
 import com.github.xjtuwsn.cranemq.common.entity.MessageQueue;
 import com.github.xjtuwsn.cranemq.common.remote.RegistryCallback;
 import com.github.xjtuwsn.cranemq.common.remote.RemoteClent;
-import com.github.xjtuwsn.cranemq.common.remote.RemoteRegistry;
+import com.github.xjtuwsn.cranemq.common.remote.ReadableRegistry;
 import com.github.xjtuwsn.cranemq.common.route.BrokerData;
 import com.github.xjtuwsn.cranemq.common.route.TopicRouteInfo;
 import com.github.xjtuwsn.cranemq.common.command.FutureCommand;
@@ -95,7 +95,7 @@ public class ClientInstance {
 
     private OffsetManager offsetManager;
 
-    private RemoteRegistry remoteRegistry;
+    private ReadableRegistry readableRegistry;
     public ClientInstance() {
         this.state = new AtomicInteger(0);
         this.clinetNumber = new AtomicInteger(0);
@@ -103,7 +103,7 @@ public class ClientInstance {
         this.rebalanceService = new RebalanceService(this);
         this.pullMessageService = new PullMessageService(this);
         this.offsetManager = new LocalOffsetManager(this);
-        this.remoteRegistry = new SimpleRegistry(this);
+        this.readableRegistry = new SimpleReadableRegistry(this);
     }
 
     public void start() {
@@ -177,7 +177,7 @@ public class ClientInstance {
 
         this.rebalanceService.start();
         this.pullMessageService.start();
-        this.remoteRegistry.start();
+        this.readableRegistry.start();
 
         this.startScheduleTast();
         this.state.set(2);
@@ -656,7 +656,7 @@ public class ClientInstance {
      * @param topic
      */
     private void getTopicInfoSync(String topic) {
-        TopicRouteInfo info = this.remoteRegistry.fetchRouteInfo(topic);
+        TopicRouteInfo info = this.readableRegistry.fetchRouteInfo(topic);
         if (info == null) {
             return;
         }
@@ -680,7 +680,7 @@ public class ClientInstance {
 
     // TODO 更新topic信息，从注册中心，创建响应信息，设置回调，更新结果
     private void updateTopicInfo(String topic) {
-        this.remoteRegistry.fetchRouteInfo(topic, new RegistryCallback() {
+        this.readableRegistry.fetchRouteInfo(topic, new RegistryCallback() {
             @Override
             public void onRouteInfo(TopicRouteInfo info) {
                 TopicRouteInfo old = topicTable.get(topic);

@@ -112,7 +112,9 @@ public class ConsumerOffsetManager {
         this.offsetMap = JSONObject.parseObject(JSONUtil.fileToString(path),
                 new TypeReference<ConcurrentHashMap<String, ConcurrentHashMap<Integer, Long>>>(){});
 
-
+        if (this.offsetMap == null) {
+            this.offsetMap = new ConcurrentHashMap<>();
+        }
     }
 
     public void updateOffsets(Map<MessageQueue, Long> offsets, String group) {

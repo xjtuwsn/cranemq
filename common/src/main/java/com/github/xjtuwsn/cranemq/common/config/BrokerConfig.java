@@ -16,11 +16,14 @@ import lombok.*;
 @ToString
 public class BrokerConfig {
     private String clusterName;
+
     private String brokerName;
 
     private int brokerId;
 
     private int port;
+
+    private String registrys;
 
     private long keepAliveTime = 1000 * 120;
 

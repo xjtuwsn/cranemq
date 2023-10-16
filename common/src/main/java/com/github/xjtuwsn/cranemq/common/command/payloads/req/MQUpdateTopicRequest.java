@@ -1,5 +1,6 @@
 package com.github.xjtuwsn.cranemq.common.command.payloads.req;
 
+import com.github.xjtuwsn.cranemq.common.command.PayLoad;
 import com.github.xjtuwsn.cranemq.common.route.BrokerData;
 import com.github.xjtuwsn.cranemq.common.route.QueueData;
 import lombok.*;
@@ -17,7 +18,7 @@ import java.util.Map;
 @NoArgsConstructor
 @Getter
 @Setter
-public class MQUpdateTopicRequest {
+public class MQUpdateTopicRequest implements PayLoad {
     private String brokerName;
     private int id;
     private String address;

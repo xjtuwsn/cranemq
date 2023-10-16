@@ -5,7 +5,19 @@ import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.Expiry;
 import com.github.xjtuwsn.cranemq.broker.store.PersistentConfig;
 import com.github.xjtuwsn.cranemq.client.consumer.offset.LocalOffsetManager;
+import com.github.xjtuwsn.cranemq.common.command.RemoteCommand;
 import com.github.xjtuwsn.cranemq.common.entity.MessageQueue;
+import com.github.xjtuwsn.cranemq.common.remote.RemoteClent;
+import com.github.xjtuwsn.cranemq.common.remote.codec.NettyDecoder;
+import com.github.xjtuwsn.cranemq.common.remote.codec.NettyEncoder;
+import com.github.xjtuwsn.cranemq.common.remote.serialize.impl.Hessian1Serializer;
+import io.netty.bootstrap.Bootstrap;
+import io.netty.channel.Channel;
+import io.netty.channel.ChannelFuture;
+import io.netty.channel.ChannelInitializer;
+import io.netty.channel.ChannelOption;
+import io.netty.channel.nio.NioEventLoopGroup;
+import io.netty.channel.socket.nio.NioSocketChannel;
 import org.checkerframework.checker.index.qual.NonNegative;
 import org.junit.Test;
 
@@ -155,6 +167,28 @@ public class TestSimple {
             }
         }
 
+    }
+    @Test
+    public void test7() {
+        Bootstrap bootstrap1 = new Bootstrap();
+        ChannelFuture cf = null;
+        try {
+            cf = bootstrap1.group(new NioEventLoopGroup())
+                    .channel(NioSocketChannel.class)
+                    .option(ChannelOption.SO_KEEPALIVE, true)
+                    .handler(new ChannelInitializer<Channel>() {
+                        @Override
+                        protected void initChannel(Channel ch) throws Exception {
+                            ch.pipeline()
+                                    .addLast(new NettyEncoder(RemoteCommand.class, new Hessian1Serializer()))
+                                    .addLast(new NettyDecoder(RemoteCommand.class, new Hessian1Serializer()));
+                        }
+                    })
+                    .connect("127.0.0.1", 11111).sync();
+        } catch (InterruptedException e) {
+            throw new RuntimeException(e);
+        }
+        System.out.println(cf);
     }
 
 }

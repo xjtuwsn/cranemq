@@ -74,7 +74,11 @@ public class RemoteServer implements RemoteService {
                                 .addLast(new NettyServerHandler());
                     }
                 });
-        this.channelFuture = this.serverBootstrap.bind(this.listenPort);
+        try {
+            this.channelFuture = this.serverBootstrap.bind(this.listenPort).sync();
+        } catch (InterruptedException e) {
+            throw new RuntimeException(e);
+        }
         this.publishEvent.start();
     }
     private boolean useEpoll() {
