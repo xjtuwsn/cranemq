@@ -129,6 +129,9 @@ public class ServerProcessor implements BaseProcessor {
         list1.add(brokerData);
         TopicRouteInfo info = new TopicRouteInfo(topic, list1);
 
+        // 更新注册中心
+        this.brokerController.updateRegistry();
+
         PayLoad payLoad = new MQCreateTopicResponse(info);
         RemoteCommand response = new RemoteCommand(responseHeader, payLoad);
         log.info("----------------Create Topic Finished-------------");

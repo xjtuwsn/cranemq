@@ -14,7 +14,7 @@
         <module>test</module>
         <module>client</module>
         <module>registry</module>
-        <module>extention</module>
+        <module>extension</module>
     </modules>
 
     <properties>
@@ -31,7 +31,9 @@
         <project.fastjson.version>1.2.83</project.fastjson.version>
         <project.caffeine.version>3.1.6</project.caffeine.version>
         <project.spring.version>5.3.27</project.spring.version>
+        <project.spring-boot.version>2.7.12</project.spring-boot.version>
         <project.juava.version>32.1.2-jre</project.juava.version>
+        <project.curator.version>4.2.0</project.curator.version>
     </properties>
     <dependencyManagement>
         <dependencies>
@@ -121,7 +123,33 @@
                 <artifactId>guava</artifactId>
                 <version>${project.juava.version}</version>
             </dependency>
-
+            <dependency>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-starter</artifactId>
+                <version>${project.spring-boot.version}</version>
+                <exclusions>
+                    <!-- 排除自带的logback依赖 -->
+                    <exclusion>
+                        <groupId>org.springframework.boot</groupId>
+                        <artifactId>spring-boot-starter-logging</artifactId>
+                    </exclusion>
+                </exclusions>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.curator</groupId>
+                <artifactId>curator-framework</artifactId>
+                <version>${project.curator.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.curator</groupId>
+                <artifactId>curator-recipes</artifactId>
+                <version>${project.curator.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.curator</groupId>
+                <artifactId>curator-client</artifactId>
+                <version>${project.curator.version}</version>
+            </dependency>
         </dependencies>
     </dependencyManagement>
 </project>

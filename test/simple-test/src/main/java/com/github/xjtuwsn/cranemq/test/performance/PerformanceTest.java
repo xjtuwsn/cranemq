@@ -4,6 +4,7 @@ import com.github.xjtuwsn.cranemq.common.remote.RemoteHook;
 import com.github.xjtuwsn.cranemq.client.producer.DefaultMQProducer;
 import com.github.xjtuwsn.cranemq.client.producer.balance.RoundRobinStrategy;
 import com.github.xjtuwsn.cranemq.common.entity.Message;
+import com.github.xjtuwsn.cranemq.common.remote.enums.RegistryType;
 
 import java.io.BufferedWriter;
 import java.io.File;
@@ -19,21 +20,10 @@ import java.util.concurrent.*;
  */
 public class PerformanceTest {
     public static void main(String[] args) throws InterruptedException, IOException {
-        String topic = "topic2";
-        RemoteHook hook = new RemoteHook() {
-            @Override
-            public void beforeMessage() {
-                // System.out.println("message before");
-            }
-
-            @Override
-            public void afterMessage() {
-                // System.out.println("response come");
-            }
-        };
-        int threadNum = 1, loop = 5000;
+        String topic = "topic1";
+        int threadNum = 10, loop = 20000;
         CountDownLatch latch = new CountDownLatch(threadNum);
-        ExecutorService threadPool = new ThreadPoolExecutor(10,
+        ExecutorService threadPool = new ThreadPoolExecutor(11,
                 22, 60L, TimeUnit.SECONDS, new LinkedBlockingDeque<>(1000),
                 new ThreadFactory() {
                     @Override
@@ -41,12 +31,12 @@ public class PerformanceTest {
                         return new Thread(r);
                     }
                 }, new ThreadPoolExecutor.AbortPolicy());
-        DefaultMQProducer producer = new DefaultMQProducer("group1", hook);
-        producer.bindRegistery("127.0.0.1:11111");
+        DefaultMQProducer producer = new DefaultMQProducer("group1");
+        producer.bindRegistery("127.0.0.1:11111", RegistryType.DEFAULT);
         producer.setLoadBalanceStrategy(new RoundRobinStrategy());
         producer.start();
-
-        Message message1 = new Message(topic, "hhhh".getBytes());
+        byte[] data = new byte[1024];
+        Message message1 = new Message(topic, data);
         producer.send(message1);
         long start = System.nanoTime();
         for (int i = 0; i < threadNum; i++) {
@@ -60,7 +50,7 @@ public class PerformanceTest {
         latch.await();
         long end = System.nanoTime();
         double cost = (end - start) / 1e6;
-        FileWriter fw = new FileWriter(new File("D:\\code\\opensource\\cranemq\\test\\src\\main\\resources\\test.txt"), true);
+        FileWriter fw = new FileWriter(new File("D:\\code\\opensource\\cranemq\\test\\simple-test\\src\\main\\resources\\test.txt"), true);
         BufferedWriter bw = new BufferedWriter(fw);
         bw.write(String.valueOf(cost));
         bw.write("\n");

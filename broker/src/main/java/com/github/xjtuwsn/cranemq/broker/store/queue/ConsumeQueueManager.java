@@ -110,7 +110,7 @@ public class ConsumeQueueManager implements GeneralStoreService {
         }
         loadTopicQueueFile(rootDir);
         log.info("Finish create {} consumequeue, writenumber is {}", topic, writeNumber);
-        return new QueueData(topic, writeNumber, readNumber);
+        return new QueueData(brokerController.getBrokerConfig().getBrokerName(), writeNumber, readNumber);
     }
     public ConsumeQueue getConsumeQueue(String topic, int queueId) {
         ConcurrentHashMap<Integer, ConsumeQueue> queueConcurrentHashMap = queueTable.get(topic);

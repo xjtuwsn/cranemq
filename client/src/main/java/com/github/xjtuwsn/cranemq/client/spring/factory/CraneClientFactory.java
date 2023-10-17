@@ -17,6 +17,7 @@ import com.github.xjtuwsn.cranemq.common.entity.Message;
 import com.github.xjtuwsn.cranemq.common.entity.ReadyMessage;
 import com.github.xjtuwsn.cranemq.common.exception.CraneClientException;
 import com.github.xjtuwsn.cranemq.common.remote.RemoteHook;
+import com.github.xjtuwsn.cranemq.common.remote.enums.RegistryType;
 import com.github.xjtuwsn.cranemq.common.remote.serialize.Serializer;
 import com.github.xjtuwsn.cranemq.common.remote.serialize.impl.Hessian1Serializer;
 import org.springframework.beans.BeansException;
@@ -59,6 +60,7 @@ public class CraneClientFactory implements FactoryBean<CraneMQTemplate>, Applica
     private MessageModel messageModel;
     private StartConsume startConsume;
     private String address;
+    private RegistryType registryType;
 
     private RemoteHook remoteHook;
     public CraneClientFactory() {
@@ -97,6 +99,7 @@ public class CraneClientFactory implements FactoryBean<CraneMQTemplate>, Applica
         startConsume = "last".equals(consumerConf.getOrDefault("start", "last"))
                 ? StartConsume.FROM_LAST_OFFSET : StartConsume.FROM_FIRST_OFFSET;
         address = registryConf.get("address");
+        registryType = "zk".equals(registryConf.get("type")) ? RegistryType.ZOOKEEPER : RegistryType.DEFAULT;
     }
     @Override
     public void onApplicationEvent(ContextRefreshedEvent event) {
@@ -168,7 +171,8 @@ public class CraneClientFactory implements FactoryBean<CraneMQTemplate>, Applica
                         .bindRegistry(address)
                         .messageModel(messageModel)
                         .startConsume(startConsume)
-                        .messageListener(messageListener);
+                        .messageListener(messageListener)
+                        .registryType(registryType);
                 this.infos.add(new Pair<>(topic, tag));
                 this.consumers.add(consumer);
             }
@@ -184,6 +188,7 @@ public class CraneClientFactory implements FactoryBean<CraneMQTemplate>, Applica
         String address = registryConf.get("address");
         String group = producerConf.get("group");
         DefaultMQProducer defaultMQProducer = new DefaultMQProducer(group, remoteHook, address);
+        defaultMQProducer.bindRegistery(address, registryType);
         defaultMQProducer.start();
         return new CraneMQTemplate(defaultMQProducer, serializer);
     }

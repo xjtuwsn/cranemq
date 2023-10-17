@@ -6,6 +6,7 @@ import com.github.xjtuwsn.cranemq.common.consumer.MessageModel;
 import com.github.xjtuwsn.cranemq.common.entity.MessageQueue;
 import com.github.xjtuwsn.cranemq.common.exception.CraneClientException;
 import com.github.xjtuwsn.cranemq.common.remote.RemoteHook;
+import com.github.xjtuwsn.cranemq.common.remote.enums.RegistryType;
 
 import java.util.List;
 
@@ -23,7 +24,7 @@ public class DefaultPullConsumer implements MQPullConsumer {
     private int maxRetryTime = 5;
     private RemoteHook hook;
     private DefaultPullConsumerImpl defaultPullConsumerImpl;
-
+    private RegistryType registryType;
 
     public DefaultPullConsumer(String consumerGroup) {
         this(consumerGroup, null);
@@ -46,8 +47,8 @@ public class DefaultPullConsumer implements MQPullConsumer {
     }
 
     @Override
-    public void bindRegistry(String address) {
-        this.defaultPullConsumerImpl.bindRegistry(address);
+    public void bindRegistry(String address, RegistryType registryType) {
+        this.defaultPullConsumerImpl.bindRegistry(address, registryType);
     }
 
     @Override
@@ -92,5 +93,13 @@ public class DefaultPullConsumer implements MQPullConsumer {
 
     public int getMaxRetryTime() {
         return maxRetryTime;
+    }
+
+    public RegistryType getRegistryType() {
+        return registryType;
+    }
+
+    public void setRegistryType(RegistryType registryType) {
+        this.registryType = registryType;
     }
 }

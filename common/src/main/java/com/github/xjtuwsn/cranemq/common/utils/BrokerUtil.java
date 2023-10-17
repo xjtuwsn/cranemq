@@ -2,6 +2,7 @@ package com.github.xjtuwsn.cranemq.common.utils;
 
 import com.github.xjtuwsn.cranemq.common.config.FlushDisk;
 import com.github.xjtuwsn.cranemq.common.constant.MQConstant;
+import com.github.xjtuwsn.cranemq.common.remote.enums.RegistryType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -48,6 +49,9 @@ public class BrokerUtil {
                     }
                     if ("Boolean".equals(parameterTypeName) || "boolean".equals(parameterTypeName)) {
                         v = Boolean.valueOf(value);
+                    }
+                    if ("RegistryType".equals(parameterTypeName)) {
+                        v = "zk".equals(value) ? RegistryType.ZOOKEEPER : RegistryType.DEFAULT;
                     }
                     try {
                         method.invoke(object, v);

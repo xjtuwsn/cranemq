@@ -1,4 +1,4 @@
-package com.github.xjtuwsn.cranemq.extention;
+package com.github.xjtuwsn.cranemq.extension;
 
 import com.github.xjtuwsn.cranemq.client.spring.factory.CraneClientFactory;
 import org.springframework.context.annotation.Bean;

@@ -17,6 +17,7 @@ import com.github.xjtuwsn.cranemq.common.command.types.RpcType;
 import com.github.xjtuwsn.cranemq.common.entity.MessageQueue;
 import com.github.xjtuwsn.cranemq.common.exception.CraneClientException;
 import com.github.xjtuwsn.cranemq.common.remote.RemoteHook;
+import com.github.xjtuwsn.cranemq.common.remote.enums.RegistryType;
 import com.github.xjtuwsn.cranemq.common.utils.TopicUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -41,7 +42,7 @@ public class DefaultPullConsumerImpl {
     private String id;
 
     private ClientInstance clientInstance;
-
+    private RegistryType registryType;
 
     private Map<String, String> topicTag = new ConcurrentHashMap<>();
     private Set<String> topicSet = new ConcurrentHashSet<>();
@@ -75,10 +76,11 @@ public class DefaultPullConsumerImpl {
         wrappered.setQueuePicked(messageQueue);
         return this.clientInstance.sendPullSync(wrappered);
     }
-    public void bindRegistry(String address) {
-        if (StrUtil.isEmpty(address)) {
+    public void bindRegistry(String address, RegistryType registryType) {
+        if (StrUtil.isEmpty(address) || registryType == null) {
             throw new CraneClientException("Registry address cannot be empty");
         }
+        this.registryType = registryType;
         this.registryAddress = address.split(";");
     }
     public List<MessageQueue> listQueues() {
@@ -92,6 +94,7 @@ public class DefaultPullConsumerImpl {
     public void start() {
         this.checkConfig();
         this.clientInstance.registerHook(this.hook);
+        this.clientInstance.setRegistryType(registryType);
         id = this.clientInstance.registerPullConsumer(this);
         this.clientInstance.start();
     }

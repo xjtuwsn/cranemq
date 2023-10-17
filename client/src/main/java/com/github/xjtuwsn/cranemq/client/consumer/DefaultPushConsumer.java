@@ -11,6 +11,7 @@ import com.github.xjtuwsn.cranemq.common.consumer.MessageModel;
 import com.github.xjtuwsn.cranemq.common.consumer.StartConsume;
 import com.github.xjtuwsn.cranemq.common.exception.CraneClientException;
 import com.github.xjtuwsn.cranemq.common.remote.RemoteHook;
+import com.github.xjtuwsn.cranemq.common.remote.enums.RegistryType;
 import lombok.Builder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -50,7 +51,7 @@ public class DefaultPushConsumer implements MQPushConsumer {
 
     public DefaultPushConsumer(String consumerGroup, MessageModel messageModel, StartConsume startConsume,
                                MessageListener messageListener, String id, RemoteHook hook, String address,
-                               List<Pair<String, String>> topics) {
+                               List<Pair<String, String>> topics, RegistryType registryType) {
         if (StrUtil.isEmpty(consumerGroup) || messageModel == null || startConsume == null
                 || messageListener == null || StrUtil.isEmpty(id) || StrUtil.isEmpty(address)) {
             throw new CraneClientException("Paramters error");
@@ -61,7 +62,7 @@ public class DefaultPushConsumer implements MQPushConsumer {
         this.messageListener = messageListener;
         this.id = id;
         this.hook = hook;
-        this.defaultPushConsumer = new DefaultPushConsumerImpl(this, hook, address, topics);
+        this.defaultPushConsumer = new DefaultPushConsumerImpl(this, hook, address, topics, registryType);
     }
     public static Builder builder() {
         return new Builder();
@@ -89,11 +90,11 @@ public class DefaultPushConsumer implements MQPushConsumer {
         this.defaultPushConsumer.subscribe(topics);
     }
     @Override
-    public void bindRegistry(String address) {
+    public void bindRegistry(String address, RegistryType registryType) {
         if (address == null) {
             throw new CraneClientException("Address cannot be null");
         }
-        this.defaultPushConsumer.bindRegistry(address);
+        this.defaultPushConsumer.bindRegistry(address, registryType);
     }
 
     @Override
@@ -179,6 +180,7 @@ public class DefaultPushConsumer implements MQPushConsumer {
         private RemoteHook hook;
         private String registerAddress;
         private List<Pair<String, String>> topics;
+        private RegistryType registryType = RegistryType.DEFAULT;
 
         public Builder() {
             this.topics = new ArrayList<>();
@@ -212,6 +214,12 @@ public class DefaultPushConsumer implements MQPushConsumer {
             this.registerAddress = address;
             return this;
         }
+        public Builder registryType(RegistryType registryType) {
+            if (registryType != null) {
+                this.registryType = registryType;
+            }
+            return this;
+        }
         public Builder subscribe(String topic, String tag) {
             if (StrUtil.isEmpty(topic)) {
                 throw new CraneClientException("Topic cannot be null");
@@ -226,7 +234,7 @@ public class DefaultPushConsumer implements MQPushConsumer {
 
         public DefaultPushConsumer build() {
             return new DefaultPushConsumer(consumerGroup, messageModel, startConsume, messageListener, id, hook,
-                    registerAddress, topics);
+                    registerAddress, topics, registryType);
         }
 
         @Override

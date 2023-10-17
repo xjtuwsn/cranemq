@@ -23,9 +23,9 @@ public class BrokerData implements Serializable {
     // TODO 在集群时需要改很多
     private String brokerName;
     // 主从节点位置
-    private HashMap<Integer, String> brokerAddressMap;
+    private Map<Integer, String> brokerAddressMap;
     //
-    private HashMap<Integer, QueueData> queueDataMap;
+    private Map<Integer, QueueData> queueDataMap;
 
     public BrokerData(String brokerName) {
         this.brokerName = brokerName;

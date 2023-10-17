@@ -9,6 +9,7 @@ import com.github.xjtuwsn.cranemq.client.producer.balance.LoadBalanceStrategy;
 import com.github.xjtuwsn.cranemq.client.producer.result.SendResult;
 import com.github.xjtuwsn.cranemq.common.command.*;
 import com.github.xjtuwsn.cranemq.common.command.payloads.req.MQBachProduceRequest;
+import com.github.xjtuwsn.cranemq.common.remote.enums.RegistryType;
 import com.github.xjtuwsn.cranemq.common.utils.TopicUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -43,10 +44,11 @@ public class DefaultMQProducerImpl implements MQProducerInner {
 
     private ClientInstance clientInstance;
     private RemoteAddress address;
-    private String[] registryAddress;
+    private String registryAddress;
     private String clientID;
     private String id;
     private LoadBalanceStrategy loadBalanceStrategy;
+    private RegistryType registryType;
     private ConcurrentHashSet<String> topicSet = new ConcurrentHashSet<>();
     /**
      * 0: created
@@ -65,10 +67,8 @@ public class DefaultMQProducerImpl implements MQProducerInner {
                                  LoadBalanceStrategy loadBalanceStrategy) {
         this.defaultMQProducer = defaultMQProducer;
         this.hook = hook;
-        if (registryAddress != null) {
-            this.registryAddress = registryAddress.split(";");
+        this.registryAddress = registryAddress;
 
-        }
         this.state = new AtomicInteger(0);
         this.loadBalanceStrategy = loadBalanceStrategy;
     }
@@ -86,6 +86,7 @@ public class DefaultMQProducerImpl implements MQProducerInner {
         if (this.loadBalanceStrategy != null) {
             this.clientInstance.setLoadBalanceStrategy(this.loadBalanceStrategy);
         }
+        this.clientInstance.setRegistryType(registryType);
         this.clientInstance.registerHook(hook);
         id = this.clientInstance.registerProducer(this);
         this.state.set(1);
@@ -225,11 +226,13 @@ public class DefaultMQProducerImpl implements MQProducerInner {
     }
 
     public String[] getRegisteryAddress() {
+        return registryAddress.split(";");
+    }
+    public String getOriginRegisteryAddress() {
         return registryAddress;
     }
-
     public void setRegistryAddress(String registryAddress) {
-        this.registryAddress = registryAddress.split(";");
+        this.registryAddress = registryAddress;
     }
 
     public void setLoadBalanceStrategy(LoadBalanceStrategy loadBalanceStrategy) {
@@ -238,5 +241,13 @@ public class DefaultMQProducerImpl implements MQProducerInner {
 
     public DefaultMQProducer getDefaultMQProducer() {
         return defaultMQProducer;
+    }
+
+    public RegistryType getRegistryType() {
+        return registryType;
+    }
+
+    public void setRegistryType(RegistryType registryType) {
+        this.registryType = registryType;
     }
 }

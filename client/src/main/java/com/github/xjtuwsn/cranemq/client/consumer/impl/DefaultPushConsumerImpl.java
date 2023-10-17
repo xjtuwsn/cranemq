@@ -31,6 +31,7 @@ import com.github.xjtuwsn.cranemq.common.consumer.SubscriptionInfo;
 import com.github.xjtuwsn.cranemq.common.entity.MessageQueue;
 import com.github.xjtuwsn.cranemq.common.entity.ReadyMessage;
 import com.github.xjtuwsn.cranemq.common.remote.RemoteHook;
+import com.github.xjtuwsn.cranemq.common.remote.enums.RegistryType;
 import com.github.xjtuwsn.cranemq.common.utils.TopicUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -63,6 +64,7 @@ public class DefaultPushConsumerImpl {
     private OffsetManager offsetManager;
     
     private MessageQueueLock messageQueueLock;
+    private RegistryType registryType = RegistryType.DEFAULT;
 
     public DefaultPushConsumerImpl(DefaultPushConsumer defaultPushConsumer, RemoteHook hook) {
         this.defaultPushConsumer = defaultPushConsumer;
@@ -72,9 +74,9 @@ public class DefaultPushConsumerImpl {
         this.messageQueueLock = new MessageQueueLock();
     }
     public DefaultPushConsumerImpl(DefaultPushConsumer defaultPushConsumer, RemoteHook hook,
-                                   String address, List<Pair<String, String>> topics) {
+                                   String address, List<Pair<String, String>> topics, RegistryType registryType) {
         this(defaultPushConsumer, hook);
-        this.bindRegistry(address);
+        this.bindRegistry(address, registryType);
         this.subscribe(topics);
 
     }
@@ -90,6 +92,7 @@ public class DefaultPushConsumerImpl {
         this.consumeMessageService.start();
         this.clientInstance.registerPushConsumer(defaultPushConsumer.getConsumerGroup(), this);
         this.clientInstance.registerHook(hook);
+        this.clientInstance.setRegistryType(registryType);
         this.clientInstance.start();
         if (defaultPushConsumer.getMessageModel() == MessageModel.CLUSTER) {
             this.offsetManager = new BrokerOffsetManager(this.clientInstance, this.defaultPushConsumer.getConsumerGroup());
@@ -183,8 +186,9 @@ public class DefaultPushConsumerImpl {
         }
         this.topicSet.add(topic);
     }
-    public void bindRegistry(String address) {
+    public void bindRegistry(String address, RegistryType registryType) {
         this.registeryAddress = address.split(";");
+        this.registryType = registryType;
     }
     private void filterTags(PullResult pullResult, SubscriptionInfo info) {
         if (pullResult.getAcquireResultType() != AcquireResultType.DONE) {

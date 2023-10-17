@@ -3,6 +3,7 @@ package com.github.xjtuwsn.cranemq.client.producer;
 import cn.hutool.core.util.StrUtil;
 import com.github.xjtuwsn.cranemq.client.producer.balance.LoadBalanceStrategy;
 import com.github.xjtuwsn.cranemq.client.producer.result.SendResult;
+import com.github.xjtuwsn.cranemq.common.remote.enums.RegistryType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import com.github.xjtuwsn.cranemq.common.remote.RemoteHook;
@@ -39,6 +40,7 @@ public class DefaultMQProducer implements MQProducer {
     private int maxRetryTime = MQConstant.MAX_RETRY_TIMES;
     private DefaultMQProducerImpl defaultMQProducerImpl;
     private LoadBalanceStrategy loadBalanceStrategy;
+    private RegistryType registryType;
 
     public DefaultMQProducer(String group) {
         this(group, null, null);
@@ -60,6 +62,7 @@ public class DefaultMQProducer implements MQProducer {
             this.defaultMQProducerImpl.setLoadBalanceStrategy(this.loadBalanceStrategy);
         }
         this.defaultMQProducerImpl.setRegistryAddress(this.registryAddr);
+        this.defaultMQProducerImpl.setRegistryType(this.registryType);
         this.defaultMQProducerImpl.start();
         Runtime.getRuntime().addShutdownHook(new Thread(this::shutdown));
     }
@@ -151,11 +154,12 @@ public class DefaultMQProducer implements MQProducer {
         return this.defaultMQProducerImpl.sendSync(this.responseTimeoutMills, false, selector, arg, message);
     }
 
-    public void bindRegistery(String registryAddr) {
+    public void bindRegistery(String registryAddr, RegistryType registryType) {
         if (StrUtil.isEmpty(registryAddr)) {
             throw new CraneClientException("Registery address canot be null or empty");
         }
         this.registryAddr = registryAddr;
+        this.registryType = registryType;
     }
     public String getTopic() {
         return topic;
@@ -219,5 +223,9 @@ public class DefaultMQProducer implements MQProducer {
 
     public void setLoadBalanceStrategy(LoadBalanceStrategy loadBalanceStrategy) {
         this.loadBalanceStrategy = loadBalanceStrategy;
+    }
+
+    public RegistryType getRegistryType() {
+        return registryType;
     }
 }

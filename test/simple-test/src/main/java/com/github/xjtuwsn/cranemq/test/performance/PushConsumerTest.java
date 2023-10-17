@@ -30,7 +30,7 @@ public class PushConsumerTest {
                 .bindRegistry("127.0.0.1:11111")
                 .messageModel(MessageModel.CLUSTER)
                 .startConsume(StartConsume.FROM_FIRST_OFFSET)
-                .subscribe("topic4", "*")
+                .subscribe("topic2", "*")
                 .messageListener(new CommonMessageListener() {
                     @Override
                     public boolean consume(List<ReadyMessage> messages) {

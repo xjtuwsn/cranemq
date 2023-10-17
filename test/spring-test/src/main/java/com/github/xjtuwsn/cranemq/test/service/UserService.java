@@ -33,7 +33,7 @@ public class UserService {
         for (int i = 0; i < 1; i++) {
             executorService.execute(() -> {
                 for (int j = 0; j < 10; j++) {
-                    craneMQTemplate.send("topic2", "abc", new User("test", j), new MQSelector() {
+                    craneMQTemplate.send("topic16", "abc", new User("test", j), new MQSelector() {
                         @Override
                         public MessageQueue select(List<MessageQueue> queues, Object arg) {
                             return queues.get(0);
@@ -45,7 +45,7 @@ public class UserService {
         return "ok";
     }
 
-    @CraneMQListener(id = "0", topic = "topic2", tag = "*", ordered = true, dataType = User.class)
+    @CraneMQListener(id = "0", topic = "topic16", tag = "*", ordered = false, dataType = User.class)
     public void receive(User message) {
         System.out.println(message + ", ------------------");
     }

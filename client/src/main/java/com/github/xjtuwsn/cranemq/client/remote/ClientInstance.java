@@ -33,6 +33,7 @@ import com.github.xjtuwsn.cranemq.common.entity.MessageQueue;
 import com.github.xjtuwsn.cranemq.common.remote.RegistryCallback;
 import com.github.xjtuwsn.cranemq.common.remote.RemoteClent;
 import com.github.xjtuwsn.cranemq.common.remote.ReadableRegistry;
+import com.github.xjtuwsn.cranemq.common.remote.enums.RegistryType;
 import com.github.xjtuwsn.cranemq.common.route.BrokerData;
 import com.github.xjtuwsn.cranemq.common.route.TopicRouteInfo;
 import com.github.xjtuwsn.cranemq.common.command.FutureCommand;
@@ -40,6 +41,7 @@ import com.github.xjtuwsn.cranemq.common.command.Header;
 import com.github.xjtuwsn.cranemq.common.command.PayLoad;
 import com.github.xjtuwsn.cranemq.common.exception.CraneClientException;
 import com.github.xjtuwsn.cranemq.common.utils.TopicUtil;
+import com.github.xjtuwsn.cranemq.extension.impl.ZkReadableRegistry;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import com.github.xjtuwsn.cranemq.common.remote.RemoteHook;
@@ -78,7 +80,7 @@ public class ClientInstance {
 
     private volatile ConcurrentHashMap<String, TopicRouteInfo> topicTable = new ConcurrentHashMap<>();
     // brokerName: [id : address]
-    private ConcurrentHashMap<String, HashMap<Integer, String>> brokerAddressTable = new ConcurrentHashMap<>();
+    private ConcurrentHashMap<String, Map<Integer, String>> brokerAddressTable = new ConcurrentHashMap<>();
     private ConcurrentHashMap<String, DefaultMQProducerImpl> producerRegister = new ConcurrentHashMap<>();
     private ConcurrentHashMap<String, DefaultPullConsumerImpl> pullConsumerRegister = new ConcurrentHashMap<>();
     // group : push
@@ -96,6 +98,8 @@ public class ClientInstance {
     private OffsetManager offsetManager;
 
     private ReadableRegistry readableRegistry;
+
+    private RegistryType registryType;
     public ClientInstance() {
         this.state = new AtomicInteger(0);
         this.clinetNumber = new AtomicInteger(0);
@@ -103,7 +107,6 @@ public class ClientInstance {
         this.rebalanceService = new RebalanceService(this);
         this.pullMessageService = new PullMessageService(this);
         this.offsetManager = new LocalOffsetManager(this);
-        this.readableRegistry = new SimpleReadableRegistry(this);
     }
 
     public void start() {
@@ -123,6 +126,11 @@ public class ClientInstance {
         this.registerProcessors();
         this.remoteClent.start();
         this.registryAddress = this.pickOneRegistryAddress();
+        if (this.registryType == RegistryType.DEFAULT) {
+            this.readableRegistry = new SimpleReadableRegistry(this);
+        } else if (this.registryType == RegistryType.ZOOKEEPER) {
+            this.readableRegistry = new ZkReadableRegistry(this.registryAddress);
+        }
         // 异步发送消息的线程池
         this.asyncSendThreadPool = new ThreadPoolExecutor(coreSize,
                 maxSize,
@@ -301,6 +309,9 @@ public class ClientInstance {
                 }
             }
             this.topicTable.put(createTopic, newInfo);
+            for (BrokerData brokerData : newInfo.getBrokerData()) {
+                brokerAddressTable.put(brokerData.getBrokerName(), brokerData.getBrokerAddressMap());
+            }
             long end = System.nanoTime();
             double costMs = (end - start) / 1e6;
             log.info("Create topic {} cost {} ms", createTopic, costMs);
@@ -381,7 +392,7 @@ public class ClientInstance {
     public void sendOffsetToBroker(RemoteCommand remoteCommand, Set<String> brokerNames) {
 
         for (String name : brokerNames) {
-            HashMap<Integer, String> map = this.brokerAddressTable.get(name);
+            Map<Integer, String> map = this.brokerAddressTable.get(name);
             if (map != null) {
                 String addr = map.get(MQConstant.MASTER_ID);
                 this.asyncSendThreadPool.execute(() -> {
@@ -415,8 +426,8 @@ public class ClientInstance {
         if (this.brokerAddressTable.isEmpty()) {
             return;
         }
-        for (Map.Entry<String, HashMap<Integer, String>> entry : this.brokerAddressTable.entrySet()) {
-            HashMap<Integer, String> addrs = entry.getValue();
+        for (Map.Entry<String, Map<Integer, String>> entry : this.brokerAddressTable.entrySet()) {
+            Map<Integer, String> addrs = entry.getValue();
             String address = addrs.get(MQConstant.MASTER_ID);
             this.asyncSendThreadPool.execute(() -> {
                 this.remoteClent.invoke(address, remoteCommand);
@@ -687,7 +698,7 @@ public class ClientInstance {
 
                 markExpiredBroker(info, old);
                 if (info == null) {
-                    log.error("Cannot find route info {} from registery", topic);
+                    log.error("Cannot find route info {} from registry", topic);
                     return;
                 }
                 topicTable.put(topic, info);
@@ -781,5 +792,9 @@ public class ClientInstance {
 
     public OffsetManager getOffsetManager() {
         return offsetManager;
+    }
+
+    public void setRegistryType(RegistryType registryType) {
+        this.registryType = registryType;
     }
 }

@@ -5,6 +5,7 @@ import com.github.xjtuwsn.cranemq.common.remote.RemoteHook;
 import com.github.xjtuwsn.cranemq.client.producer.DefaultMQProducer;
 import com.github.xjtuwsn.cranemq.common.entity.Message;
 import com.github.xjtuwsn.cranemq.common.remote.RemoteAddress;
+import com.github.xjtuwsn.cranemq.common.remote.enums.RegistryType;
 
 import java.util.concurrent.*;
 
@@ -20,7 +21,7 @@ public class ProducerTest {
                 32,
                 60L,
                 TimeUnit.SECONDS,
-                new LinkedBlockingDeque<>(100),
+                new LinkedBlockingDeque<>(1000),
                 new ThreadFactory() {
                     @Override
                     public Thread newThread(Runnable r) {
@@ -28,14 +29,14 @@ public class ProducerTest {
                     }
                 },
                 new ThreadPoolExecutor.AbortPolicy());
-        int thread = 10, number = 20000;
+        int thread = 10, number = 200000;
 
         DefaultMQProducer producer = new DefaultMQProducer("group_push");
-        producer.bindRegistery("127.0.0.1:11111");
+        producer.bindRegistery("127.0.0.1:11111", RegistryType.DEFAULT);
         producer.setLoadBalanceStrategy(new RoundRobinStrategy());
         producer.start();
         byte[] data = new byte[5 * 1024];
-        Message message1 = new Message("topic4", data);
+        Message message1 = new Message("topic1", data);
         for (int i = 0; i < thread; i++) {
             int cur = i;
             service.execute(() -> {

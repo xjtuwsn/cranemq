@@ -1,5 +1,6 @@
 package com.github.xjtuwsn.cranemq.common.config;
 
+import com.github.xjtuwsn.cranemq.common.remote.enums.RegistryType;
 import lombok.*;
 
 /**
@@ -28,5 +29,7 @@ public class BrokerConfig {
     private long keepAliveTime = 1000 * 120;
 
     private long longPollingTime = 1000 * 15;
+
+    private RegistryType registryType = RegistryType.DEFAULT;
 
 }

@@ -2,7 +2,8 @@ cranemq:
   producer:
     group: asd
   registry:
-    address: 127.0.0.1:11111
+    address: 192.168.227.137:2181
+    type: zk
   consumer:
     group: group_push
     model: cluster

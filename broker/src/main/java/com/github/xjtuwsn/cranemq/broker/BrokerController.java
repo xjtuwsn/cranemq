@@ -14,8 +14,10 @@ import com.github.xjtuwsn.cranemq.broker.store.GeneralStoreService;
 import com.github.xjtuwsn.cranemq.broker.store.MessageStoreCenter;
 import com.github.xjtuwsn.cranemq.broker.store.PersistentConfig;
 import com.github.xjtuwsn.cranemq.common.config.BrokerConfig;
+import com.github.xjtuwsn.cranemq.common.remote.enums.RegistryType;
 import com.github.xjtuwsn.cranemq.common.remote.event.ChannelEventListener;
 import com.github.xjtuwsn.cranemq.common.utils.NetworkUtil;
+import com.github.xjtuwsn.cranemq.extension.impl.ZkWritableRegistry;
 import org.checkerframework.checker.units.qual.C;
 
 import java.util.concurrent.*;
@@ -66,7 +68,11 @@ public class BrokerController implements GeneralStoreService {
         this.offsetManager = new ConsumerOffsetManager(this);
         this.holdRequestService = new HoldRequestService(this);
         this.clientLockMananger = new ClientLockMananger();
-        this.writableRegistry = new SimpleWritableRegistry(this);
+        if (this.brokerConfig.getRegistryType() == RegistryType.DEFAULT) {
+            this.writableRegistry = new SimpleWritableRegistry(this);
+        } else if (this.brokerConfig.getRegistryType() == RegistryType.ZOOKEEPER) {
+            this.writableRegistry = new ZkWritableRegistry(this.brokerConfig.getRegistrys());
+        }
         this.initThreadPool();
         this.registerThreadPool();
         return true;
@@ -143,10 +149,14 @@ public class BrokerController implements GeneralStoreService {
         }, 100, 5 * 1000, TimeUnit.MILLISECONDS);
 
         this.heartBeatSendService.scheduleAtFixedRate(() -> {
-            this.writableRegistry.uploadRouteInfo(this.brokerConfig.getBrokerName(), this.brokerConfig.getBrokerId(),
-                    NetworkUtil.getLocalAddress() + ":" + this.brokerConfig.getPort(),
-                    this.messageStoreCenter.getAllQueueData());
+            this.updateRegistry();
         }, 0, 30 * 1000, TimeUnit.MILLISECONDS);
+    }
+
+    public void updateRegistry() {
+        this.writableRegistry.uploadRouteInfo(this.brokerConfig.getBrokerName(), this.brokerConfig.getBrokerId(),
+                NetworkUtil.getLocalAddress() + ":" + this.brokerConfig.getPort(),
+                this.messageStoreCenter.getAllQueueData());
     }
     @Override
     public void start() {
@@ -165,6 +175,7 @@ public class BrokerController implements GeneralStoreService {
         this.remoteServer.shutdown();
         this.messageStoreCenter.close();
         this.holdRequestService.shutdown();
+        this.writableRegistry.shutdown();
     }
 
     public BrokerConfig getBrokerConfig() {

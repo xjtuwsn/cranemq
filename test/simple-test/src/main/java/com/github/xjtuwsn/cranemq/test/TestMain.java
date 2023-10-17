@@ -8,6 +8,7 @@ import com.github.xjtuwsn.cranemq.client.producer.DefaultMQProducer;
 import com.github.xjtuwsn.cranemq.client.producer.balance.RoundRobinStrategy;
 import com.github.xjtuwsn.cranemq.common.entity.Message;
 import com.github.xjtuwsn.cranemq.common.remote.RemoteAddress;
+import com.github.xjtuwsn.cranemq.common.remote.enums.RegistryType;
 
 import java.util.Arrays;
 import java.util.List;
@@ -21,33 +22,14 @@ import java.util.List;
 public class TestMain {
 
     public static void main(String[] args) throws Exception {
-//        MqBroker broker = new MqBroker();
-//        broker.start();
-        String topic = "topic2";
-        RemoteHook hook = new RemoteHook() {
-            @Override
-            public void beforeMessage() {
-               // System.out.println("message before");
-            }
-
-            @Override
-            public void afterMessage() {
-               // System.out.println("response come");
-            }
-        };
+        String topic = "topic1";
         Thread t = new Thread(() -> {
-
-            RemoteAddress remoteAddress = new RemoteAddress("127.0.0.1", 9999);
-            DefaultMQProducer producer = new DefaultMQProducer("group1", hook);
-            // producer.setBrokerAddress(remoteAddress);
-            producer.bindRegistery("127.0.0.1:11111");
+            DefaultMQProducer producer = new DefaultMQProducer("group1");
+            producer.bindRegistery("127.0.0.1:11111", RegistryType.DEFAULT);
             producer.setLoadBalanceStrategy(new RoundRobinStrategy());
             producer.start();
             Message message1 = new Message(topic, "hhhh".getBytes());
             Message message2 = new Message(topic, "aaaa".getBytes());
-//            List<Message> list = Arrays.asList(message1, message2);
-//            producer.send(list);
-            // producer.send(message2);
             long start = System.nanoTime();
             for (int i = 0; i < 64; i++) {
                 Message message = new Message(topic, ("" + i).getBytes());
