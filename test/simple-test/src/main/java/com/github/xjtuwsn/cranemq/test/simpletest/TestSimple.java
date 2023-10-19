@@ -1,9 +1,13 @@
 package com.github.xjtuwsn.cranemq.test.simpletest;
 
+import cn.hutool.core.lang.Pair;
+import com.alibaba.fastjson.JSON;
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.Expiry;
 import com.github.xjtuwsn.cranemq.broker.store.PersistentConfig;
+import com.github.xjtuwsn.cranemq.broker.timer.DelayMessageTask;
+import com.github.xjtuwsn.cranemq.broker.timer.TimingWheel;
 import com.github.xjtuwsn.cranemq.client.consumer.offset.LocalOffsetManager;
 import com.github.xjtuwsn.cranemq.common.command.RemoteCommand;
 import com.github.xjtuwsn.cranemq.common.entity.MessageQueue;
@@ -11,6 +15,7 @@ import com.github.xjtuwsn.cranemq.common.remote.RemoteClent;
 import com.github.xjtuwsn.cranemq.common.remote.codec.NettyDecoder;
 import com.github.xjtuwsn.cranemq.common.remote.codec.NettyEncoder;
 import com.github.xjtuwsn.cranemq.common.remote.serialize.impl.Hessian1Serializer;
+import com.github.xjtuwsn.cranemq.common.utils.JSONUtil;
 import io.netty.bootstrap.Bootstrap;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
@@ -190,5 +195,91 @@ public class TestSimple {
         }
         System.out.println(cf);
     }
+    @Test
+    public void test8() {
+        DelayQueue<TestDelay> delayQueue = new DelayQueue<>();
+        delayQueue.put(new TestDelay(2000, "hhh"));
+        try {
+            long start = System.currentTimeMillis();
+            TestDelay take = delayQueue.take();
+            long end = System.currentTimeMillis();
+            System.out.println(end - start);
+            System.out.println(take);
+        } catch (InterruptedException e) {
+            throw new RuntimeException(e);
+        }
+    }
+    class TestDelay implements Delayed {
+        long delay;
+        String name;
 
+        public TestDelay(long delay, String name) {
+            this.delay = delay + System.currentTimeMillis();
+            this.name = name;
+        }
+
+        @Override
+        public long getDelay(TimeUnit unit) {
+            return unit.convert(delay - System.currentTimeMillis(), TimeUnit.MILLISECONDS);
+        }
+
+        @Override
+        public int compareTo(Delayed o) {
+            return (int)(this.delay - ((TestDelay) o).getDelay());
+        }
+
+        public long getDelay() {
+            return delay;
+        }
+    }
+    @Test
+    public void test9() {
+        String entry = "0123456789:0123456789";
+        StringBuilder sb = new StringBuilder();
+        sb.append("{");
+        int number = 3000000;
+        for (int i = 0; i < number; i++) {
+            sb.append(entry).append(",");
+
+        }
+        sb.deleteCharAt(sb.length() - 1);
+        sb.append("}");
+        double size = entry.length() * number / 1024.0 / 1024;
+        System.out.println(size + "MB");
+        long start = System.currentTimeMillis();
+        JSONUtil.JSONStrToFile(sb.toString(), "D:\\code\\opensource\\cranemq\\test\\simple-test\\src\\main\\resources\\test.json");
+        long end = System.currentTimeMillis();
+        System.out.println((end - start) + " ms");
+    }
+    // size + type + topic_size + topic + group_size + group +   offset + expira
+    // 4    +  4   +     4      + [1,128]+   4       + [1,128]+    8    +   8  =  [34, 288]B ~ avg 100B
+    // 1    ----- 100B
+    // 10   ----- 1KB
+    // 1w   ----- 1MB
+    // 100W ----- 100MB
+    @Test
+    public void test10() {
+        TimingWheel timingWheel = new TimingWheel();
+        System.out.println(TimeUnit.MILLISECONDS.toSeconds(System.currentTimeMillis()));
+        timingWheel.submit(new DelayMessageTask(null), 3, TimeUnit.SECONDS);
+        try {
+            Thread.sleep(3 * 1000);
+        } catch (InterruptedException e) {
+            throw new RuntimeException(e);
+        }
+        System.out.println(TimeUnit.MILLISECONDS.toSeconds(System.currentTimeMillis()));
+        timingWheel.submit(new DelayMessageTask(null), 33, TimeUnit.SECONDS);
+        System.out.println(TimeUnit.MILLISECONDS.toSeconds(System.currentTimeMillis()));
+        timingWheel.submit(new DelayMessageTask(null), 3, TimeUnit.SECONDS);
+//        Pair<Pair<Integer, Integer>, Long> compute = timingWheel.compute(63, TimeUnit.SECONDS);
+//
+//        System.out.println(compute);
+        for (int i = 0; i < 20; i++) {
+            System.out.println(TimeUnit.MILLISECONDS.toSeconds(System.currentTimeMillis()));
+            timingWheel.submit(new DelayMessageTask(null), 12, TimeUnit.SECONDS);
+        }
+        while (true) {
+
+        }
+    }
 }
