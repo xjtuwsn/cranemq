@@ -15,6 +15,7 @@ import com.github.xjtuwsn.cranemq.common.exception.CraneClientException;
 import com.github.xjtuwsn.cranemq.common.remote.RemoteAddress;
 
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 /**
  * @project:cranemq
@@ -111,6 +112,19 @@ public class DefaultMQProducer implements MQProducer {
         this.defaultMQProducerImpl.sendAsync(callback, this.responseTimeoutMills, message);
     }
 
+    @Override
+    public SendResult send(Message message, long delay, TimeUnit unit) {
+        if (delay < 0) {
+            throw new CraneClientException("Delay time can not be negtive");
+        }
+        if (unit == null) {
+            throw new CraneClientException("Time unit can not be null");
+        }
+        long mills = Math.max(0, unit.toMillis(delay) - 1000);
+        long second = TimeUnit.MILLISECONDS.toSeconds(mills);
+        return this.defaultMQProducerImpl.sendSync(this.responseTimeoutMills, false, null, null, second, message);
+    }
+
     /**
      * 同步批量消息
      * @param messages
@@ -151,7 +165,7 @@ public class DefaultMQProducer implements MQProducer {
 
     @Override
     public SendResult send(Message message, MQSelector selector, Object arg) {
-        return this.defaultMQProducerImpl.sendSync(this.responseTimeoutMills, false, selector, arg, message);
+        return this.defaultMQProducerImpl.sendSync(this.responseTimeoutMills, false, selector, arg, 0, message);
     }
 
     public void bindRegistery(String registryAddr, RegistryType registryType) {

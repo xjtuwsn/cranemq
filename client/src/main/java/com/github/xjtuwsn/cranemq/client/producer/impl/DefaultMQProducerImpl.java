@@ -97,12 +97,12 @@ public class DefaultMQProducerImpl implements MQProducerInner {
 
     }
 
-    public SendResult sendSync(long timeout, boolean isOneWay, MQSelector selector, Object arg, Message... messages)
+    public SendResult sendSync(long timeout, boolean isOneWay, MQSelector selector, Object arg, long delay, Message... messages)
             throws CraneClientException {
         if (messages == null || messages.length == 0) {
             throw new CraneClientException("Message cannot be empty!");
         }
-        WrapperFutureCommand wrappered = buildRequest(RpcType.SYNC, null, timeout, messages);
+        WrapperFutureCommand wrappered = buildRequest(RpcType.SYNC, null, timeout, delay, messages);
         if (selector != null) {
             wrappered.setSelector(selector);
             wrappered.setArg(arg);
@@ -121,14 +121,14 @@ public class DefaultMQProducerImpl implements MQProducerInner {
 
     public SendResult sendSync(long timeout, boolean isOneWay, Message... messages)
             throws CraneClientException {
-        return this.sendSync(timeout, isOneWay, null, null, messages);
+        return this.sendSync(timeout, isOneWay, null, null, 0, messages);
     }
 
     public void sendAsync(SendCallback callback, long timeout, Message... messages) {
         if (messages == null || messages.length == 0) {
             throw new CraneClientException("Message cannot be empty!");
         }
-        WrapperFutureCommand remoteCommand = buildRequest(RpcType.ASYNC, callback, timeout, messages);
+        WrapperFutureCommand remoteCommand = buildRequest(RpcType.ASYNC, callback, timeout, 0, messages);
         if (remoteCommand == null) {
             throw new CraneClientException("Create Request error!");
         }
@@ -145,7 +145,7 @@ public class DefaultMQProducerImpl implements MQProducerInner {
      * @param messages
      * @return
      */
-    private WrapperFutureCommand buildRequest(RpcType rpcType, SendCallback callback, long timeout, Message... messages) {
+    private WrapperFutureCommand buildRequest(RpcType rpcType, SendCallback callback, long timeout, long delay, Message... messages) {
         String topic = messages[0].getTopic();
         if (StrUtil.isEmpty(topic)) {
             throw new CraneClientException("Topic cannot be null");
@@ -161,7 +161,12 @@ public class DefaultMQProducerImpl implements MQProducerInner {
         }
         PayLoad payLoad = null;
         if (messages.length == 1) {
-            payLoad = new MQProduceRequest(messages[0]);
+            if (delay > 0) {
+                header.setCommandType(RequestType.DELAY_MESSAGE_PRODUCE_REQUEST);
+                payLoad = new MQProduceRequest(messages[0], delay);
+            } else {
+                payLoad = new MQProduceRequest(messages[0]);
+            }
         } else {
             payLoad = new MQBachProduceRequest(Arrays.asList(messages));
         }

@@ -52,32 +52,20 @@ public class ServerProcessor implements BaseProcessor {
     @Override
     public void processProduceMessage(ChannelHandlerContext ctx, RemoteCommand remoteCommand) {
         Header header = remoteCommand.getHeader();
+        PutMessageResponse putResp = null;
         if (header.getCommandType() == RequestType.MESSAGE_PRODUCE_REQUEST) {
             MQProduceRequest messageProduceRequest = (MQProduceRequest) remoteCommand.getPayLoad();
             StoreInnerMessage storeInnerMessage = new StoreInnerMessage(messageProduceRequest.getMessage(),
-                    messageProduceRequest.getWriteQueue(), header.getCorrelationId());
+                    messageProduceRequest.getWriteQueue(), header.getCorrelationId(), 0);
             log.info("Broker receve produce message: {}", messageProduceRequest);
             long start = System.nanoTime();
-            PutMessageResponse putResp = this.brokerController.getMessageStoreCenter().putMessage(storeInnerMessage);
+            putResp = this.brokerController.getMessageStoreCenter().putMessage(storeInnerMessage);
             long end = System.nanoTime();
-
 
             double cost = (end - start) / 1e6;
             log.warn("Cost {} ms", cost);
 
-            if (header.getRpcType() == RpcType.ONE_WAY) {
-                return;
-            }
-            Header responseHeader = new Header(ResponseType.PRODUCE_MESSAGE_RESPONSE, header.getRpcType(),
-                    header.getCorrelationId());
-            if (putResp.getResponseType() != StoreResponseType.STORE_OK) {
-                responseHeader.onFailure(ResponseCode.SERVER_ERROR);
-            }
-            PayLoad responsePayload = new MQProduceResponse("");
-            RemoteCommand response = new RemoteCommand(responseHeader, responsePayload);
-
-            ctx.writeAndFlush(response);
-        } else {
+        } else if (header.getCommandType() == RequestType.MESSAGE_BATCH_PRODUCE_REAUEST) {
             // todo 批量消息
             MQBachProduceRequest mqBachProduceRequest = (MQBachProduceRequest) remoteCommand.getPayLoad();
             List<Message> messages = mqBachProduceRequest.getMessages();
@@ -87,25 +75,29 @@ public class ServerProcessor implements BaseProcessor {
 
             for (Message message : messages) {
                 StoreInnerMessage storeInnerMessage = new StoreInnerMessage(message,
-                        writeQueue, header.getCorrelationId());
+                        writeQueue, header.getCorrelationId(), 0);
                 list.add(storeInnerMessage);
             }
 
-            PutMessageResponse putResp = this.brokerController.getMessageStoreCenter().putMessage(list);
-            if (header.getRpcType() == RpcType.ONE_WAY) {
-                return;
-            }
-            Header responseHeader = new Header(ResponseType.PRODUCE_MESSAGE_RESPONSE, header.getRpcType(),
-                    header.getCorrelationId());
-            if (putResp.getResponseType() != StoreResponseType.STORE_OK) {
-                responseHeader.onFailure(ResponseCode.SERVER_ERROR);
-            }
-            PayLoad responsePayload = new MQProduceResponse("");
-            RemoteCommand response = new RemoteCommand(responseHeader, responsePayload);
-
-            ctx.writeAndFlush(response);
+            putResp = this.brokerController.getMessageStoreCenter().putMessage(list);
+        } else {
+            MQProduceRequest messageProduceRequest = (MQProduceRequest) remoteCommand.getPayLoad();
+            StoreInnerMessage storeInnerMessage = new StoreInnerMessage(messageProduceRequest.getMessage(),
+                    messageProduceRequest.getWriteQueue(), header.getCorrelationId(), messageProduceRequest.getDelay());
+            putResp = this.brokerController.getMessageStoreCenter().putMessage(storeInnerMessage);
         }
+        if (header.getRpcType() == RpcType.ONE_WAY) {
+            return;
+        }
+        Header responseHeader = new Header(ResponseType.PRODUCE_MESSAGE_RESPONSE, header.getRpcType(),
+                header.getCorrelationId());
+        if (putResp.getResponseType() != StoreResponseType.STORE_OK) {
+            responseHeader.onFailure(ResponseCode.SERVER_ERROR);
+        }
+        PayLoad responsePayload = new MQProduceResponse("");
+        RemoteCommand response = new RemoteCommand(responseHeader, responsePayload);
 
+        ctx.writeAndFlush(response);
     }
     @Override
     public void processCreateTopic(ChannelHandlerContext ctx, RemoteCommand remoteCommand) {

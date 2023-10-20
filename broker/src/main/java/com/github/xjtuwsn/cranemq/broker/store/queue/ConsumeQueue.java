@@ -77,7 +77,6 @@ public class ConsumeQueue extends AbstractLinkedListOrganize implements GeneralS
 
             index++;
         }
-        System.out.println(this.topic + ", " + this.queueId + ", " + this.mappedTable.size());
     }
 
     private void binarySearchLastCommit(MappedFile mappedFile) {

@@ -162,11 +162,11 @@ public class BrokerController implements GeneralStoreService {
     public void start() {
         this.remoteServer.start();
         this.messageStoreCenter.start();
-        this.writableRegistry.start();
+
 
         this.offsetManager.start();
         this.holdRequestService.start();
-
+        this.writableRegistry.start();
         this.startScheduledTask();
         Runtime.getRuntime().addShutdownHook(new Thread(this::close));
     }

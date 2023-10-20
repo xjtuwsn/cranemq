@@ -6,10 +6,12 @@ import com.github.xjtuwsn.cranemq.broker.store.CreateServiceThread;
 import com.github.xjtuwsn.cranemq.broker.store.GeneralStoreService;
 import com.github.xjtuwsn.cranemq.broker.store.MappedFile;
 import com.github.xjtuwsn.cranemq.broker.store.PersistentConfig;
+import com.github.xjtuwsn.cranemq.broker.store.cmtlog.DelayMessageCommitListener;
 import com.github.xjtuwsn.cranemq.broker.store.cmtlog.RecoveryListener;
 import com.github.xjtuwsn.cranemq.broker.store.comm.AsyncRequest;
 import com.github.xjtuwsn.cranemq.broker.store.comm.PutMessageResponse;
 import com.github.xjtuwsn.cranemq.broker.store.comm.StoreRequestType;
+import com.github.xjtuwsn.cranemq.common.constant.MQConstant;
 import com.github.xjtuwsn.cranemq.common.route.QueueData;
 import com.github.xjtuwsn.cranemq.common.utils.BrokerUtil;
 import io.netty.util.internal.StringUtil;
@@ -39,15 +41,26 @@ public class ConsumeQueueManager implements GeneralStoreService {
     private PersistentConfig persistentConfig;
     private CreateQueueService createQueueService;
     private RecoveryListener recoveryListener;
+
+    private DelayMessageCommitListener delayMessageCommitListener;
     public ConsumeQueueManager(BrokerController brokerController, PersistentConfig persistentConfig) {
         this.brokerController = brokerController;
         this.persistentConfig = persistentConfig;
         this.createQueueService = new CreateQueueService();
     }
-    public PutMessageResponse updateOffset(long offset, String topic, int queueId, int size) {
-        ConsumeQueue queue = queueTable.get(topic).get(queueId);
-        log.info("Select consume queue {}", queue);
-        return queue.updateQueueOffset(offset, size);
+    public PutMessageResponse updateOffset(long offset, String topic, int queueId, int size, long delay) {
+        if (delay == 0) {
+            ConsumeQueue queue = queueTable.get(topic).get(queueId);
+            log.info("Select consume queue {}", queue);
+            return queue.updateQueueOffset(offset, size);
+        }
+        String newTopic = MQConstant.DELAY_TOPIC_NAME;
+        ConsumeQueue queue = queueTable.get(newTopic).get(0);
+        PutMessageResponse response = queue.updateQueueOffset(offset, size);
+        long delayQueueOffset = response.getQueueOffset();
+        this.delayMessageCommitListener.onCommit(offset, delayQueueOffset, topic, queueId, delay);
+        return response;
+
     }
     @Override
     public void start() {
@@ -59,6 +72,12 @@ public class ConsumeQueueManager implements GeneralStoreService {
         for (File topicDir : topicFiles) {
             loadTopicQueueFile(topicDir);
 
+        }
+        if (!queueTable.containsKey(MQConstant.DEFAULT_TOPIC_NAME)) {
+            this.createQueue(MQConstant.DEFAULT_TOPIC_NAME, 4, 4);
+        }
+        if (!queueTable.containsKey(MQConstant.DELAY_TOPIC_NAME)) {
+            this.createQueue(MQConstant.DELAY_TOPIC_NAME, 1, 1);
         }
         this.createQueueService.start();
         log.info("ConsumeQueue Manager start successfylly");
@@ -86,6 +105,9 @@ public class ConsumeQueueManager implements GeneralStoreService {
     }
     public void registerRecoveryListener(RecoveryListener listener) {
         this.recoveryListener = listener;
+    }
+    public void registerDelayListener(DelayMessageCommitListener listener) {
+        this.delayMessageCommitListener = listener;
     }
     public Iterator<ConcurrentHashMap<Integer, ConsumeQueue>> iterator() {
         Iterator<ConcurrentHashMap<Integer, ConsumeQueue>> iterator = queueTable.values().iterator();

@@ -31,6 +31,8 @@ public class PersistentConfig {
 
     private String consumerqueuePath = rootPath + "consumequeue\\";
 
+    private String delayLogPath = rootPath + "delaylog\\";
+
     private String defaultName = "dummy";
 
     private int maxOutOfMemoryPoolSize = 3;
@@ -52,6 +54,8 @@ public class PersistentConfig {
     private int defaultQueueNumber = 4;
 
     private int maxSingleReadLength = 16;
+
+    private int delayMessageLogSize = 100 * 1024 * 1024;
 
 
 }

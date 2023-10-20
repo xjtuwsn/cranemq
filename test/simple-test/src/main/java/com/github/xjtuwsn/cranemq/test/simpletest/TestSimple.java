@@ -7,6 +7,7 @@ import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.Expiry;
 import com.github.xjtuwsn.cranemq.broker.store.PersistentConfig;
 import com.github.xjtuwsn.cranemq.broker.timer.DelayMessageTask;
+import com.github.xjtuwsn.cranemq.broker.timer.DelayTask;
 import com.github.xjtuwsn.cranemq.broker.timer.TimingWheel;
 import com.github.xjtuwsn.cranemq.client.consumer.offset.LocalOffsetManager;
 import com.github.xjtuwsn.cranemq.common.command.RemoteCommand;
@@ -259,11 +260,11 @@ public class TestSimple {
     // 100W ----- 100MB
     @Test
     public void test10() {
-        TimingWheel timingWheel = new TimingWheel();
+        TimingWheel<DelayTask> timingWheel = new TimingWheel<>();
         System.out.println(TimeUnit.MILLISECONDS.toSeconds(System.currentTimeMillis()));
         timingWheel.submit(new DelayMessageTask(null), 3, TimeUnit.SECONDS);
         try {
-            Thread.sleep(3 * 1000);
+            Thread.sleep(5 * 1000);
         } catch (InterruptedException e) {
             throw new RuntimeException(e);
         }

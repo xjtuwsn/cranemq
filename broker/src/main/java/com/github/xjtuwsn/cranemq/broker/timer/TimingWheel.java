@@ -49,7 +49,7 @@ public class TimingWheel<T extends Thread> {
         this.dialPlates = new DialPlate[level];
         this.levelMillis = new long[level];
         for (int i = 0; i < level; i++) {
-            this.dialPlates[i] = new DialPlate<>(this.cells);
+            this.dialPlates[i] = new DialPlate<T>(this.cells);
             this.levelMillis[i] = TimeUnit.SECONDS.toMillis((int) Math.pow(this.cells, i + 1));
         }
         this.total = this.levelMillis[this.level - 1];
@@ -71,6 +71,7 @@ public class TimingWheel<T extends Thread> {
 
     public void submit(T task, long delay, TimeUnit unit) {
         Pair<Pair<Integer, Integer>, Long> compute = compute(delay, unit);
+        // System.out.println(compute);
         Pair<Integer, Integer> indexs = compute.getKey();
         if (indexs == null) {
             throw new CraneBrokerException("Compute index error");
@@ -100,10 +101,10 @@ public class TimingWheel<T extends Thread> {
         long prev = 1L, precell = 0;
         for (int i = 0; i < this.cells; i++) {
 
-            int point = (int) ((seconds % base) / prev);
-            if (delaySecond <= base) {
+            int point = (int) ((seconds % base) / prev); // 28
+            if (delaySecond <= base) { // 4
                 int choosed = (int) ((point + delaySecond / prev + precell / prev) % base);
-                long gap = choosed * prev - (seconds % base);
+                long gap = (choosed * prev - (seconds % base) + base) % base;
                 // 选择表盘id，表格id，在delay队列需要等多久
                 return new Pair<>(new Pair<>(i, choosed), gap);
             }
@@ -131,7 +132,7 @@ public class TimingWheel<T extends Thread> {
                         iterator.remove();
                         if (next.isExpired()) {
                             log.info("Task executed in current seconds {}", TimeUnit.MILLISECONDS.toSeconds(System.currentTimeMillis()));
-                            asyncTaskService.execute(next.getTask());
+                             asyncTaskService.execute(next.getTask());
                         } else {
 
                             long now = TimeUnit.MILLISECONDS.toSeconds(System.currentTimeMillis());

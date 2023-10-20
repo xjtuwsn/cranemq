@@ -22,7 +22,18 @@ public class MQProduceRequest implements PayLoad, Serializable {
     private Message message;
     private MessageQueue writeQueue;
 
+    private long delay;
     public MQProduceRequest(Message message) {
         this.message = message;
+    }
+
+    public MQProduceRequest(Message message, MessageQueue writeQueue) {
+        this.message = message;
+        this.writeQueue = writeQueue;
+    }
+
+    public MQProduceRequest(Message message, long delay) {
+        this.message = message;
+        this.delay = delay;
     }
 }

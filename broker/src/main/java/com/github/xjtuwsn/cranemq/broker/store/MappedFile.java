@@ -135,6 +135,9 @@ public class MappedFile {
         log.info("Begin put message");
         writeLock.lock();
         try {
+            final byte[] idData = innerMessage.getId().getBytes(MQConstant.CHARSETNAME);
+            int idLen = idData.length;
+
             final byte[] topicData = innerMessage.getTopic().getBytes(MQConstant.CHARSETNAME);
             int topicLen = topicData.length;
 
@@ -146,7 +149,9 @@ public class MappedFile {
 
             int queueSelected = innerMessage.getMessageQueue().getQueueId();
 
-            int total = this.calTotalLength(topicLen, tagLen, bodyLen);
+            int retry = innerMessage.getRetry();
+
+            int total = this.calTotalLength(topicLen, tagLen, bodyLen, idLen);
 
             if (this.writePointer.get() + total >= this.fileSize) { // 写不下了
 //                this.sweepThisFile();
@@ -168,11 +173,17 @@ public class MappedFile {
             writeBuffer.putInt(bodyLen);
             writeBuffer.put(body);
 
+            writeBuffer.putInt(idLen);
+            writeBuffer.put(idData);
+
+            writeBuffer.putInt(retry);
+
             writeBuffer.putInt(queueSelected);
 
             writePointer.getAndAdd(total);
             long offset = BrokerUtil.calOffset(this.fileName, pos);
-            this.unCommitEntryList.append(pos, total, innerMessage.getTopic(), queueSelected, innerMessage.getTag());
+            this.unCommitEntryList.append(pos, total, innerMessage.getTopic(), queueSelected, innerMessage.getTag(),
+                    innerMessage.getDelay());
 
 //            writeBuffer.position(pos);
 //            writeBuffer.limit(pos + total);
@@ -198,8 +209,8 @@ public class MappedFile {
             writeLock.unlock();
         }
     }
-    // 总长度int + topic长度int + topic + tag长度int + tag + body长度int + body + 队列号int
-    public Message readSingleMessage(int start) {
+    // 总长度int + topic长度int + topic + tag长度int + tag + body长度int + body + id长度int + id + retry + 队列号int
+    public StoreInnerMessage readSingleMessage(int start) {
         int readPointer = getReadPointer();
         if (start >= readPointer) {
             // log.error("Out of limit");
@@ -207,7 +218,7 @@ public class MappedFile {
         }
         ByteBuffer byteBuffer = this.mappedByteBuffer.slice();
         byteBuffer.position(start);
-        Message message = null;
+        StoreInnerMessage message = null;
 
         try {
             int total = byteBuffer.getInt();
@@ -226,7 +237,15 @@ public class MappedFile {
             byte[] body = new byte[bodySize];
             byteBuffer.get(body);
 
-            message = new Message(topic, tag, body);
+
+            int idSize = byteBuffer.getInt();
+            byte[] idByte = new byte[idSize];
+            byteBuffer.get(idByte);
+            String id = new String(idByte, MQConstant.CHARSETNAME);
+
+            int retry = byteBuffer.getInt();
+            int queueId = byteBuffer.getInt();
+            message = new StoreInnerMessage(topic, tag, id, body, retry, queueId);
 
         } catch (UnsupportedEncodingException e) {
             log.warn("UnsupportedEncodingException in readSingleMessage");
@@ -290,9 +309,9 @@ public class MappedFile {
 
         return list;
     }
-    private int calTotalLength(int topicLen, int tagLen, int bodyLen) {
-        return 4 + 4 + topicLen + 4 + tagLen + 4 + bodyLen + 4;
-        // 总长度int + topic长度int + topic + tag长度int + tag + body长度int + body + 队列号int
+    private int calTotalLength(int topicLen, int tagLen, int bodyLen, int idLen) {
+        return 4 + 4 + topicLen + 4 + tagLen + 4 + bodyLen + 4 + idLen + 4 + 4;
+        // 总长度int + topic长度int + topic + tag长度int + tag + body长度int + body + id长度int + id + retry + 队列号int
     }
 
     public List<CommitEntry> doCommit(boolean force) {
@@ -423,8 +442,8 @@ public class MappedFile {
     class UnCommitEntryList {
         private LinkedBlockingQueue<CommitEntry> commitEntries = new LinkedBlockingQueue<>();
 
-        public void append(int offset, int size, String topic, int queueId, String tag) {
-            commitEntries.offer(new CommitEntry(topic, fileName, queueId, offset, size, tag));
+        public void append(int offset, int size, String topic, int queueId, String tag, long delay) {
+            commitEntries.offer(new CommitEntry(topic, fileName, queueId, offset, size, tag, delay));
         }
 
         public List<CommitEntry> getCommitEntries(int limit) {

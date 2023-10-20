@@ -29,13 +29,13 @@ public class ProducerTest {
                     }
                 },
                 new ThreadPoolExecutor.AbortPolicy());
-        int thread = 10, number = 200000;
+        int thread = 1, number = 10;
 
         DefaultMQProducer producer = new DefaultMQProducer("group_push");
-        producer.bindRegistery("127.0.0.1:11111", RegistryType.DEFAULT);
+        producer.bindRegistery("192.168.227.137:2181", RegistryType.ZOOKEEPER);
         producer.setLoadBalanceStrategy(new RoundRobinStrategy());
         producer.start();
-        byte[] data = new byte[5 * 1024];
+        byte[] data = ("This is as simple message in " + TimeUnit.MILLISECONDS.toSeconds(System.currentTimeMillis())).getBytes();
         Message message1 = new Message("topic1", data);
         for (int i = 0; i < thread; i++) {
             int cur = i;
@@ -43,7 +43,7 @@ public class ProducerTest {
 
                 for (int j = 0; j < number; j++) {
 
-                    producer.send(message1);
+                    producer.send(message1, 10, TimeUnit.SECONDS);
                 }
 
             });

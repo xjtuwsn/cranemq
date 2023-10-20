@@ -56,15 +56,15 @@ public class ZkReadableRegistry extends AbstractZkRegistry implements ReadableRe
     private TopicRouteInfo readTopic(String topic) {
         String path = ROOT + "/" + topic;
         List<String> brokers = readBrokers(path);
+        System.out.println("brokers: " + brokers);
         if (brokers == null || brokers.isEmpty()) {
             return null;
         }
 
         List<BrokerData> brokerDatas = new ArrayList<>();
         for (String broker : brokers) {
-            path += "/" + broker;
-            List<String> ids = readIds(path);
-
+            List<String> ids = readIds(path + "/" + broker);
+            System.out.println("ids : " + ids);
             Map<Integer, String> addresses = new HashMap<>();
             Map<Integer, QueueData> queueDataMap = new HashMap<>();
 
@@ -73,10 +73,9 @@ public class ZkReadableRegistry extends AbstractZkRegistry implements ReadableRe
             }
 
             for (String id : ids) {
-                path += "/" + id;
 
                 int brokerId = Integer.parseInt(id);
-                ZkNodeData data = readData(path);
+                ZkNodeData data = readData(path + "/" + broker + "/" + id);
 
                 if (data == null) {
                     continue;

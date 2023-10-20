@@ -128,6 +128,7 @@ public class RemoteServer implements RemoteService {
             RequestType type = (RequestType) request.getHeader().getCommandType();
             switch (type) {
                 case MESSAGE_PRODUCE_REQUEST:
+                case DELAY_MESSAGE_PRODUCE_REQUEST:
                 case MESSAGE_BATCH_PRODUCE_REAUEST:
                     doProducerMessageProcess(channelHandlerContext, request);
                     break;

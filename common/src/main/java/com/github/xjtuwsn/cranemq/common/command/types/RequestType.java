@@ -10,6 +10,7 @@ public enum RequestType implements Type {
     // 生产消息请求
     MESSAGE_PRODUCE_REQUEST,
     MESSAGE_BATCH_PRODUCE_REAUEST,
+    DELAY_MESSAGE_PRODUCE_REQUEST,
     HEARTBEAT,
     // 向注册中心更新topic请求
     QUERY_TOPIC_REQUEST,

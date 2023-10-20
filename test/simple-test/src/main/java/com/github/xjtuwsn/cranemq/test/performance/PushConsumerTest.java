@@ -7,6 +7,7 @@ import com.github.xjtuwsn.cranemq.common.consumer.MessageModel;
 import com.github.xjtuwsn.cranemq.common.consumer.StartConsume;
 import com.github.xjtuwsn.cranemq.common.entity.ReadyMessage;
 import com.github.xjtuwsn.cranemq.common.remote.RemoteHook;
+import com.github.xjtuwsn.cranemq.common.remote.enums.RegistryType;
 
 import java.util.List;
 import java.util.Random;
@@ -27,19 +28,20 @@ public class PushConsumerTest {
         DefaultPushConsumer.builder()
                 .consumerId("1")
                 .consumerGroup("group_push")
-                .bindRegistry("127.0.0.1:11111")
+                .bindRegistry("192.168.227.137:2181")
                 .messageModel(MessageModel.CLUSTER)
+                .registryType(RegistryType.ZOOKEEPER)
                 .startConsume(StartConsume.FROM_FIRST_OFFSET)
-                .subscribe("topic2", "*")
+                .subscribe("topic1", "*")
                 .messageListener(new CommonMessageListener() {
                     @Override
                     public boolean consume(List<ReadyMessage> messages) {
                         sum.addAndGet(messages.size());
-//                        for (ReadyMessage message : messages) {
-//                            int queueId = message.getQueueId();
-//                            String content = new String(message.getBody());
-//                            System.out.println("queueId: " + queueId + ", content: " + content);
-//                        }
+                        for (ReadyMessage message : messages) {
+                            int queueId = message.getQueueId();
+                            String content = new String(message.getBody());
+                            System.out.println("queueId: " + queueId + ", content: " + content + ", current is " + TimeUnit.MILLISECONDS.toSeconds(System.currentTimeMillis()));
+                        }
                         return true;
                     }
                 }).build().start();

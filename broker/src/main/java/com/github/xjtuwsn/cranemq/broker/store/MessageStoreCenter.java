@@ -4,6 +4,7 @@ import cn.hutool.core.lang.Pair;
 import com.github.xjtuwsn.cranemq.broker.BrokerController;
 import com.github.xjtuwsn.cranemq.broker.store.cmtlog.CommitEntry;
 import com.github.xjtuwsn.cranemq.broker.store.cmtlog.CommitLog;
+import com.github.xjtuwsn.cranemq.broker.store.cmtlog.DelayMessageCommitListener;
 import com.github.xjtuwsn.cranemq.broker.store.cmtlog.RecoveryListener;
 import com.github.xjtuwsn.cranemq.broker.store.comm.PutMessageResponse;
 import com.github.xjtuwsn.cranemq.broker.store.comm.StoreInnerMessage;
@@ -13,6 +14,9 @@ import com.github.xjtuwsn.cranemq.broker.store.flush.FlushDiskService;
 import com.github.xjtuwsn.cranemq.broker.store.flush.SyncFlushDiskService;
 import com.github.xjtuwsn.cranemq.broker.store.queue.ConsumeQueue;
 import com.github.xjtuwsn.cranemq.broker.store.queue.ConsumeQueueManager;
+import com.github.xjtuwsn.cranemq.broker.timer.DelayMessageTask;
+import com.github.xjtuwsn.cranemq.broker.timer.DelayTask;
+import com.github.xjtuwsn.cranemq.broker.timer.TimingWheel;
 import com.github.xjtuwsn.cranemq.common.command.payloads.req.MQCreateTopicRequest;
 import com.github.xjtuwsn.cranemq.common.command.payloads.req.MQSimplePullRequest;
 import com.github.xjtuwsn.cranemq.common.command.payloads.resp.MQSimplePullResponse;
@@ -27,11 +31,15 @@ import com.github.xjtuwsn.cranemq.common.utils.BrokerUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.File;
+import java.io.IOException;
+import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.TimeUnit;
 
 /**
  * @project:cranemq
@@ -48,6 +56,10 @@ public class MessageStoreCenter implements GeneralStoreService {
     private FlushDiskService flushDiskService;
     private TransmitCommitLogService transmitCommitLogService;
 
+    private TimingWheelLog timingWheelLog;
+
+    private TimingWheel<DelayTask> timingWheel;
+
     public MessageStoreCenter(BrokerController brokerController) {
         this.brokerController = brokerController;
         this.persistentConfig = brokerController.getPersistentConfig();
@@ -63,6 +75,8 @@ public class MessageStoreCenter implements GeneralStoreService {
         if (persistentConfig.isEnableOutOfMemory()) {
             this.transmitCommitLogService = new TransmitCommitLogService();
         }
+        this.timingWheel = new TimingWheel<>();
+        this.timingWheelLog = new TimingWheelLog(this.brokerController);
     }
     public PutMessageResponse putMessage(List<StoreInnerMessage> innerMessages) {
         if (innerMessages == null || innerMessages.isEmpty()) {
@@ -104,13 +118,15 @@ public class MessageStoreCenter implements GeneralStoreService {
                 long offset = response.getOffset();
                 int size = response.getSize();
                 putOffsetResp = this.consumeQueueManager.updateOffset(offset, innerMessage.getTopic(),
-                        innerMessage.getQueueId(), size);
+                        innerMessage.getQueueId(), size, innerMessage.getDelay());
             }
             if (putOffsetResp == null) {
                 return new PutMessageResponse(StoreResponseType.PARAMETER_ERROR);
             }
-            this.brokerController.getHoldRequestService().awakeNow(
-                    Arrays.asList(new Pair<>(innerMessage.getTopic(), innerMessage.getQueueId())));
+            if (innerMessage.getDelay() == 0) {
+                this.brokerController.getHoldRequestService().awakeNow(
+                        Arrays.asList(new Pair<>(innerMessage.getTopic(), innerMessage.getQueueId())));
+            }
             // 同步刷盘
             if (putOffsetResp.getResponseType() == StoreResponseType.STORE_OK) {
                 if (persistentConfig.getFlushDisk() == FlushDisk.SYNC) {
@@ -133,10 +149,12 @@ public class MessageStoreCenter implements GeneralStoreService {
 
         for (CommitEntry entry : entries) {
             String topic = entry.getTopic(), tag = entry.getTag();
-            long offset = entry.getOffset();
+            long offset = entry.getOffset(), delay = entry.getDelay();
             int size = entry.getSize(), queueId = entry.getQueueId();
-            queue.add(new Pair<>(topic, queueId));
-            PutMessageResponse response = this.consumeQueueManager.updateOffset(offset, topic, queueId, size);
+            if (delay == 0) {
+                queue.add(new Pair<>(topic, queueId));
+            }
+            PutMessageResponse response = this.consumeQueueManager.updateOffset(offset, topic, queueId, size, delay);
 
             // 同步刷盘
             if (persistentConfig.getFlushDisk() == FlushDisk.SYNC) {
@@ -238,17 +256,17 @@ public class MessageStoreCenter implements GeneralStoreService {
                     persistentConfig.getCommitLogMaxSize());
             MappedFile mappedFileByIndex = commitLog.getMappedFileByIndex(mappedIndex);
             if (mappedFileByIndex == null) {
-                System.out.println(offset);
                  log.warn("Doesnot have this message, problely something wrong, " +
                          "topic {}, queueId {}", topic, queueId);
                 break;
             }
             int offsetInpage = BrokerUtil.offsetInPage(curOffset, persistentConfig.getCommitLogMaxSize());
-            Message message = mappedFileByIndex.readSingleMessage(offsetInpage);
-            if (message == null) {
+            StoreInnerMessage innerMessage = mappedFileByIndex.readSingleMessage(offsetInpage);
+            if (innerMessage == null) {
 //                 log.warn("Read null from mappedfile, offset record error");
                 break;
             }
+            Message message = innerMessage.getMessage();
             readyMessageList.add(new ReadyMessage(brokerController.getBrokerConfig().getBrokerName(),
                     queueId, offset + i, message));
         }
@@ -256,6 +274,21 @@ public class MessageStoreCenter implements GeneralStoreService {
         result = AcquireResultType.DONE;
         return new Pair<>(new Pair<>(readyMessageList, nextOffset), result);
 
+    }
+
+    public StoreInnerMessage readSingleMessage(long offset) {
+        MappedFile firstCommit = commitLog.getFirstMappedFile();
+        String firstCommitName = firstCommit.getFileName();
+        int mappedIndex = BrokerUtil.findMappedIndex(offset, firstCommitName,
+                persistentConfig.getCommitLogMaxSize());
+        MappedFile mappedFileByIndex = commitLog.getMappedFileByIndex(mappedIndex);
+        if (mappedFileByIndex == null) {
+            log.warn("Doesnot have this message, problely something wrong");
+            return null;
+        }
+        int offsetInpage = BrokerUtil.offsetInPage(offset, persistentConfig.getCommitLogMaxSize());
+        StoreInnerMessage message = mappedFileByIndex.readSingleMessage(offsetInpage);
+        return message;
     }
 
     public MQSimplePullResponse simplePullMessage(MQSimplePullRequest mqSimplePullRequest) {
@@ -281,6 +314,17 @@ public class MessageStoreCenter implements GeneralStoreService {
         return response;
     }
 
+    public void onCommitDelayMessage(long commitLogOffset, long queueOffset, String topic, int queueId, long delay) {
+        String id = timingWheelLog.appendLog(topic, commitLogOffset, queueOffset, queueId,
+                delay + TimeUnit.MILLISECONDS.toSeconds(System.currentTimeMillis()));
+        if (id == null) {
+            log.error("Time wheel appendlog error");
+            return;
+        }
+        timingWheel.submit(new DelayMessageTask(brokerController, topic, commitLogOffset, queueOffset, queueId, id),
+                delay, TimeUnit.SECONDS);
+    }
+
     public Map<String, QueueData> getAllQueueData() {
         return this.consumeQueueManager.getAllQueueData();
     }
@@ -292,6 +336,13 @@ public class MessageStoreCenter implements GeneralStoreService {
                 commitLog.recoveryFromQueue(offset, size);
             }
         });
+        this.consumeQueueManager.registerDelayListener(new DelayMessageCommitListener() {
+            @Override
+            public void onCommit(long commitLogOffset, long queueOffset, String topic, int queueId, long delay) {
+                onCommitDelayMessage(commitLogOffset, queueOffset, topic, queueId, delay);
+            }
+        });
+        this.createDir();
         this.consumeQueueManager.start();
         this.commitLog.start();
         if (this.flushDiskService instanceof AsyncFlushDiskService) {
@@ -301,12 +352,45 @@ public class MessageStoreCenter implements GeneralStoreService {
         if (this.transmitCommitLogService != null) {
             this.transmitCommitLogService.start();
         }
+        this.timingWheelLog.start();
     }
 
     @Override
     public void close() {
         this.commitLog.close();
         this.consumeQueueManager.close();
+        this.timingWheelLog.close();
+    }
+
+    private void createDir() {
+        try {
+            File rootFile = new File(persistentConfig.getRootPath());
+            if (!rootFile.exists()) {
+                rootFile.mkdir();
+            }
+            File cmtlogFile = new File(persistentConfig.getCommitLogPath());
+            if (!cmtlogFile.exists()) {
+                cmtlogFile.mkdir();
+            }
+            File queueFile = new File(persistentConfig.getConsumerqueuePath());
+            if (!queueFile.exists()) {
+                queueFile.mkdir();
+            }
+            File delayFile = new File(persistentConfig.getDelayLogPath());
+            if (!delayFile.exists()) {
+                delayFile.mkdir();
+            }
+            File configFile = new File(persistentConfig.getConfigPath());
+            if (!configFile.exists()) {
+                configFile.mkdir();
+            }
+        } catch (Exception e) {
+            log.error("Create dir file error");
+        }
+    }
+
+    public TimingWheelLog getTimingWheelLog() {
+        return timingWheelLog;
     }
 
     public TransmitCommitLogService getTransmitCommitLogService() {

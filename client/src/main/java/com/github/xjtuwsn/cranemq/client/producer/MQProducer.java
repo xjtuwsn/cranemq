@@ -5,6 +5,7 @@ import com.github.xjtuwsn.cranemq.client.producer.result.SendResult;
 import com.github.xjtuwsn.cranemq.common.entity.Message;
 
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 /**
  * @project:cranemq
@@ -19,6 +20,8 @@ public interface MQProducer {
     SendResult send(Message message);
     void send(Message message, boolean oneWay);
     void send(Message message, SendCallback callback);
+
+    SendResult send(Message message, long delay, TimeUnit unit);
 
     SendResult send(List<Message> messages);
     void send(List<Message> messages, boolean oneWay);

@@ -9,6 +9,7 @@ import org.slf4j.LoggerFactory;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.Properties;
+import java.util.UUID;
 
 /**
  * @project:cranemq
@@ -102,5 +103,7 @@ public class BrokerUtil {
     public static String holdRequestKey(String topic, String group, String clientId) {
         return topic + "@" + group + "@" + clientId;
     }
-
+    public static String logId() {
+        return UUID.randomUUID().toString().replaceAll("-", "").substring(0, 16);
+    }
 }

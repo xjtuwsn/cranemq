@@ -17,13 +17,16 @@ public class CommitEntry {
 
     private String tag;
 
-    public CommitEntry(String topic, String fileName, int queueId, int offset, int size, String tag) {
+    private long delay;
+
+    public CommitEntry(String topic, String fileName, int queueId, int offset, int size, String tag, long delay) {
         this.topic = topic;
         this.queueId = queueId;
         this.offset = Long.valueOf(fileName) + offset;
         this.size = size;
         this.tag = tag;
         this.offsetInPage = offset;
+        this.delay = delay;
     }
 
     public int getOffsetInPage() {
@@ -48,6 +51,10 @@ public class CommitEntry {
 
     public String getTag() {
         return tag;
+    }
+
+    public long getDelay() {
+        return delay;
     }
 
     @Override

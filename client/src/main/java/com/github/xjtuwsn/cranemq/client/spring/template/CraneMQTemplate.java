@@ -18,6 +18,7 @@ import java.io.UnsupportedEncodingException;
 import java.time.temporal.TemporalAccessor;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 /**
  * @project:cranemq
@@ -98,6 +99,12 @@ public class CraneMQTemplate {
         return defaultMQProducer.send(message, selector, arg);
 
 
+    }
+    public<T> SendResult send(String topic, String tag, T data, long delay, TimeUnit unit) {
+        check(topic, tag, data);
+        byte[] body = getByteData(data);
+        Message message = new Message(topic, tag, body);
+        return defaultMQProducer.send(message, delay, unit);
     }
 
     private<T> byte[] getByteData(T data) {
