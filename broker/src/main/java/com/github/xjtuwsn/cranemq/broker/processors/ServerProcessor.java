@@ -6,6 +6,7 @@ import com.github.xjtuwsn.cranemq.common.command.payloads.resp.*;
 import com.github.xjtuwsn.cranemq.common.command.types.*;
 import com.github.xjtuwsn.cranemq.common.entity.Message;
 import com.github.xjtuwsn.cranemq.common.entity.MessageQueue;
+import com.github.xjtuwsn.cranemq.common.entity.ReadyMessage;
 import com.github.xjtuwsn.cranemq.common.remote.enums.ConnectionEventType;
 import com.github.xjtuwsn.cranemq.common.remote.event.ConnectionEvent;
 import com.github.xjtuwsn.cranemq.common.remote.RemoteServer;
@@ -227,5 +228,31 @@ public class ServerProcessor implements BaseProcessor {
         RemoteCommand response = new RemoteCommand(responseHeader, mqLockRespnse);
 
         ctx.writeAndFlush(response);
+    }
+
+    @Override
+    public void processSendBackRequest(ChannelHandlerContext ctx, RemoteCommand remoteCommand) {
+        Header header = remoteCommand.getHeader();
+        MQSendBackRequest mqSendBackRequest = (MQSendBackRequest) remoteCommand.getPayLoad();
+        String groupName = mqSendBackRequest.getGroupName();
+        List<ReadyMessage> readyMessages = mqSendBackRequest.getReadyMessages();
+        for (ReadyMessage readyMessage : readyMessages) {
+            int retry = readyMessage.getRetry();
+            StoreInnerMessage storeInnerMessage = new StoreInnerMessage(readyMessage, header.getCorrelationId(), 0);
+            String topic = "";
+            MessageQueue messageQueue = null;
+            if (retry > brokerController.getBrokerConfig().getMaxRetryTime()) { // 死信队列
+                topic = MQConstant.DLQ_PREFIX + groupName;
+            } else {   // 根据等级设置时间重试
+                topic = MQConstant.RETRY_PREFIX + groupName;
+                storeInnerMessage.setDelay(brokerController.getBrokerConfig().delayTime(retry));
+            }
+            storeInnerMessage.setRetry(retry);
+            brokerController.getMessageStoreCenter().checkDlqAndRetry(topic);
+            messageQueue = new MessageQueue(topic, brokerController.getBrokerConfig().getBrokerName(), 0);
+            storeInnerMessage.setMessageQueue(messageQueue);
+            brokerController.getMessageStoreCenter().putMessage(storeInnerMessage);
+        }
+
     }
 }

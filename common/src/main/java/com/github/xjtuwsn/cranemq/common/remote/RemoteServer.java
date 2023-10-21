@@ -158,6 +158,9 @@ public class RemoteServer implements RemoteService {
                     break;
                 case UPDATE_TOPIC_REQUEST:
                     doUpdateTopicProcess(channelHandlerContext, request);
+                    break;
+                case SEND_MESSAGE_BACK:
+                    doSednBackProcess(channelHandlerContext, request);
                 default:
                     break;
             }
@@ -242,6 +245,15 @@ public class RemoteServer implements RemoteService {
             if (pool != null) {
                 pool.execute(() -> {
                     serverProcessor.processUpdateRequest(ctx, remoteCommand);
+                });
+            }
+        }
+
+        private void doSednBackProcess(ChannelHandlerContext ctx, RemoteCommand remoteCommand) {
+            ExecutorService pool = getThreadPool(HandlerType.SEND_BACK);
+            if (pool != null) {
+                pool.execute(() -> {
+                    serverProcessor.processSendBackRequest(ctx, remoteCommand);
                 });
             }
         }

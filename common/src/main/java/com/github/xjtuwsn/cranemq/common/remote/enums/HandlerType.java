@@ -15,5 +15,6 @@ public enum HandlerType {
     PULL,
     RECORD_OFFSET,
     QUERY_INFO,
-    UPDATE_INFO
+    UPDATE_INFO,
+    SEND_BACK
 }

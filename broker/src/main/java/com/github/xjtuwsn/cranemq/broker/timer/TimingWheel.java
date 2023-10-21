@@ -26,7 +26,7 @@ public class TimingWheel<T extends Thread> {
 
     private int cells;
 
-    private DialPlate[] dialPlates;
+    private DialPlate<T>[] dialPlates;
 
     private long[] levelMillis;
 

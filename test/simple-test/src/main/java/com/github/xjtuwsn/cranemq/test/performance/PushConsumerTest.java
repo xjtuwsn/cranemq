@@ -40,9 +40,11 @@ public class PushConsumerTest {
                         for (ReadyMessage message : messages) {
                             int queueId = message.getQueueId();
                             String content = new String(message.getBody());
-                            System.out.println("queueId: " + queueId + ", content: " + content + ", current is " + TimeUnit.MILLISECONDS.toSeconds(System.currentTimeMillis()));
+                            System.out.println("queueId: " + queueId + ", content: " + content +
+                                    ", current is " + TimeUnit.MILLISECONDS.toSeconds(System.currentTimeMillis()) +
+                                    ", retry: " + message.getRetry());
                         }
-                        return true;
+                        return false;
                     }
                 }).build().start();
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {

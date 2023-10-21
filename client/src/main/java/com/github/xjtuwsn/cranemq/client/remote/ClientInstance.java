@@ -193,14 +193,16 @@ public class ClientInstance {
     }
 
     private void registerProcessors() {
-        if (this.producerRegister != null && this.producerRegister.size() != 0) {
-            this.remoteClent.registerProcessor(ClientType.PRODUCER, new PruducerProcessor(this));
-        }
-        if (this.pullConsumerRegister != null && this.pullConsumerRegister.size() != 0
-                || this.pushConsumerRegister != null && this.pushConsumerRegister.size() != 0) {
-
-            this.remoteClent.registerProcessor(ClientType.CONSUMER, new ConsumerProcessor(this));
-        }
+//        if (this.producerRegister != null && this.producerRegister.size() != 0) {
+//            this.remoteClent.registerProcessor(ClientType.PRODUCER, new PruducerProcessor(this));
+//        }
+//        if (this.pullConsumerRegister != null && this.pullConsumerRegister.size() != 0
+//                || this.pushConsumerRegister != null && this.pushConsumerRegister.size() != 0) {
+//
+//            this.remoteClent.registerProcessor(ClientType.CONSUMER, new ConsumerProcessor(this));
+//        }
+        this.remoteClent.registerProcessor(ClientType.CONSUMER, new ConsumerProcessor(this));
+        this.remoteClent.registerProcessor(ClientType.PRODUCER, new PruducerProcessor(this));
         this.remoteClent.registerProcessor(ClientType.BOTH, new CommonProcessor(this));
     }
     private String pickOneRegistryAddress() {

@@ -46,6 +46,8 @@ public class BrokerController implements GeneralStoreService {
     private ExecutorService handleHeartBeatService;
     private ExecutorService handlePullService;
     private ExecutorService handleOffsetService;
+
+    private ExecutorService sendBackService;
     private ScheduledExecutorService saveOffsetService;
 
     private ScheduledExecutorService heartBeatSendService;
@@ -73,6 +75,7 @@ public class BrokerController implements GeneralStoreService {
         } else if (this.brokerConfig.getRegistryType() == RegistryType.ZOOKEEPER) {
             this.writableRegistry = new ZkWritableRegistry(this.brokerConfig.getRegistrys());
         }
+        this.brokerConfig.initRetry();
         this.initThreadPool();
         this.registerThreadPool();
         return true;
@@ -84,6 +87,7 @@ public class BrokerController implements GeneralStoreService {
         this.remoteServer.registerThreadPool(HandlerType.SIMPLE_PULL, this.simplePullService);
         this.remoteServer.registerThreadPool(HandlerType.PULL, this.handlePullService);
         this.remoteServer.registerThreadPool(HandlerType.RECORD_OFFSET, this.handleOffsetService);
+        this.remoteServer.registerThreadPool(HandlerType.SEND_BACK, this.sendBackService);
     }
     private void initThreadPool() {
         this.producerMessageService = new ThreadPoolExecutor(coreSize, maxSize,
@@ -138,6 +142,15 @@ public class BrokerController implements GeneralStoreService {
                     @Override
                     public Thread newThread(Runnable r) {
                         return new Thread(r, "Record Offset Service NO." + idx.getAndIncrement());
+                    }
+                });
+        this.sendBackService = new ThreadPoolExecutor(coreSize / 3, maxSize / 3,
+                60L, TimeUnit.SECONDS, new LinkedBlockingDeque<>(3000),
+                new ThreadFactory() {
+                    AtomicInteger idx = new AtomicInteger(0);
+                    @Override
+                    public Thread newThread(Runnable r) {
+                        return new Thread(r, "Send Back Service NO." + idx.getAndIncrement());
                     }
                 });
         this.saveOffsetService = new ScheduledThreadPoolExecutor(1);

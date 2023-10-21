@@ -25,6 +25,7 @@ import com.github.xjtuwsn.cranemq.common.command.payloads.req.MQPullMessageReque
 import com.github.xjtuwsn.cranemq.common.command.types.AcquireResultType;
 import com.github.xjtuwsn.cranemq.common.command.types.RequestType;
 import com.github.xjtuwsn.cranemq.common.command.types.RpcType;
+import com.github.xjtuwsn.cranemq.common.constant.MQConstant;
 import com.github.xjtuwsn.cranemq.common.consumer.MessageModel;
 import com.github.xjtuwsn.cranemq.common.consumer.StartConsume;
 import com.github.xjtuwsn.cranemq.common.consumer.SubscriptionInfo;
@@ -81,6 +82,8 @@ public class DefaultPushConsumerImpl {
 
     }
     public void start() {
+        String retryTopic = MQConstant.RETRY_PREFIX + this.defaultPushConsumer.getConsumerGroup();
+        this.subscribe(retryTopic, "*");
         this.clientId = TopicUtil.buildClientID("push_consumer") + defaultPushConsumer.getId();
         this.clientInstance = ClienFactory.newInstance().getOrCreate(clientId, hook);
         this.messageListener = defaultPushConsumer.getMessageListener();

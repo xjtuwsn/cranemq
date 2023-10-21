@@ -12,6 +12,10 @@ public class MQConstant {
     public static final String DEFAULT_CONSUMER_GROUP = "default-consumer";
 
     public static final String DELAY_TOPIC_NAME = "DELAY_TOPIC";
+
+    public static final String RETRY_PREFIX = "RETRY_TOPIC-";
+
+    public static final String DLQ_PREFIX = "DLQ_TOPIC-";
     public static final long RESPONSE_TIMEOUT_MILLS = 3000;
     public static final long MAX_PULL_TIMEOUT_MILLS = 3000;
 

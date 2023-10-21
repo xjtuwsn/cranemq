@@ -32,18 +32,17 @@ import java.util.concurrent.atomic.AtomicInteger;
  * @author:wsn
  * @create:2023/10/12-14:36
  */
-public class OrderedConsumeMessageService implements ConsumeMessageService {
+public class OrderedConsumeMessageService extends AbstractReputMessageService {
     private static final Logger log = LoggerFactory.getLogger(OrderedConsumeMessageService.class);
 
     private ExecutorService asyncDispatchService;
     private OrderedMessageListener listener;
-    private DefaultPushConsumerImpl defaultPushConsumer;
     private ScheduledExecutorService renewLockTimer;
 
     private String group;
 
     public OrderedConsumeMessageService(MessageListener listener, DefaultPushConsumerImpl defaultPushConsumer) {
-        this.defaultPushConsumer = defaultPushConsumer;
+        super(defaultPushConsumer);
         this.group = defaultPushConsumer.getDefaultPushConsumer().getConsumerGroup();
         this.listener = (OrderedMessageListener) listener;
         this.asyncDispatchService = new ThreadPoolExecutor(COUSMER_CORE_SIZE, COUSMER_MAX_SIZE, 60L, TimeUnit.SECONDS,

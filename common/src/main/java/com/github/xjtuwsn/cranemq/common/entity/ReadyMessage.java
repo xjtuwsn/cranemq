@@ -18,11 +18,13 @@ public class ReadyMessage extends Message {
     private String brokerName;
     private int queueId;
     private long offset;
-    public ReadyMessage(String brokerName, int queueId, long offset, Message message) {
+    private int retry;
+    public ReadyMessage(String brokerName, int queueId, long offset, Message message, int retry) {
         super(message);
         this.brokerName = brokerName;
         this.queueId = queueId;
         this.offset = offset;
+        this.retry = retry;
     }
 
     public boolean matchs(String topic, String tag) {
@@ -31,4 +33,5 @@ public class ReadyMessage extends Message {
         }
         return true;
     }
+
 }

@@ -22,6 +22,13 @@ public class StoreInnerMessage {
     private long delay;
 
     private int retry;
+    public StoreInnerMessage(Message message, String id, long delay) {
+        this.topic = message.getTopic();
+        this.tag = message.getTag();
+        this.body = message.getBody();
+        this.id = id;
+        this.delay = delay;
+    }
 
     public StoreInnerMessage(Message message, MessageQueue messageQueue, String id, long delay) {
         this.messageQueue = messageQueue;
@@ -80,5 +87,25 @@ public class StoreInnerMessage {
 
     public void setTopic(String topic) {
         this.topic = topic;
+    }
+
+    public void setDelay(long delay) {
+        this.delay = delay;
+    }
+
+    public void setRetry(int retry) {
+        this.retry = retry;
+    }
+
+    @Override
+    public String toString() {
+        return "StoreInnerMessage{" +
+                "topic='" + topic + '\'' +
+                ", tag='" + tag + '\'' +
+                ", id='" + id + '\'' +
+                ", queueId=" + queueId +
+                ", delay=" + delay +
+                ", retry=" + retry +
+                '}';
     }
 }

@@ -30,6 +30,8 @@ import org.slf4j.LoggerFactory;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
@@ -50,11 +52,11 @@ public class RebalanceService {
 
     private ClientInstance clientInstance;
 
-
+    private ScheduledExecutorService doRebalanceTimer;
 
     public RebalanceService(ClientInstance clientInstance) {
         this.clientInstance = clientInstance;
-
+        this.doRebalanceTimer = new ScheduledThreadPoolExecutor(1);
     }
     public void updateConsumerGroup(MQNotifyChangedResponse response) {
         String group = response.getConsumerGroup();
@@ -202,6 +204,11 @@ public class RebalanceService {
     }
 
     public void start() {
+        this.doRebalanceTimer.scheduleAtFixedRate(() -> {
+            for (Map.Entry<String, Set<String>> entry : groupConsumerTable.entrySet()) {
+                rebalanceNow(entry.getKey());
+            }
+        }, 10 * 1000, 20 * 1000, TimeUnit.MILLISECONDS);
     }
     public void shutdown() {
 

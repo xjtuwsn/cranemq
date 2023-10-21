@@ -22,6 +22,7 @@ public enum RequestType implements Type {
     QUERY_INFO,
     RECORD_OFFSET,
     LOCK_REQUEST,
-    UPDATE_TOPIC_REQUEST
+    UPDATE_TOPIC_REQUEST,
+    SEND_MESSAGE_BACK
 
 }

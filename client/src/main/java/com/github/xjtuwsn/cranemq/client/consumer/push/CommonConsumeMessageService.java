@@ -18,16 +18,15 @@ import java.util.concurrent.atomic.AtomicInteger;
  * @author:wsn
  * @create:2023/10/09-11:02
  */
-public class CommonConsumeMessageService implements ConsumeMessageService {
+public class CommonConsumeMessageService extends AbstractReputMessageService {
     private static final Logger log = LoggerFactory.getLogger(CommonConsumeMessageService.class);
 
     private ExecutorService asyncDispatchService;
     private CommonMessageListener listener;
-    private DefaultPushConsumerImpl defaultPushConsumer;
 
     public CommonConsumeMessageService(MessageListener listener, DefaultPushConsumerImpl defaultPushConsumer) {
+        super(defaultPushConsumer);
         this.listener = (CommonMessageListener) listener;
-        this.defaultPushConsumer = defaultPushConsumer;
         this.asyncDispatchService = new ThreadPoolExecutor(COUSMER_CORE_SIZE, COUSMER_MAX_SIZE, 60L,
                 TimeUnit.SECONDS, new LinkedBlockingDeque<>(2000),
                 new ThreadFactory() {
@@ -61,6 +60,8 @@ public class CommonConsumeMessageService implements ConsumeMessageService {
                     long lowestOfsset = snapShot.removeMessages(messages);
                     this.defaultPushConsumer.getOffsetManager().record(messageQueue, lowestOfsset,
                             this.defaultPushConsumer.getDefaultPushConsumer().getConsumerGroup());
+                } else {
+                    this.sendMessageBackToBroker(messages, false);
                 }
             });
         }

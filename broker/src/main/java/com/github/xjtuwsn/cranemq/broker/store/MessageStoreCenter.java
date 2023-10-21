@@ -175,6 +175,13 @@ public class MessageStoreCenter implements GeneralStoreService {
         return consumeQueueManager.createQueue(topic, writeNumber, readNumber);
     }
 
+    public void checkDlqAndRetry(String topic) {
+        if (!consumeQueueManager.containsTopic(topic)) {
+            consumeQueueManager.createQueue(topic, 1, 1);
+            this.brokerController.updateRegistry();
+        }
+    }
+
     public int getQueueNumber(String topic) {
         int queueNumber = consumeQueueManager.getQueueNumber(topic);
         if (queueNumber == -1) {
@@ -268,7 +275,7 @@ public class MessageStoreCenter implements GeneralStoreService {
             }
             Message message = innerMessage.getMessage();
             readyMessageList.add(new ReadyMessage(brokerController.getBrokerConfig().getBrokerName(),
-                    queueId, offset + i, message));
+                    queueId, offset + i, message, innerMessage.getRetry()));
         }
 
         result = AcquireResultType.DONE;
@@ -313,16 +320,17 @@ public class MessageStoreCenter implements GeneralStoreService {
         response.setMessages(readyMessageList);
         return response;
     }
-
-    public void onCommitDelayMessage(long commitLogOffset, long queueOffset, String topic, int queueId, long delay) {
-        String id = timingWheelLog.appendLog(topic, commitLogOffset, queueOffset, queueId,
-                delay + TimeUnit.MILLISECONDS.toSeconds(System.currentTimeMillis()));
+    public void onCommitDelayMessage(long commitLogOffset, long queueOffset, String topic, int queueId, long delay, String id) {
         if (id == null) {
             log.error("Time wheel appendlog error");
             return;
         }
         timingWheel.submit(new DelayMessageTask(brokerController, topic, commitLogOffset, queueOffset, queueId, id),
                 delay, TimeUnit.SECONDS);
+    }
+    public void onCommitDelayMessage(long commitLogOffset, long queueOffset, String topic, int queueId, long delay) {
+        String id = timingWheelLog.appendLog(topic, commitLogOffset, queueOffset, queueId, delay);
+        this.onCommitDelayMessage(commitLogOffset, queueOffset, topic, queueId, delay, id);
     }
 
     public Map<String, QueueData> getAllQueueData() {

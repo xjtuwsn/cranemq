@@ -213,7 +213,6 @@ public class TimingWheelLog {
                     buffer.position(pos);
                     int size = buffer.getInt();
                     pos += size;
-                    System.out.println(size);
                     if (size == 0) {
                         if (choosed == i) {
                             this.writePointer.set(pos);
@@ -247,7 +246,7 @@ public class TimingWheelLog {
 
 
 
-                    DelayInfo delayInfo = new DelayInfo(id, topic, commitOffset, queueOffset, queueId, expiration, i);
+                    DelayInfo delayInfo = new DelayInfo(topic, id, commitOffset, queueOffset, queueId, expiration, i);
                     infoMap.put(id, delayInfo);
                 }
             }
@@ -261,15 +260,32 @@ public class TimingWheelLog {
         for (Map.Entry<String, DelayInfo> entry : infoMap.entrySet()) {
             DelayInfo info = entry.getValue();
             long second = info.remain();
+            mask[info.index] = true;
             if (second <= 0) {
                 // 已过期且未提交，立即执行
                 this.recoveryService.execute(new DelayMessageTask(brokerController, info.topic, info.commitLogOffset,
                         info.delayQueueOffset, info.queueId, info.id));
+                log.info("This task has expiread, will execute now");
             } else {
                 // 未提交，未过期，调整延时时间重新执行，且标记为不能删除，最后没有标记的文件清空
+
+                log.info("Resubmit delay task, remain {} second to excute", second);
+                this.brokerController.getMessageStoreCenter().onCommitDelayMessage(info.commitLogOffset, info.delayQueueOffset,
+                        info.topic, info.queueId, second, info.id);
+
             }
         }
-
+        // 清空没有待恢复任务的文件
+        for (int i = 0; i < FILE_NUMBER; i++) {
+            if (!mask[i]) {
+                try {
+                    log.info("Time wheel log file {} should be cleared", i);
+                    clear(i);
+                } catch (IOException e) {
+                    log.error("Clear time wheel log file {} error", i);
+                }
+            }
+        }
     }
 
     private void loadFile(int i) {
@@ -354,6 +370,19 @@ public class TimingWheelLog {
 
         public long remain() {
             return this.expiration - TimeUnit.MILLISECONDS.toSeconds(System.currentTimeMillis());
+        }
+
+        @Override
+        public String toString() {
+            return "DelayInfo{" +
+                    "topic='" + topic + '\'' +
+                    ", id='" + id + '\'' +
+                    ", commitLogOffset=" + commitLogOffset +
+                    ", delayQueueOffset=" + delayQueueOffset +
+                    ", queueId=" + queueId +
+                    ", expiration=" + expiration +
+                    ", index=" + index +
+                    '}';
         }
     }
 }

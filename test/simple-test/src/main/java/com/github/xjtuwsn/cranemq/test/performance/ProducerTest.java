@@ -29,7 +29,7 @@ public class ProducerTest {
                     }
                 },
                 new ThreadPoolExecutor.AbortPolicy());
-        int thread = 1, number = 10;
+        int thread = 1, number = 1;
 
         DefaultMQProducer producer = new DefaultMQProducer("group_push");
         producer.bindRegistery("192.168.227.137:2181", RegistryType.ZOOKEEPER);
@@ -43,7 +43,7 @@ public class ProducerTest {
 
                 for (int j = 0; j < number; j++) {
 
-                    producer.send(message1, 10, TimeUnit.SECONDS);
+                    producer.send(message1);
                 }
 
             });

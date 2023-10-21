@@ -48,6 +48,8 @@ public interface BaseProcessor {
     default void processRecordOffsetRequest(ChannelHandlerContext ctx, RemoteCommand remoteCommand) {}
     default void processLockRequest(ChannelHandlerContext ctx, RemoteCommand remoteCommand) {}
 
+    default void processSendBackRequest(ChannelHandlerContext ctx, RemoteCommand remoteCommand) {}
+
     // ---------------------- Registry ----------------------
 
     default void processQueryRouteRequest(ChannelHandlerContext ctx, RemoteCommand remoteCommand) {}
