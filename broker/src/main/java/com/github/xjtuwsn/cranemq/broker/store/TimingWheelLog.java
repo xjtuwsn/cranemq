@@ -30,6 +30,10 @@ import java.util.concurrent.atomic.AtomicLong;
  * @author:wsn
  * @create:2023/10/20-10:45
  */
+
+/**
+ * 持久化延迟消息日志
+ */
 public class TimingWheelLog {
 
     private static final Logger log = LoggerFactory.getLogger(TimingWheelLog.class);
