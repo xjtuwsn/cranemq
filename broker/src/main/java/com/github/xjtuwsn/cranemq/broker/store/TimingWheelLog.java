@@ -32,18 +32,21 @@ import java.util.concurrent.atomic.AtomicLong;
  */
 
 /**
- * 持久化延迟消息日志
+ * 持久化延迟消息日志，使得服务器宕机重启后能够继续延时任务
  */
 public class TimingWheelLog {
 
     private static final Logger log = LoggerFactory.getLogger(TimingWheelLog.class);
+    // 持久化日志数量
     private static final int FILE_NUMBER = 2;
-
+    // 文件名
     private static final String LOGFILE_0 = "timingwheel0";
     private static final String LOGFILE_1 = "timingwheel1";
-
+    // 记录整体创建时间的文件，用于实现日志文件切换
     private static final String CREATELOG = "createtime";
+    // 每8小时交换一次
     private static final int EXCHANGE_GAP = 8 * 60 * 60; // s
+    // 日志记录种类
     private static final int COMMON_LOG = 0;
     private static final int FINISH_LOG = 1;
     public int fileSize;
@@ -57,11 +60,14 @@ public class TimingWheelLog {
     private FileChannel[] fileChannels;
     private MappedByteBuffer[] mappedByteBuffers;
     private BrokerController brokerController;
+    // 写指针
     private AtomicInteger writePointer;
+    // 读指针
     private AtomicInteger flushPointer;
 
+    // 定期刷盘
     private ScheduledExecutorService asyncFlushService;
-
+    // 恢复时立即执行使用的线程池
     private ExecutorService recoveryService;
 
     public TimingWheelLog(BrokerController brokerController) {
@@ -86,11 +92,13 @@ public class TimingWheelLog {
     }
 
     public void start() {
+        // 加载所有日志文件
         for (int i = 0; i < FILE_NUMBER; i++) {
            loadFile(i);
         }
         File createTimeFile = new File(brokerController.getPersistentConfig().getDelayLogPath() + CREATELOG);
         try {
+            // 如果记录时间的文件不存在，就新建
             if (!createTimeFile.exists()) {
 
                 createTimeFile.createNewFile();
@@ -102,6 +110,7 @@ public class TimingWheelLog {
                 fileChannel.write(buffer);
                 fileChannel.force(false);
                 fileChannel.close();
+                // 存在的化就读取记录的时间
             } else {
                 FileChannel fileChannel = new RandomAccessFile(createTimeFile, "rw").getChannel();
                 ByteBuffer buffer = ByteBuffer.allocate(8);
@@ -114,16 +123,32 @@ public class TimingWheelLog {
             log.error("Read create time log file error");
         }
         log.info("TimingWheelLog start successfully");
+        // 定期刷盘
         this.asyncFlushService.scheduleAtFixedRate(() -> {
             flush();
         }, 100, 5 * 1000, TimeUnit.MILLISECONDS);
+
+        // 恢复延迟任务
         recovery();
     }
 
+    /**
+     * 向延迟任务日志写入任务信息
+     * @param topic 当前执行延迟消息的topic，也就是delay之后投递的topic
+     * @param commitOffset 该消息在commitLog中的offset
+     * @param delayQueueOffset 在延迟队列中的offset
+     * @param queueId 将要投递的queueId
+     * @param delay 延迟时间
+     * @return 返回唯一标识id
+     */
     public synchronized String appendLog(String topic, long commitOffset, long delayQueueOffset, int queueId, long delay) {
+
+        //       total+type+idsize+id+topicsize+topic+cooff+quoff+queue+delay
+        // 写入的buffer
         ByteBuffer buffer = this.mappedByteBuffers[index()].slice();
 
         try {
+            // 本次日志id
             String id = BrokerUtil.logId();
             byte[] idData = id.getBytes(MQConstant.CHARSETNAME);
             int idSize = idData.length;
@@ -131,29 +156,41 @@ public class TimingWheelLog {
             int topicSize = topicData.length;
             long expira = TimeUnit.MILLISECONDS.toSeconds(System.currentTimeMillis()) + delay;
 
+            // 表明日志类型为记录任务
             int type = COMMON_LOG;
 
+            // 总长度
             int total = 4 + 4 + 4 + idSize + 4 + topicSize + 8 + 8 + 4 + 8;
-            //       total+type+idsize+id+topicsize+topic+cooff+quoff+queue+delay
+
+            // 当前位置
             int pos = writePointer.get();
             buffer.position(pos);
 
+            // 写入总长度
             buffer.putInt(total);
 
+            // 写入类型
             buffer.putInt(type);
 
+            // 写入id长度与id数据
             buffer.putInt(idSize);
             buffer.put(idData);
 
+            // 写入topic长度与topic数据
             buffer.putInt(topicSize);
             buffer.put(topicData);
 
+            // 写入commitLog偏移
             buffer.putLong(commitOffset);
+            // 写入延迟队列偏移
             buffer.putLong(delayQueueOffset);
+            // 写入将写入队列id
             buffer.putInt(queueId);
 
+            // 写入最后总过期时间
             buffer.putLong(expira);
 
+            // 更新写指针
             writePointer.getAndAdd(total);
             return id;
 
@@ -163,6 +200,10 @@ public class TimingWheelLog {
         return null;
     }
 
+    /**
+     * 写入提交日志
+     * @param id 将要提交的日志id
+     */
     public synchronized void finishLog(String id) {
         ByteBuffer buffer = this.mappedByteBuffers[index()].slice();
         try {
@@ -175,10 +216,13 @@ public class TimingWheelLog {
 
             buffer.position(pos);
 
+            // 写入总长度
             buffer.putInt(total);
 
+            // 写入type
             buffer.putInt(type);
 
+            // 写入id长度和数据
             buffer.putInt(idSize);
             buffer.put(idData);
 
@@ -189,9 +233,18 @@ public class TimingWheelLog {
             log.error("UnsupportedEncodingException in finish log");
         }
     }
+
+    /**
+     * 刷盘
+     */
     private void flush() {
         flush(index());
     }
+
+    /**
+     * 刷新指定文件
+     * @param index 文件索引
+     */
     private void flush(int index) {
         int cur = writePointer.get();
         int last = flushPointer.get();
@@ -204,19 +257,29 @@ public class TimingWheelLog {
     }
     //  total+type+idsize+id+topicsize+topic+cooff+quoff+queue+delay
     //  total+type+idsize+id
+
+    /**
+     * broker重启时从日志中恢复未完成的延迟任务
+     */
     private void recovery() {
+        // 任务日志列表 id: info
         Map<String, DelayInfo> infoMap = new HashMap<>();
+        // 已提交日志ids
         Set<String> commitIds = new HashSet<>();
 
+        // 当前选择的日志索引
         int choosed = index();
         try {
+            // 遍历日志进行读取
             for (int i = 0; i < FILE_NUMBER; i++) {
                 int pos = 0;
                 ByteBuffer buffer = mappedByteBuffers[i].slice();
                 while (true) {
                     buffer.position(pos);
+                    // 先读总长度
                     int size = buffer.getInt();
                     pos += size;
+                    // 已读完
                     if (size == 0) {
                         if (choosed == i) {
                             this.writePointer.set(pos);
@@ -224,6 +287,7 @@ public class TimingWheelLog {
                         }
                         break;
                     }
+                    // 读取其他信息
                     int type = buffer.getInt();
 
                     int idSize = buffer.getInt();
@@ -231,6 +295,7 @@ public class TimingWheelLog {
                     buffer.get(idData);
                     String id = new String(idData, MQConstant.CHARSETNAME);
 
+                    // 如果是提交日志就不继续
                     if (type == FINISH_LOG) {
                         commitIds.add(id);
                         continue;
@@ -248,8 +313,7 @@ public class TimingWheelLog {
 
                     long expiration = buffer.getLong();
 
-
-
+                    // 封装delay信息
                     DelayInfo delayInfo = new DelayInfo(topic, id, commitOffset, queueOffset, queueId, expiration, i);
                     infoMap.put(id, delayInfo);
                 }
@@ -257,23 +321,27 @@ public class TimingWheelLog {
         } catch (UnsupportedEncodingException e) {
             log.error("UnsupportedEncodingException in recovery");
         }
+        // 将所有已经commit的日志从map中删除
         for (String id : commitIds) {
             infoMap.remove(id);
         }
+        // 记录哪个日志文件可以清空
         boolean[] mask = new boolean[FILE_NUMBER];
         for (Map.Entry<String, DelayInfo> entry : infoMap.entrySet()) {
             DelayInfo info = entry.getValue();
+            // 该任务剩余时间
             long second = info.remain();
+            // 标记为不能删除，最后没有标记的文件清空
             mask[info.index] = true;
             if (second <= 0) {
                 // 已过期且未提交，立即执行
                 this.recoveryService.execute(new DelayMessageTask(brokerController, info.topic, info.commitLogOffset,
                         info.delayQueueOffset, info.queueId, info.id));
-                log.info("This task has expiread, will execute now");
+                log.info("This task has expired, will execute now");
             } else {
-                // 未提交，未过期，调整延时时间重新执行，且标记为不能删除，最后没有标记的文件清空
+                // 未提交，未过期，调整延时时间重新执行，且
 
-                log.info("Resubmit delay task, remain {} second to excute", second);
+                log.info("Resubmit delay task, remain {} second to execute", second);
                 this.brokerController.getMessageStoreCenter().onCommitDelayMessage(info.commitLogOffset, info.delayQueueOffset,
                         info.topic, info.queueId, second, info.id);
 
@@ -285,6 +353,10 @@ public class TimingWheelLog {
                 try {
                     log.info("Time wheel log file {} should be cleared", i);
                     clear(i);
+                    if (i == choosed) {
+                        this.writePointer.set(0);
+                        this.flushPointer.set(0);
+                    }
                 } catch (IOException e) {
                     log.error("Clear time wheel log file {} error", i);
                 }
@@ -292,6 +364,10 @@ public class TimingWheelLog {
         }
     }
 
+    /**
+     * 加载指定文件
+     * @param i 索引
+     */
     private void loadFile(int i) {
         filePath[i] = brokerController.getPersistentConfig().getDelayLogPath() + fileName[i];
         files[i] = new File(filePath[i]);
@@ -307,10 +383,16 @@ public class TimingWheelLog {
             log.error("Create new timing whell log file error");
         }
     }
+
+    /**
+     * 计算当前该使用哪个文件，根据和初始时间的差来计算
+     * @return 索引
+     */
     private int index() {
         long cur = System.currentTimeMillis();
         long gap = cur - createTime;
         int index = (int) ((TimeUnit.MILLISECONDS.toSeconds(gap) / EXCHANGE_GAP) % 2);
+        // 做文件切换
         if (index != lastIndex) {
             doSwap(index);
         }
@@ -318,6 +400,10 @@ public class TimingWheelLog {
 
     }
 
+    /**
+     * 切换使用的文件
+     * @param index 索引
+     */
     private synchronized void doSwap(int index) {
         if (lastIndex == -1) {
             lastIndex = index;
@@ -325,17 +411,26 @@ public class TimingWheelLog {
             if (index == lastIndex) {
                 return;
             }
+            // 先刷盘当前文件
             flush(lastIndex);
             lastIndex = index;
             try {
+                // 情况要使用的文件
                 clear(index);
             } catch (IOException e) {
                 log.error("Clear last file error");
             }
+            // 重置指针
             writePointer.set(0);
             flushPointer.set(0);
         }
     }
+
+    /**
+     * 清空，重新加载
+     * @param index
+     * @throws IOException
+     */
     private void clear(int index) throws IOException {
         fileChannels[index].close();
         files[index].delete();
@@ -353,13 +448,17 @@ public class TimingWheelLog {
             }
         }
     }
+
+    /**
+     * 从日志中读取delay任务的包装
+     */
     static class DelayInfo {
-        private String topic;
-        private String id;
-        private long commitLogOffset;
-        private long delayQueueOffset;
-        private int queueId;
-        private long expiration;
+        private final String topic;
+        private final String id;
+        private final long commitLogOffset;
+        private final long delayQueueOffset;
+        private final int queueId;
+        private final long expiration;
         private int index;
 
         public DelayInfo(String topic, String id, long commitLogOffset, long delayQueueOffset, int queueId,
