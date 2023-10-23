@@ -12,6 +12,7 @@ import com.github.xjtuwsn.cranemq.broker.store.comm.AsyncRequest;
 import com.github.xjtuwsn.cranemq.broker.store.comm.PutMessageResponse;
 import com.github.xjtuwsn.cranemq.broker.store.comm.StoreRequestType;
 import com.github.xjtuwsn.cranemq.common.constant.MQConstant;
+import com.github.xjtuwsn.cranemq.common.entity.QueueInfo;
 import com.github.xjtuwsn.cranemq.common.route.QueueData;
 import com.github.xjtuwsn.cranemq.common.utils.BrokerUtil;
 import io.netty.util.internal.StringUtil;
@@ -19,9 +20,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.File;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.Map;
+import java.text.SimpleDateFormat;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -166,6 +166,29 @@ public class ConsumeQueueManager implements GeneralStoreService {
 
             QueueData queueData = new QueueData(this.brokerController.getBrokerConfig().getBrokerName(), number, number);
             map.put(topic, queueData);
+        }
+        return map;
+    }
+
+    public Map<String, List<QueueInfo>> allQueueInfos() {
+        Map<String, List<QueueInfo>> map = new HashMap<>();
+        for (Map.Entry<String, ConcurrentHashMap<Integer, ConsumeQueue>> entry : queueTable.entrySet()) {
+            String topic = entry.getKey();
+            List<QueueInfo> list = new ArrayList<>();
+            ConcurrentHashMap<Integer, ConsumeQueue> queueMap = entry.getValue();
+            for (Map.Entry<Integer, ConsumeQueue> inner : queueMap.entrySet()) {
+                int queueId = inner.getKey();
+                ConsumeQueue q = inner.getValue();
+                long write = q.currentTotalWritePos();
+                long flush = q.currentTotalFlushPos();
+                long messages = q.currentTotalMessages();
+                long lastModified = q.lastModified();
+                SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd:HH:mm:ss");
+                String formatStr = sdf.format(new Date(lastModified));
+                list.add(new QueueInfo(topic, queueId, write, flush, messages, formatStr));
+            }
+            list.sort(Comparator.comparingInt(QueueInfo::getQueueId));
+            map.put(topic, list);
         }
         return map;
     }

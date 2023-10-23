@@ -280,7 +280,7 @@ public class TimingWheelLog {
                     int size = buffer.getInt();
                     pos += size;
                     // 已读完
-                    if (size == 0) {
+                    if (size == 0 || size >= 300) {
                         if (choosed == i) {
                             this.writePointer.set(pos);
                             this.flushPointer.set(pos);

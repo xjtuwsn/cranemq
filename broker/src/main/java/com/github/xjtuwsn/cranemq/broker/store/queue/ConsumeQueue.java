@@ -129,7 +129,39 @@ public class ConsumeQueue extends AbstractLinkedListOrganize implements GeneralS
             return 0;
         }
         return lastMappedFile.getWrite() / persistentConfig.getQueueUnit()
-                + (long) (this.mappedTable.size() - 3) * persistentConfig.getMaxQueueSize();
+                + (long) (this.mappedTable.size() - 3) * persistentConfig.getMaxQueueItemNumber();
+    }
+    public long currentTotalWritePos() {
+        MappedFile lastMappedFile = getLastMappedFile();
+        if (lastMappedFile == null) {
+            return 0;
+        }
+        return lastMappedFile.getWrite() + (long) (this.mappedTable.size() - 3) * persistentConfig.getMaxQueueSize();
+    }
+
+    public long currentTotalFlushPos() {
+        MappedFile lastMappedFile = getLastMappedFile();
+        if (lastMappedFile == null) {
+            return 0;
+        }
+        return lastMappedFile.getFlush() + (long) (this.mappedTable.size() - 3) * persistentConfig.getMaxQueueSize();
+    }
+
+    public long currentTotalMessages() {
+        MappedFile lastMappedFile = getLastMappedFile();
+        if (lastMappedFile == null) {
+            return 0;
+        }
+        return lastMappedFile.getWrite() / persistentConfig.getQueueUnit()
+                + (long) (this.mappedTable.size() - 3) * persistentConfig.getMaxQueueItemNumber();
+    }
+
+    public long lastModified() {
+        MappedFile lastMappedFile = getLastMappedFile();
+        if (lastMappedFile == null) {
+            return 0;
+        }
+        return lastMappedFile.lastModified();
     }
     public boolean appendMappedFile(MappedFile mappedFile) {
         if (mappedFile == null) {

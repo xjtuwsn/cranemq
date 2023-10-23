@@ -38,8 +38,8 @@ public class BrokerConfig {
 
     private int maxRetryTime = 15;
 
-    private String retryLevel = "5,10,15,20,25,30,60,120,240,480,960,1200,3000,6000,12000";
-
+    // private String retryLevel = "5,10,15,20,25,30,60,120,240,480,960,1200,3000,6000,12000";
+    private String retryLevel = "5,5,5,5,5,5,5,5,5,5,5,5,5,5,5";
     private Map<Integer, Long> retryMap = new HashMap<>();
 
     public void initRetry() {

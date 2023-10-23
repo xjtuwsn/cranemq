@@ -6,6 +6,8 @@ import com.github.xjtuwsn.cranemq.client.consumer.impl.DefaultPushConsumerImpl;
 import com.github.xjtuwsn.cranemq.client.consumer.listener.CommonMessageListener;
 import com.github.xjtuwsn.cranemq.client.consumer.listener.MessageListener;
 import com.github.xjtuwsn.cranemq.client.consumer.listener.OrderedMessageListener;
+import com.github.xjtuwsn.cranemq.client.consumer.rebalance.ConsistentHashAllocation;
+import com.github.xjtuwsn.cranemq.client.consumer.rebalance.QueueAllocation;
 import com.github.xjtuwsn.cranemq.common.constant.MQConstant;
 import com.github.xjtuwsn.cranemq.common.consumer.MessageModel;
 import com.github.xjtuwsn.cranemq.common.consumer.StartConsume;
@@ -37,6 +39,8 @@ public class DefaultPushConsumer implements MQPushConsumer {
     private DefaultPushConsumerImpl defaultPushConsumer;
     private String id = "0";
     private RemoteHook hook;
+
+    private boolean isGray = false;
     public DefaultPushConsumer() {
         this(MQConstant.DEFAULT_CONSUMER_GROUP);
     }
@@ -51,7 +55,8 @@ public class DefaultPushConsumer implements MQPushConsumer {
 
     public DefaultPushConsumer(String consumerGroup, MessageModel messageModel, StartConsume startConsume,
                                MessageListener messageListener, String id, RemoteHook hook, String address,
-                               List<Pair<String, String>> topics, RegistryType registryType) {
+                               List<Pair<String, String>> topics, RegistryType registryType, boolean isGray,
+                               QueueAllocation queueAllocation) {
         if (StrUtil.isEmpty(consumerGroup) || messageModel == null || startConsume == null
                 || messageListener == null || StrUtil.isEmpty(id) || StrUtil.isEmpty(address)) {
             throw new CraneClientException("Paramters error");
@@ -62,7 +67,8 @@ public class DefaultPushConsumer implements MQPushConsumer {
         this.messageListener = messageListener;
         this.id = id;
         this.hook = hook;
-        this.defaultPushConsumer = new DefaultPushConsumerImpl(this, hook, address, topics, registryType);
+        this.defaultPushConsumer = new DefaultPushConsumerImpl(this, hook, address, topics,
+                registryType, isGray, queueAllocation);
     }
     public static Builder builder() {
         return new Builder();
@@ -151,6 +157,17 @@ public class DefaultPushConsumer implements MQPushConsumer {
         this.messageListener = orderedMessageListener;
     }
 
+    @Override
+    public void markGray(boolean isGray) {
+        this.isGray = isGray;
+        this.defaultPushConsumer.markGray(isGray);
+    }
+
+    @Override
+    public void setQueueAllocation(QueueAllocation queueAllocation) {
+        this.defaultPushConsumer.setQueueAllocation(queueAllocation);
+    }
+
     public String getConsumerGroup() {
         return consumerGroup;
     }
@@ -181,6 +198,9 @@ public class DefaultPushConsumer implements MQPushConsumer {
         private String registerAddress;
         private List<Pair<String, String>> topics;
         private RegistryType registryType = RegistryType.DEFAULT;
+        private QueueAllocation queueAllocation = new ConsistentHashAllocation();
+
+        private boolean isGray = false;
 
         public Builder() {
             this.topics = new ArrayList<>();
@@ -232,9 +252,18 @@ public class DefaultPushConsumer implements MQPushConsumer {
             return this;
         }
 
+        public Builder gray(boolean isGray) {
+            this.isGray = isGray;
+            return this;
+        }
+
+        public Builder queueAllocation(QueueAllocation queueAllocation) {
+            this.queueAllocation = queueAllocation;
+            return this;
+        }
         public DefaultPushConsumer build() {
             return new DefaultPushConsumer(consumerGroup, messageModel, startConsume, messageListener, id, hook,
-                    registerAddress, topics, registryType);
+                    registerAddress, topics, registryType, isGray, queueAllocation);
         }
 
         @Override

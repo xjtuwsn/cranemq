@@ -283,4 +283,14 @@ public class TestSimple {
 
         }
     }
+    @Test
+    public void test11() {
+        MessageQueue messageQueue1 = new MessageQueue("asas1", "topic1", 2);
+        MessageQueue messageQueue2 = new MessageQueue("asas", "topic1", 3);
+        MessageQueue messageQueue3 = new MessageQueue("asas", "topic1", 4);
+        List<MessageQueue> list = Arrays.asList(messageQueue1, messageQueue2, messageQueue3);
+        Collections.sort(list);
+        System.out.println(list);
+
+    }
 }

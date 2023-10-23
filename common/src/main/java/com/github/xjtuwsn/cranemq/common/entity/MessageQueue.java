@@ -1,8 +1,10 @@
 package com.github.xjtuwsn.cranemq.common.entity;
 
+import com.github.xjtuwsn.cranemq.common.constant.MQConstant;
 import lombok.ToString;
 
 import java.io.Serializable;
+import java.util.Comparator;
 import java.util.Objects;
 
 /**
@@ -12,7 +14,7 @@ import java.util.Objects;
  * @create:2023/09/29-22:03
  */
 @ToString
-public class MessageQueue implements Serializable {
+public class MessageQueue implements Serializable, Comparable {
     private String topic;
     private String brokerName;
     private int queueId;
@@ -70,5 +72,21 @@ public class MessageQueue implements Serializable {
 
     public void setQueueId(int queueId) {
         this.queueId = queueId;
+    }
+
+    @Override
+    public int compareTo(Object o) {
+        MessageQueue other = (MessageQueue) o;
+        if (topic.startsWith(MQConstant.RETRY_PREFIX)) {
+            return 1;
+        }
+        if (brokerName.equals(other.getBrokerName())) {
+            if (topic.equals(other.getTopic())) {
+                return queueId - other.getQueueId();
+            }
+            return topic.compareTo(other.getTopic());
+        }
+
+        return brokerName.compareTo(other.getBrokerName());
     }
 }

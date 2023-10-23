@@ -333,6 +333,7 @@ public class ClientInstance {
             } else {
                 TopicRouteInfo info = this.topicTable.get(topic);
                 List<MessageQueue> messageQueues = info.getAllQueueList();
+                Collections.sort(messageQueues);
                 queue = selector.select(messageQueues, wrappered.getArg());
             }
         } else {
@@ -420,6 +421,9 @@ public class ClientInstance {
             info.setStartConsume(value.getStartConsume());
             info.setMessageModel(value.getMessageModel());
             info.setSubscriptionInfos(value.getSubscriptionInfos());
+            if (value.isGray()) {
+                heartBeatRequest.setGrayConsumer(true);
+            }
             consumerInfos.add(info);
         }
         heartBeatRequest.setConsumerGroup(consumerInfos);

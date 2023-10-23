@@ -25,6 +25,7 @@ import com.github.xjtuwsn.cranemq.common.command.types.RequestType;
 import com.github.xjtuwsn.cranemq.common.config.FlushDisk;
 import com.github.xjtuwsn.cranemq.common.entity.Message;
 import com.github.xjtuwsn.cranemq.common.entity.MessageQueue;
+import com.github.xjtuwsn.cranemq.common.entity.QueueInfo;
 import com.github.xjtuwsn.cranemq.common.entity.ReadyMessage;
 import com.github.xjtuwsn.cranemq.common.route.QueueData;
 import com.github.xjtuwsn.cranemq.common.utils.BrokerUtil;
@@ -335,6 +336,10 @@ public class MessageStoreCenter implements GeneralStoreService {
 
     public Map<String, QueueData> getAllQueueData() {
         return this.consumeQueueManager.getAllQueueData();
+    }
+
+    public Map<String, List<QueueInfo>> getAllQueueInfos() {
+        return this.consumeQueueManager.allQueueInfos();
     }
     @Override
     public void start() {

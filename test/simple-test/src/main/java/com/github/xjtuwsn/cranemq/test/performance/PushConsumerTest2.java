@@ -3,9 +3,11 @@ package com.github.xjtuwsn.cranemq.test.performance;
 import com.github.xjtuwsn.cranemq.client.consumer.DefaultPushConsumer;
 import com.github.xjtuwsn.cranemq.client.consumer.listener.CommonMessageListener;
 import com.github.xjtuwsn.cranemq.client.consumer.listener.OrderedMessageListener;
+import com.github.xjtuwsn.cranemq.client.consumer.rebalance.GrayQueueAllocation;
 import com.github.xjtuwsn.cranemq.common.consumer.MessageModel;
 import com.github.xjtuwsn.cranemq.common.consumer.StartConsume;
 import com.github.xjtuwsn.cranemq.common.entity.ReadyMessage;
+import com.github.xjtuwsn.cranemq.common.remote.enums.RegistryType;
 
 import java.util.List;
 
@@ -20,11 +22,13 @@ public class PushConsumerTest2 {
         DefaultPushConsumer.builder()
                 .consumerId("2")
                 .consumerGroup("group_push")
-                .bindRegistry("127.0.0.1:11111")
+                .bindRegistry("192.168.227.137:2181")
                 .messageModel(MessageModel.CLUSTER)
-                .startConsume(StartConsume.FROM_LAST_OFFSET)
-                .subscribe("topic2", "*")
-                .messageListener(new OrderedMessageListener() {
+                .registryType(RegistryType.ZOOKEEPER)
+                .startConsume(StartConsume.FROM_FIRST_OFFSET)
+                .queueAllocation(new GrayQueueAllocation(1))
+                .subscribe("topic1", "*")
+                .messageListener(new CommonMessageListener() {
                     @Override
                     public boolean consume(List<ReadyMessage> messages) {
                         for (ReadyMessage message : messages) {

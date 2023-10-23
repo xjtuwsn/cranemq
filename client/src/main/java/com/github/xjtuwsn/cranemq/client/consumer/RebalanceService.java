@@ -40,15 +40,19 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * @author:wsn
  * @create:2023/10/08-17:13
  */
+
+/**
+ * 消费者重分配服务
+ * @author wsn
+ */
 public class RebalanceService {
     private static final Logger log = LoggerFactory.getLogger(RebalanceService.class);
 
-    // group : [all consumer cliendId]
+    // group : [all consumer cliendId]   每个消费者组对应的所有消费者
     private ConcurrentHashMap<String, Set<String>> groupConsumerTable = new ConcurrentHashMap<>();
-    // group : [queue: snapshot]
+    // group : [queue: snapshot]    每个消费者组对应的队列消费快照
     private ConcurrentHashMap<String, ConcurrentHashMap<MessageQueue, BrokerQueueSnapShot>> queueSnap =
             new ConcurrentHashMap<>();
-    // group : [clientId: queues]
 
     private ClientInstance clientInstance;
 
@@ -58,22 +62,14 @@ public class RebalanceService {
         this.clientInstance = clientInstance;
         this.doRebalanceTimer = new ScheduledThreadPoolExecutor(1);
     }
-    public void updateConsumerGroup(MQNotifyChangedResponse response) {
-        String group = response.getConsumerGroup();
-        groupConsumerTable.put(group, response.getClients());
-        rebalanceNow(group);
-    }
-    public void resetGroupConsumer(String group, Set<String> clients) {
-        this.groupConsumerTable.put(group, clients);
-    }
 
-    private void rebalanceWithQuery() {
-
-    }
-    // TODO 启动时立即rebalance，但可能和心跳导致的冲突，consumer管理部分需要再看
-    // TODO 定时进行rebalance，定时向broker保存offset，消费有bug
+    /**
+     * 立即进行某一个消费者组的rebalance
+     * @param group
+     */
     public void rebalanceNow(String group) {
         log.info("Do rebalance now {}", group);
+        // 对应的消费者
         DefaultPushConsumerImpl consumer = clientInstance.getPushConsumerByGroup(group);
 
         if (consumer == null) {
@@ -83,6 +79,8 @@ public class RebalanceService {
 
         // 该消费者组所有topic
         Set<String> topicSet = consumer.getTopicSet();
+
+        // 向所有broker查询当前消费者组最新数据
         this.clientInstance.sendQueryMsgToAllBrokers(topicSet, group);
 
         // 所有topic对应的队列
@@ -104,11 +102,13 @@ public class RebalanceService {
         if (consumer.getMessageModel() == MessageModel.BRODERCAST) {
             allocated = queues;
         } else if (consumer.getMessageModel() == MessageModel.CLUSTER) {
-            allocated = queueAllocation.allocate(queues, groupConsumerTable.get(group), clientInstance.getClientId());
+            allocated = queueAllocation.allocate(queues, groupConsumerTable.get(group), consumer.clientIdWihGray());
         }
-        log.error("Got queue {}", allocated);
+
+        // 重新设置队列的锁
         this.clientInstance.getPushConsumerByGroup(group).getMessageQueueLock().resetLock(allocated);
 
+        // 这次rebalance分配到的队列
         Set<MessageQueue> allocatedSet = new HashSet<>(allocated);
         if (!queueSnap.containsKey(group)) {
             queueSnap.put(group, new ConcurrentHashMap<>());
@@ -121,6 +121,7 @@ public class RebalanceService {
             if (!allocatedSet.contains(entry.getKey())) {
                 MessageQueue removedMq = entry.getKey();
                 BrokerQueueSnapShot removedSnap = entry.getValue();
+                // 执行删除逻辑
                 removeMessageQueue(removedMq, removedSnap, group);
                 iterator.remove();
             } else {
@@ -132,7 +133,7 @@ public class RebalanceService {
         // 新分配到的队列，如果是集群的顺序消费，先向服务端申请分布式锁，然后构建拉取请求
         for (MessageQueue newQueue : allocatedSet) {
             if (consumer.needLock()) {
-                // 先申请队列的锁
+                // 先申请队列的分布式锁
                 Header header = new Header(RequestType.LOCK_REQUEST, RpcType.ASYNC, TopicUtil.generateUniqueID());
                 PayLoad payLoad = new MQLockRequest(group, newQueue, clientInstance.getClientId(), LockType.APPLY);
                 RemoteCommand remoteCommand = new RemoteCommand(header, payLoad);
@@ -142,11 +143,12 @@ public class RebalanceService {
                 wrappered.setQueuePicked(newQueue);
                 SendResult result = clientInstance.sendMessageSync(wrappered, false);
                 if (result.getResultType() != SendResultType.SEDN_OK) {
-                    log.error("Apply for message queue lock failed after 3 retry");
+                    log.error("Apply for message queue lock failed after 3 retries");
                     continue;
                 }
             }
 
+            // 创建消费快照，并发送拉消息的请请求
             BrokerQueueSnapShot brokerQueueSnapShot = new BrokerQueueSnapShot();
             PullRequest pullRequest = new PullRequest();
             pullRequest.setGroupName(group);
@@ -165,7 +167,7 @@ public class RebalanceService {
      * @param group
      */
     private void removeMessageQueue(MessageQueue removedMq, BrokerQueueSnapShot removedSnap, String group) {
-        // TODO 保存message queue 的offset到broker 上锁
+
         DefaultPushConsumerImpl consumer = clientInstance.getPushConsumerByGroup(group);
 
         // 将消费快照标记位过期，其它线程不再消费
@@ -174,6 +176,7 @@ public class RebalanceService {
         // 如果是顺序消费，则需要等待当前正在消费的队列消费完成，然后释放队列锁
         if (consumer.needLock()) {
             if (removedSnap.tryLock()) {
+                // 释放分布式锁
                 Header header = new Header(RequestType.LOCK_REQUEST, RpcType.ASYNC, TopicUtil.generateUniqueID());
                 PayLoad payLoad = new MQLockRequest(group, removedMq, clientInstance.getClientId(), LockType.RELEASE);
                 RemoteCommand remoteCommand = new RemoteCommand(header, payLoad);
@@ -196,6 +199,7 @@ public class RebalanceService {
         // 向服务端同步当前队列消费位移
         this.clientInstance.getPushConsumerByGroup(group).getOffsetManager().persistOffset();
 
+        // 删除当前队列信息
         queueSnap.get(group).remove(removedMq);
     }
 
@@ -203,6 +207,28 @@ public class RebalanceService {
         return queueSnap.get(group);
     }
 
+    /**
+     * broker感知到消费者组更新时，会通知更新消费者组
+     * @param response
+     */
+    public void updateConsumerGroup(MQNotifyChangedResponse response) {
+        String group = response.getConsumerGroup();
+        groupConsumerTable.put(group, response.getClients());
+        rebalanceNow(group);
+    }
+
+    /**
+     * 根据broker数据重新设置消费者组成员
+     * @param group
+     * @param clients
+     */
+    public void resetGroupConsumer(String group, Set<String> clients) {
+        this.groupConsumerTable.put(group, clients);
+    }
+
+    /**
+     * 每20s进行一次rebalance
+     */
     public void start() {
         this.doRebalanceTimer.scheduleAtFixedRate(() -> {
             for (Map.Entry<String, Set<String>> entry : groupConsumerTable.entrySet()) {

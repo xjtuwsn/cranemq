@@ -58,6 +58,7 @@ public class CommonConsumeMessageService extends AbstractReputMessageService {
                 if (result) {
                     // log.info("Consume message finished");
                     long lowestOfsset = snapShot.removeMessages(messages);
+                    System.out.println("------------- record queue: " + messageQueue + ", offset: " + lowestOfsset);
                     this.defaultPushConsumer.getOffsetManager().record(messageQueue, lowestOfsset,
                             this.defaultPushConsumer.getDefaultPushConsumer().getConsumerGroup());
                 } else {

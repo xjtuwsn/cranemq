@@ -63,6 +63,8 @@ public class DefaultPushConsumerImpl {
     private ConsumeMessageService consumeMessageService;
 
     private OffsetManager offsetManager;
+
+    private boolean isGray;
     
     private MessageQueueLock messageQueueLock;
     private RegistryType registryType = RegistryType.DEFAULT;
@@ -75,10 +77,13 @@ public class DefaultPushConsumerImpl {
         this.messageQueueLock = new MessageQueueLock();
     }
     public DefaultPushConsumerImpl(DefaultPushConsumer defaultPushConsumer, RemoteHook hook,
-                                   String address, List<Pair<String, String>> topics, RegistryType registryType) {
+                                   String address, List<Pair<String, String>> topics, RegistryType registryType,
+                                   boolean isGray, QueueAllocation queueAllocation) {
         this(defaultPushConsumer, hook);
         this.bindRegistry(address, registryType);
         this.subscribe(topics);
+        this.isGray = isGray;
+        this.queueAllocation = queueAllocation;
 
     }
     public void start() {
@@ -211,6 +216,10 @@ public class DefaultPushConsumerImpl {
         pullResult.setMessages(collect);
     }
 
+    public void markGray(boolean isGray) {
+        this.isGray = isGray;
+    }
+
     public String[] getRegisteryAddress() {
         return registeryAddress;
     }
@@ -222,6 +231,11 @@ public class DefaultPushConsumerImpl {
     public QueueAllocation getQueueAllocation() {
         return queueAllocation;
     }
+
+    public void setQueueAllocation(QueueAllocation queueAllocation) {
+        this.queueAllocation = queueAllocation;
+    }
+
     public MessageModel getMessageModel() {
         return defaultPushConsumer.getMessageModel();
     }
@@ -246,6 +260,14 @@ public class DefaultPushConsumerImpl {
 
     public ClientInstance getClientInstance() {
         return clientInstance;
+    }
+
+    public String clientIdWihGray() {
+        return isGray ? clientId + MQConstant.GRAY_SUFFIX : clientId;
+    }
+
+    public boolean isGray() {
+        return isGray;
     }
 
     public boolean needLock() {

@@ -406,6 +406,10 @@ public class MappedFile {
     public int getWrite() {
         return this.writePointer.get();
     }
+
+    public int getFlush() {
+        return this.flushPointer.get();
+    }
     public void markFull() {
         this.status = Status.FULL;
         this.writePointer.set(fileSize);
@@ -433,6 +437,10 @@ public class MappedFile {
 
     public void setFlushPointer(int flushPointer) {
         this.flushPointer.set(flushPointer);
+    }
+
+    public long lastModified() {
+        return this.file.lastModified();
     }
 
     public String getFileName() {

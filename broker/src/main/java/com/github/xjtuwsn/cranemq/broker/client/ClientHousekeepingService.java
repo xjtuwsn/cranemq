@@ -7,6 +7,7 @@ import com.github.xjtuwsn.cranemq.common.command.RemoteCommand;
 import com.github.xjtuwsn.cranemq.common.command.payloads.resp.MQNotifyChangedResponse;
 import com.github.xjtuwsn.cranemq.common.command.types.ResponseType;
 import com.github.xjtuwsn.cranemq.common.command.types.RpcType;
+import com.github.xjtuwsn.cranemq.common.constant.MQConstant;
 import com.github.xjtuwsn.cranemq.common.consumer.ConsumerInfo;
 import com.github.xjtuwsn.cranemq.common.remote.event.ChannelEventListener;
 import com.github.xjtuwsn.cranemq.common.command.payloads.req.MQHeartBeatRequest;
@@ -163,6 +164,7 @@ public class ClientHousekeepingService implements ChannelEventListener, Consumer
     public void onConsumerHeartBeat(MQHeartBeatRequest request, Channel channel) {
         Set<ConsumerInfo> consumerGroup = request.getConsumerGroup();
         String clientId = request.getClientId();
+        boolean gray = request.isGrayConsumer();
         for (ConsumerInfo info : consumerGroup) {
             String cg = info.getConsumerGroup();
             boolean changed = false;
@@ -174,7 +176,7 @@ public class ClientHousekeepingService implements ChannelEventListener, Consumer
             groupProperity.put(cg, info);
             ConcurrentHashMap<String, ClientWrapper> map = consumerTable.get(cg);
 
-            ClientWrapper clientWrapper = new ClientWrapper(channel, clientId, info);
+            ClientWrapper clientWrapper = new ClientWrapper(channel, clientId, info, gray);
             ClientWrapper prevWrapper = map.putIfAbsent(clientId, clientWrapper);
             if (prevWrapper == null) {
                 changed = true;
@@ -243,8 +245,11 @@ public class ClientHousekeepingService implements ChannelEventListener, Consumer
         ConcurrentHashMap<String, ClientWrapper> map = consumerTable.get(group);
         Iterator<String> iterator = map.keys().asIterator();
         Set<String> clients = new HashSet<>();
+
         while (iterator.hasNext()) {
-            clients.add(iterator.next());
+            String clientId = iterator.next();
+            boolean gray = map.get(clientId).isGrayConsumer();
+            clients.add(clientId + (gray ? MQConstant.GRAY_SUFFIX : ""));
         }
         return clients;
     }
@@ -262,6 +267,8 @@ public class ClientHousekeepingService implements ChannelEventListener, Consumer
         private ConsumerInfo consumerInfo;
         private Set<String> groups;
 
+        private boolean grayConsumer;
+
         public ClientWrapper(Channel channel, String clientId, Set<String> groups) {
             this.channel = channel;
             this.clientId = clientId;
@@ -269,12 +276,13 @@ public class ClientHousekeepingService implements ChannelEventListener, Consumer
             this.lastCommTime = System.currentTimeMillis();
             this.role = Role.PRODUCER;
         }
-        public ClientWrapper(Channel channel, String clientId, ConsumerInfo info) {
+        public ClientWrapper(Channel channel, String clientId, ConsumerInfo info, boolean grayConsumer) {
             this.channel = channel;
             this.clientId = clientId;
             this.consumerInfo = info;
             this.lastCommTime = System.currentTimeMillis();
             this.role = Role.CONSUMER;
+            this.grayConsumer = grayConsumer;
         }
 
 
@@ -313,6 +321,10 @@ public class ClientHousekeepingService implements ChannelEventListener, Consumer
 
         public ConsumerInfo getConsumerInfo() {
             return consumerInfo;
+        }
+
+        public boolean isGrayConsumer() {
+            return grayConsumer;
         }
 
         @Override

@@ -23,7 +23,7 @@ public class MQHeartBeatRequest implements Serializable, PayLoad {
     private String clientId;
     private Set<String> producerGroup;
     private Set<ConsumerInfo> consumerGroup;
-
+    private boolean grayConsumer;
     public MQHeartBeatRequest(String clientId) {
         this.clientId = clientId;
         this.producerGroup = new HashSet<>();

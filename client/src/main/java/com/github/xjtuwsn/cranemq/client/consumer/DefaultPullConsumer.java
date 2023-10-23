@@ -16,6 +16,7 @@ import java.util.List;
  * @author:wsn
  * @create:2023/10/07-10:37
  */
+@Deprecated
 public class DefaultPullConsumer implements MQPullConsumer {
     private String consumerGroup = MQConstant.DEFAULT_CONSUMER_GROUP;
     private long maxTimeoutMills = MQConstant.MAX_PULL_TIMEOUT_MILLS;

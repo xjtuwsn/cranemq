@@ -247,6 +247,7 @@ public class ServerProcessor implements BaseProcessor {
                 topic = MQConstant.RETRY_PREFIX + groupName;
                 storeInnerMessage.setDelay(brokerController.getBrokerConfig().delayTime(retry));
             }
+            storeInnerMessage.setTopic(topic);
             storeInnerMessage.setRetry(retry);
             brokerController.getMessageStoreCenter().checkDlqAndRetry(topic);
             messageQueue = new MessageQueue(topic, brokerController.getBrokerConfig().getBrokerName(), 0);

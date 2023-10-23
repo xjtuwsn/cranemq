@@ -13,7 +13,6 @@ import lombok.*;
 @NoArgsConstructor
 @Getter
 @Setter
-@ToString
 public class ReadyMessage extends Message {
     private String brokerName;
     private int queueId;
@@ -34,4 +33,14 @@ public class ReadyMessage extends Message {
         return true;
     }
 
+    @Override
+    public String toString() {
+        return "ReadyMessage{" +
+                "brokerName='" + brokerName + '\'' +
+                ", topic=" + getTopic() +
+                ", queueId=" + queueId +
+                ", offset=" + offset +
+                ", retry=" + retry +
+                '}';
+    }
 }
