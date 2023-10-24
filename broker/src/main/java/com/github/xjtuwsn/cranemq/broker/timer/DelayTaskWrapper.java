@@ -8,28 +8,36 @@ import java.util.concurrent.TimeUnit;
  * @author:wsn
  * @create:2023/10/19-19:50
  */
+
+/**
+ * 延时任务的包装类
+ * @param <T>
+ */
 public class DelayTaskWrapper<T extends Thread> {
+    // 任务
     private T task;
-    private long expiratonTime;
+    // 到期时间
+    private long expirationTime;
+    // 前驱和后继节点
     public DelayTaskWrapper<T> next, prev;
 
     public DelayTaskWrapper() {
     }
 
-    public DelayTaskWrapper(T task, long expiratonTime) {
+    public DelayTaskWrapper(T task, long expirationTime) {
         this.task = task;
-        this.expiratonTime = expiratonTime;
+        this.expirationTime = expirationTime;
     }
 
     public T getTask() {
         return task;
     }
 
-    public long getExpiratonTime() {
-        return expiratonTime;
+    public long getExpirationTime() {
+        return expirationTime;
     }
 
     public boolean isExpired() {
-        return expiratonTime <= TimeUnit.MILLISECONDS.toSeconds(System.currentTimeMillis());
+        return expirationTime <= TimeUnit.MILLISECONDS.toSeconds(System.currentTimeMillis());
     }
 }

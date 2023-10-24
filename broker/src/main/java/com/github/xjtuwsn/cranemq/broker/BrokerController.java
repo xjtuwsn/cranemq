@@ -29,17 +29,30 @@ import java.util.concurrent.atomic.AtomicInteger;
  * @author:wsn
  * @create:2023/10/02-10:18
  */
+
+/**
+ * broker主体，包含大部分服务
+ */
 public class BrokerController implements GeneralStoreService {
+    // broker配置
     private BrokerConfig brokerConfig;
+    // 持久化配置
     private PersistentConfig persistentConfig;
+    // netty服务端
     private RemoteServer remoteServer;
+    // 消费者偏移管理
     private ConsumerOffsetManager offsetManager;
+    // 消息存储管理
     private MessageStoreCenter messageStoreCenter;
 
+    // 长连接管理
     private HoldRequestService holdRequestService;
 
+    // 消费者组管理
     private ConsumerGroupManager consumerGroupManager;
+    // 分布式锁管理
     private ClientLockMananger clientLockMananger;
+    // 不同处理器对应的线程池
     private ExecutorService producerMessageService;
     private ExecutorService createTopicService;
     private ExecutorService simplePullService;
@@ -48,9 +61,12 @@ public class BrokerController implements GeneralStoreService {
     private ExecutorService handleOffsetService;
 
     private ExecutorService sendBackService;
+    // 定时持久化位移
     private ScheduledExecutorService saveOffsetService;
 
+    // 定时向registry发送心跳
     private ScheduledExecutorService heartBeatSendService;
+    // 远程注册中心
     private WritableRegistry writableRegistry;
     private int coreSize = 10;
     private int maxSize = 20;
@@ -70,6 +86,7 @@ public class BrokerController implements GeneralStoreService {
         this.offsetManager = new ConsumerOffsetManager(this);
         this.holdRequestService = new HoldRequestService(this);
         this.clientLockMananger = new ClientLockMananger();
+        // 根据注册中心类型判断初始化哪个
         if (this.brokerConfig.getRegistryType() == RegistryType.DEFAULT) {
             this.writableRegistry = new SimpleWritableRegistry(this);
         } else if (this.brokerConfig.getRegistryType() == RegistryType.ZOOKEEPER) {
@@ -80,6 +97,10 @@ public class BrokerController implements GeneralStoreService {
         this.registerThreadPool();
         return true;
     }
+
+    /**
+     * 注册不同请求对应的线程池
+     */
     public void registerThreadPool() {
         this.remoteServer.registerThreadPool(HandlerType.PRODUCER_REQUEST, this.producerMessageService);
         this.remoteServer.registerThreadPool(HandlerType.CREATE_TOPIC, this.createTopicService);
@@ -156,6 +177,10 @@ public class BrokerController implements GeneralStoreService {
         this.saveOffsetService = new ScheduledThreadPoolExecutor(1);
         this.heartBeatSendService = new ScheduledThreadPoolExecutor(1);
     }
+
+    /**
+     * 开启定时任务
+     */
     public void startScheduledTask() {
         this.saveOffsetService.scheduleAtFixedRate(() -> {
             this.offsetManager.persistOffset();
@@ -166,6 +191,9 @@ public class BrokerController implements GeneralStoreService {
         }, 0, 30 * 1000, TimeUnit.MILLISECONDS);
     }
 
+    /**
+     * 向注册中心更新本地topic路由信息
+     */
     public void updateRegistry() {
         this.writableRegistry.uploadRouteInfo(this.brokerConfig.getBrokerName(), this.brokerConfig.getBrokerId(),
                 NetworkUtil.getLocalAddress() + ":" + this.brokerConfig.getPort(),

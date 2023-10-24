@@ -25,13 +25,24 @@ import java.util.Properties;
  * @author:wsn
  * @create:2023/10/23-18:56
  */
+
+/**
+ * Broker主启动类
+ */
 @Configuration
 public class BrokerControllerFactory {
     private static final Logger log = LoggerFactory.getLogger(BrokerControllerFactory.class);
+    // 命令行参数
     @Resource
     private ApplicationArguments arguments;
+
+    /**
+     * 构建并返回broker
+     * @return
+     */
     @Bean
     public BrokerController buildBrokerController() {
+        // 从命令行参数中获取配置文件地址
         List<String> argList = new ArrayList<>();
         arguments.getOptionNames().forEach(optionName -> {
             List<String> optionValues = arguments.getOptionValues(optionName);
@@ -57,6 +68,7 @@ public class BrokerControllerFactory {
             System.exit(1);
         }
 
+        // 根据配置文件初始化broker配置类和持久化配置
         BrokerUtil.prarseConfigFile(properties, brokerConfig);
         BrokerUtil.prarseConfigFile(properties, persistentConfig);
         log.info("Read config file from disk: {}", brokerConfig);
