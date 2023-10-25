@@ -34,6 +34,8 @@
         <project.spring-boot.version>2.7.12</project.spring-boot.version>
         <project.juava.version>32.1.2-jre</project.juava.version>
         <project.curator.version>4.2.0</project.curator.version>
+        <project.dtp.version>1.1.4.1</project.dtp.version>
+        <project.nacos.version>2.1.2</project.nacos.version>
     </properties>
     <dependencyManagement>
         <dependencies>
@@ -161,6 +163,23 @@
                 <groupId>org.apache.curator</groupId>
                 <artifactId>curator-client</artifactId>
                 <version>${project.curator.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>com.alibaba.nacos</groupId>
+                <artifactId>nacos-client</artifactId>
+                <version>${project.nacos.version}</version>
+                <classifier>pure</classifier>
+            </dependency>
+            <dependency>
+                <groupId>com.alibaba.nacos</groupId>
+                <artifactId>nacos-common</artifactId>
+                <version>${project.nacos.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.alibaba.nacos</groupId>
+                <artifactId>nacos-api</artifactId>
+                <version>${project.nacos.version}</version>
             </dependency>
         </dependencies>
     </dependencyManagement>

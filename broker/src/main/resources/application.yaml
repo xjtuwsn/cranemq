@@ -1,2 +1,6 @@
 server:
   port: 7654
+spring:
+  application:
+    name: cranemq-broker
+

@@ -18,6 +18,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * 时间轮，用于实现延时任务
+ * @author wsn
  * @param <T>
  */
 public class TimingWheel<T extends Thread> {

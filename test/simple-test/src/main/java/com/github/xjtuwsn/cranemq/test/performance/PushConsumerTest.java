@@ -34,8 +34,6 @@ public class PushConsumerTest {
                 .registryType(RegistryType.ZOOKEEPER)
                 .startConsume(StartConsume.FROM_FIRST_OFFSET)
                 .subscribe("topic1", "*")
-                .gray(true)
-                .queueAllocation(new GrayQueueAllocation(1))
                 .messageListener(new CommonMessageListener() {
                     @Override
                     public boolean consume(List<ReadyMessage> messages) {
@@ -54,6 +52,7 @@ public class PushConsumerTest {
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
             System.out.println(sum.get());
         }));
+        String asas  = new String("111");
 //        ScheduledExecutorService timer = new ScheduledThreadPoolExecutor(1);
 //        timer.scheduleAtFixedRate(() -> {
 //            System.out.println(" ---- " + sum.get() + " ---- " );

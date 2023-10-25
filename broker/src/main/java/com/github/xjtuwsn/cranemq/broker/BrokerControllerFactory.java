@@ -9,6 +9,8 @@ import org.slf4j.LoggerFactory;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.DependsOn;
+import org.springframework.context.annotation.Lazy;
 
 import javax.annotation.Resource;
 import java.io.File;
@@ -28,6 +30,7 @@ import java.util.Properties;
 
 /**
  * Broker主启动类
+ * @author wsn
  */
 @Configuration
 public class BrokerControllerFactory {
@@ -40,7 +43,8 @@ public class BrokerControllerFactory {
      * 构建并返回broker
      * @return
      */
-    @Bean
+    @Bean("brokerController")
+    @DependsOn(value = "producerMessageService")
     public BrokerController buildBrokerController() {
         // 从命令行参数中获取配置文件地址
         List<String> argList = new ArrayList<>();
@@ -94,11 +98,6 @@ public class BrokerControllerFactory {
         }
         log.info("Finish create message store file");
         BrokerController brokerController = new BrokerController(brokerConfig, persistentConfig);
-        boolean result = brokerController.initialize();
-        if (!result) {
-            log.error("BrokerController initialize error");
-            System.exit(1);
-        }
 
         return brokerController;
     }

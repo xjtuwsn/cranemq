@@ -9,5 +9,6 @@ package com.github.xjtuwsn.cranemq.common.remote.enums;
 public enum RegistryType {
 
     DEFAULT,
-    ZOOKEEPER
+    ZOOKEEPER,
+    NACOS
 }

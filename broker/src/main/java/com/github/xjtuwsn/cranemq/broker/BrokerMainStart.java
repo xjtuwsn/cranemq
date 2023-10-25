@@ -8,6 +8,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.DependsOn;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Component;
 
@@ -28,14 +29,19 @@ import java.util.Properties;
  * @create:2023/09/26-19:52
  */
 @Component
+@DependsOn(value = "brokerController")
 public class BrokerMainStart {
-
+    private static final Logger log = LoggerFactory.getLogger(BrokerMainStart.class);
 
     @Resource
     private BrokerController brokerController;
     @PostConstruct
     public void start() {
-
+        boolean result = brokerController.initialize();
+        if (!result) {
+            log.error("BrokerController initialize error");
+            System.exit(1);
+        }
         brokerController.start();
     }
 

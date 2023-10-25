@@ -52,7 +52,13 @@ public class BrokerUtil {
                         v = Boolean.valueOf(value);
                     }
                     if ("RegistryType".equals(parameterTypeName)) {
-                        v = "zk".equals(value) ? RegistryType.ZOOKEEPER : RegistryType.DEFAULT;
+                        if ("zk".equals(value)) {
+                            v = RegistryType.ZOOKEEPER;
+                        } else if ("nacos".equals(value)) {
+                            v = RegistryType.NACOS;
+                        } else {
+                            v = RegistryType.DEFAULT;
+                        }
                     }
                     try {
                         method.invoke(object, v);

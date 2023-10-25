@@ -17,9 +17,17 @@ import com.github.xjtuwsn.cranemq.common.config.BrokerConfig;
 import com.github.xjtuwsn.cranemq.common.remote.enums.RegistryType;
 import com.github.xjtuwsn.cranemq.common.remote.event.ChannelEventListener;
 import com.github.xjtuwsn.cranemq.common.utils.NetworkUtil;
+import com.github.xjtuwsn.cranemq.extension.impl.NacosWritableRegistry;
 import com.github.xjtuwsn.cranemq.extension.impl.ZkWritableRegistry;
 import org.checkerframework.checker.units.qual.C;
+import org.springframework.beans.BeansException;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.context.ApplicationContext;
+import org.springframework.context.ApplicationContextAware;
+import org.springframework.context.annotation.Lazy;
 
+import javax.annotation.Resource;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -32,8 +40,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * broker主体，包含大部分服务
+ * @author wsn
  */
-public class BrokerController implements GeneralStoreService {
+public class BrokerController implements GeneralStoreService, ApplicationContextAware {
     // broker配置
     private BrokerConfig brokerConfig;
     // 持久化配置
@@ -53,6 +62,7 @@ public class BrokerController implements GeneralStoreService {
     // 分布式锁管理
     private ClientLockMananger clientLockMananger;
     // 不同处理器对应的线程池
+    @Resource
     private ExecutorService producerMessageService;
     private ExecutorService createTopicService;
     private ExecutorService simplePullService;
@@ -91,6 +101,8 @@ public class BrokerController implements GeneralStoreService {
             this.writableRegistry = new SimpleWritableRegistry(this);
         } else if (this.brokerConfig.getRegistryType() == RegistryType.ZOOKEEPER) {
             this.writableRegistry = new ZkWritableRegistry(this.brokerConfig.getRegistrys());
+        } else if (this.brokerConfig.getRegistryType() == RegistryType.NACOS) {
+            this.writableRegistry = new NacosWritableRegistry(this.brokerConfig.getRegistrys());
         }
         this.brokerConfig.initRetry();
         this.initThreadPool();
@@ -111,15 +123,16 @@ public class BrokerController implements GeneralStoreService {
         this.remoteServer.registerThreadPool(HandlerType.SEND_BACK, this.sendBackService);
     }
     private void initThreadPool() {
-        this.producerMessageService = new ThreadPoolExecutor(coreSize, maxSize,
-                60L, TimeUnit.SECONDS, new LinkedBlockingDeque<>(10000),
-                new ThreadFactory() {
-                    AtomicInteger idx = new AtomicInteger(0);
-                    @Override
-                    public Thread newThread(Runnable r) {
-                        return new Thread(r, "Producer Message Service NO." + idx.getAndIncrement());
-                    }
-                });
+//        this.producerMessageService = new ThreadPoolExecutor(coreSize, maxSize,
+//                60L, TimeUnit.SECONDS, new LinkedBlockingDeque<>(10000),
+//                new ThreadFactory() {
+//                    AtomicInteger idx = new AtomicInteger(0);
+//                    @Override
+//                    public Thread newThread(Runnable r) {
+//                        return new Thread(r, "Producer Message Service NO." + idx.getAndIncrement());
+//                    }
+//                });
+        System.out.println("-----------------" + producerMessageService);
         this.createTopicService = new ThreadPoolExecutor(coreSize / 3, maxSize / 3,
                 60L, TimeUnit.SECONDS, new LinkedBlockingDeque<>(5000),
                 new ThreadFactory() {
@@ -245,5 +258,13 @@ public class BrokerController implements GeneralStoreService {
 
     public ClientLockMananger getClientLockMananger() {
         return clientLockMananger;
+    }
+
+    @Override
+    public void setApplicationContext(ApplicationContext applicationContext) throws BeansException {
+        System.out.println("-------------");
+        Object bean = applicationContext.getBean("producerMessageService");
+        System.out.println(bean);
+        System.out.println("------------");
     }
 }

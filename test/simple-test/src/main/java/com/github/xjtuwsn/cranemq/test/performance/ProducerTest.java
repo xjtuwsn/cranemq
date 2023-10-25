@@ -43,7 +43,7 @@ public class ProducerTest {
 
                 for (int j = 0; j < number; j++) {
 
-                    producer.send(message1);
+                    producer.send(message1, 5, TimeUnit.SECONDS);
                 }
 
             });

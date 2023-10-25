@@ -14,6 +14,7 @@
     <modules>
         <module>cranemq-spring-boot-starter</module>
         <module>zookeeper-extension</module>
+        <module>nacos-extension</module>
     </modules>
 
     <properties>
