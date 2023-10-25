@@ -4,6 +4,7 @@ import cn.hutool.core.util.StrUtil;
 import com.alibaba.fastjson.JSONObject;
 import com.alibaba.fastjson.TypeReference;
 import com.github.xjtuwsn.cranemq.client.remote.ClientInstance;
+import com.github.xjtuwsn.cranemq.common.constant.MQConstant;
 import com.github.xjtuwsn.cranemq.common.entity.MessageQueue;
 import com.github.xjtuwsn.cranemq.common.utils.BrokerUtil;
 import com.github.xjtuwsn.cranemq.common.utils.JSONUtil;
@@ -24,6 +25,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * @file:LocalOffsetManager
  * @author:wsn
  * @create:2023/10/11-19:35
+ * 本地消费位移管理
  */
 public class LocalOffsetManager implements OffsetManager {
 
@@ -35,8 +37,8 @@ public class LocalOffsetManager implements OffsetManager {
     private ScheduledExecutorService persistOffsetTimer;
     private AtomicBoolean started = new AtomicBoolean(false);
     private String fileName;
-    private String path = "D:\\cranemq\\consumer\\";
-    private String suffix = "_offset.json";
+    private String path = MQConstant.DEFAULT_LOCAL_OFFSET_PATH;
+    private String suffix = MQConstant.LOCAL_OFFSET_SUFFIX;
     public LocalOffsetManager(ClientInstance clientInstance) {
         this.clientInstance = clientInstance;
         this.persistOffsetTimer = new ScheduledThreadPoolExecutor(1);
@@ -47,6 +49,10 @@ public class LocalOffsetManager implements OffsetManager {
             return;
         }
         this.storeName = TopicUtil.buildStoreID(clientInstance.getClientId());
+        File root = new File(path);
+        if (!root.exists()) {
+            root.mkdir();
+        }
         this.fileName = path + storeName + suffix;
         String s = JSONUtil.fileToString(fileName);
         offsetTable = JSONObject.parseObject(s,

@@ -9,6 +9,7 @@ import com.github.xjtuwsn.cranemq.common.entity.MessageQueue;
  * @file:StoreInnerMessage
  * @author:wsn
  * @create:2023/10/03-15:45
+ * 内部进行存储的消息，进行了相应的包装
  */
 public class StoreInnerMessage {
 

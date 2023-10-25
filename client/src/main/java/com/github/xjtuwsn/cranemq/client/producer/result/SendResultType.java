@@ -8,6 +8,6 @@ package com.github.xjtuwsn.cranemq.client.producer.result;
  */
 public enum SendResultType {
 
-    SEDN_OK,
+    SEND_OK,
     SERVER_ERROR
 }

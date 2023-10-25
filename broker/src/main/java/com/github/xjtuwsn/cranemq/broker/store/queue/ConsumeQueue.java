@@ -23,6 +23,7 @@ import java.util.concurrent.locks.ReentrantLock;
  * @file:ConsumerQueue
  * @author:wsn
  * @create:2023/10/04-21:29
+ * 消费队列实现
  */
 public class ConsumeQueue extends AbstractLinkedListOrganize implements GeneralStoreService {
     private static final Logger log = LoggerFactory.getLogger(ConsumeQueue.class);
@@ -41,23 +42,6 @@ public class ConsumeQueue extends AbstractLinkedListOrganize implements GeneralS
         this.fullPath = persistentConfig.getConsumerqueuePath() + topic + "\\" + queueId + "\\";
         this.init();
     }
-
-    public PutMessageResponse updateQueueOffset(long offset, int size) {
-        MappedFile mappedFile = getLastMappedFile();
-        if (mappedFile == null) {
-            log.info("{}, {}", offset, size);
-            mappedFile = this.createListener.onRequireCreate(topic, queueId, this.nextIndex());
-            log.info("Create queue file success, mapped file is {}", mappedFile);
-        }
-
-        PutMessageResponse response = mappedFile.putOffsetIndex(offset, size);
-        log.info("update queueoffset result: {}", response);
-        if (response.getResponseType() == StoreResponseType.NO_ENOUGH_SPACE) {
-            mappedFile = this.createListener.onRequireCreate(topic, queueId, this.nextIndex());
-            response = mappedFile.putOffsetIndex(offset, size);
-        }
-        return response;
-    }
     @Override
     public void start() {
         File queueRoot = new File(fullPath);
@@ -71,6 +55,7 @@ public class ConsumeQueue extends AbstractLinkedListOrganize implements GeneralS
             this.mappedTable.put(index, mappedFile);
             this.insertBeforeTail(mappedFile);
 
+            // 对于一个队列的所有mappedFile，如果是最后一个，那么将存储有最大的commitLog偏移，进行读取恢复commitLog
             if (index == length - 1) {
                 this.binarySearchLastCommit(mappedFile);
             }
@@ -79,6 +64,10 @@ public class ConsumeQueue extends AbstractLinkedListOrganize implements GeneralS
         }
     }
 
+    /**
+     * 利用二分查找，查找每一个mappedFile最后一个记录值
+     * @param mappedFile
+     */
     private void binarySearchLastCommit(MappedFile mappedFile) {
         ByteBuffer buffer = mappedFile.getWriteBuffer().slice();
         int cell = persistentConfig.getQueueUnit();
@@ -87,9 +76,11 @@ public class ConsumeQueue extends AbstractLinkedListOrganize implements GeneralS
             int mid = l + r >> 1;
             int pos = mid * cell;
             buffer.position(pos);
+            // 没读到消息
             if (buffer.getLong() == 0 && buffer.getInt() == 0) {
                 r = mid - 1;
             } else {
+                // 读到了
                 if (pos + cell >= buffer.capacity()) {
                     l = mid;
                     break;
@@ -107,14 +98,42 @@ public class ConsumeQueue extends AbstractLinkedListOrganize implements GeneralS
         long offset = buffer.getLong();
         int size = buffer.getInt();
 
+        // 将当前文件的指针放在最后一个位置
         int newPos = pos + cell;
         mappedFile.setWritePointer(newPos);
         mappedFile.setCommitPointer(newPos);
         mappedFile.setFlushPointer(newPos);
-        log.info("Consumequeue [topic: {}, queueId: {}, name: {}], recovery frome pos: {}",
+        log.info("Consumequeue [topic: {}, queueId: {}, name: {}], recovery from pos: {}",
                 topic, queueId, mappedFile.getFileName(), newPos);
+        // 同时通知commitLog更新最大偏移
         this.recoveryListener.onUpdateOffset(offset, size);
     }
+
+    /**
+     * 像当前队列写入消息
+     * @param offset commitLog对应偏移
+     * @param size 消息长度
+     * @return
+     */
+    public PutMessageResponse updateQueueOffset(long offset, int size) {
+        MappedFile mappedFile = getLastMappedFile();
+        if (mappedFile == null) {
+            log.info("{}, {}", offset, size);
+            mappedFile = this.createListener.onRequireCreate(topic, queueId, this.nextIndex());
+            log.info("Create queue file success, mapped file is {}", mappedFile);
+        }
+
+        // 写入消息
+        PutMessageResponse response = mappedFile.putOffsetIndex(offset, size);
+        log.info("update queueoffset result: {}", response);
+        // 没有足够的空间，新建
+        if (response.getResponseType() == StoreResponseType.NO_ENOUGH_SPACE) {
+            mappedFile = this.createListener.onRequireCreate(topic, queueId, this.nextIndex());
+            response = mappedFile.putOffsetIndex(offset, size);
+        }
+        return response;
+    }
+
     public MappedFile getLastMappedFile() {
         MappedFile mappedFile = tail.prev;
         if (mappedFile == head) {

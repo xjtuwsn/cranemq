@@ -26,6 +26,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * @file:ConsumerOffsetManager
  * @author:wsn
  * @create:2023/10/09-16:47
+ * 消费者组偏移管理
  */
 public class ConsumerOffsetManager {
 
@@ -44,8 +45,15 @@ public class ConsumerOffsetManager {
     public ConsumerOffsetManager(BrokerController brokerController) {
         this.brokerController = brokerController;
     }
-    // TODO 消费者位移管理，当本来不存在时初始化，然后建立长连接管理服务，
-    //  TODO 并定时进行消息拉取，或者存消息时进行通知唤醒，消费者那边消费，消费完更新offset
+
+    /**
+     * 消费者位移管理，当本来不存在时初始化，然后建立长连接管理服务，
+     * 并定时进行消息拉取，或者存消息时进行通知唤醒，消费者那边消费，消费完更新offset
+     * @param topic
+     * @param group
+     * @param queueId
+     * @return
+     */
     public long getOffsetInQueue(String topic, String group, int queueId) {
         String key = BrokerUtil.offsetKey(topic, group);
         if (!offsetMap.containsKey(key)) {
@@ -54,8 +62,7 @@ public class ConsumerOffsetManager {
                     ConcurrentHashMap<Integer, Long> map = new ConcurrentHashMap<>();
                     offsetMap.put(key, map);
 
-//                    ConsumerInfo info = consumerGroupManager.getGroupProperity(group);
-//                    StartConsume startConsume = info.getStartConsume();
+                    // 根据消费者组订阅配置决定起始偏移
                     StartConsume startConsume = StartConsume.FROM_LAST_OFFSET;
                     int number = brokerController.getMessageStoreCenter().getQueueNumber(topic);
                     for (int i = 0; i < number; i++) {
@@ -76,6 +83,13 @@ public class ConsumerOffsetManager {
         return offsetMap.get(key).get(queueId);
     }
 
+    /**
+     * 更新消费进度
+     * @param topic
+     * @param group
+     * @param queueId
+     * @param offset
+     */
     public void updateOffset(String topic, String group, int queueId, long offset) {
         String key = BrokerUtil.offsetKey(topic, group);
         if (offset == -1) {
@@ -109,6 +123,7 @@ public class ConsumerOffsetManager {
             dir.mkdir();
         }
         long start = System.nanoTime();
+        // 解析json文件为map
         this.offsetMap = JSONObject.parseObject(JSONUtil.fileToString(path),
                 new TypeReference<ConcurrentHashMap<String, ConcurrentHashMap<Integer, Long>>>(){});
 
@@ -117,6 +132,11 @@ public class ConsumerOffsetManager {
         }
     }
 
+    /**
+     * 批量更新
+     * @param offsets
+     * @param group
+     */
     public void updateOffsets(Map<MessageQueue, Long> offsets, String group) {
 
         if (offsets == null || offsets.isEmpty() || StrUtil.isEmpty(group)) {
@@ -141,6 +161,9 @@ public class ConsumerOffsetManager {
         }
     }
 
+    /**
+     * 持久化
+     */
     public void persistOffset() {
         JSONUtil.JSONStrToFile(offsetMap, path);
     }

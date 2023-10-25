@@ -19,20 +19,28 @@ import java.util.concurrent.locks.ReentrantLock;
  * @file:ClientLockMananger
  * @author:wsn
  * @create:2023/10/12-17:24
+ * 队列锁管理
  */
-// TODO 添加消费者申请锁的各个逻辑，检查在第一次访问队列时，根据offset判断释放本地队列锁的逻辑是否正确
-public class ClientLockMananger {
+public class ClientLockManager {
 
-    private static final Logger log = LoggerFactory.getLogger(ClientLockMananger.class);
-    // group: [messagequeue: lock]
+    private static final Logger log = LoggerFactory.getLogger(ClientLockManager.class);
+    // group: [messageQueue: lock]
     private ConcurrentHashMap<String, Cache<MessageQueue, QueueLock>> lockTable = new ConcurrentHashMap<>();
 
     private ReentrantLock lock = new ReentrantLock();
 
+    /**
+     * 分发队列锁
+     * @param group
+     * @param messageQueue
+     * @param clientId
+     * @return
+     */
     public boolean applyLock(String group, MessageQueue messageQueue, String clientId) {
         try {
             lock.lock();
             Cache<MessageQueue, QueueLock> cache = lockTable.get(group);
+            // 如果不存在就新建，并置更新续期和到期时间
             if (cache == null) {
                 cache = Caffeine.newBuilder()
                         .maximumSize(3000)
@@ -64,13 +72,20 @@ public class ClientLockMananger {
             log.info("Client {}, group {} acquire the lock, queue {}", clientId, group, messageQueue);
             return true;
         } catch (Exception e) {
-            log.error("Execpiton when apply for lock");
+            log.error("Exception when apply for lock");
         } finally {
             lock.unlock();
         }
         return false;
     }
 
+    /**
+     * 续期锁
+     * @param group
+     * @param messageQueue
+     * @param clientId
+     * @return
+     */
     public boolean renewLock(String group, MessageQueue messageQueue, String clientId) {
         try {
             lock.lock();
@@ -88,12 +103,18 @@ public class ClientLockMananger {
             log.info("Client {}, group {} renew the lock, queue {}", clientId, group, messageQueue);
             return true;
         } catch (Exception e) {
-            log.error("Execpiton when renew for lock");
+            log.error("Exception when renew for lock");
         } finally {
             lock.unlock();
         }
         return false;
     }
+
+    /**
+     * 释放客户端所持有的所有锁
+     * @param group
+     * @param clientId
+     */
     public void releaseLock(String group, String clientId) {
         try {
             lock.lock();
@@ -112,11 +133,19 @@ public class ClientLockMananger {
             }
 
         } catch (Exception e) {
-            log.error("Execption when release lock");
+            log.error("Exception when release lock");
         } finally {
             lock.unlock();
         }
     }
+
+    /**
+     * 释放某个队列的锁
+     * @param group
+     * @param messageQueue
+     * @param clientId
+     * @return
+     */
     public boolean releaseLock(String group, MessageQueue messageQueue, String clientId) {
         try {
             lock.lock();
@@ -135,7 +164,7 @@ public class ClientLockMananger {
             log.info("Client {}, group {} release the lock, queue {}", clientId, group, messageQueue);
             return true;
         } catch (Exception e) {
-            log.error("Execpiton when release a lock");
+            log.error("Exception when release a lock");
         } finally {
             lock.unlock();
         }

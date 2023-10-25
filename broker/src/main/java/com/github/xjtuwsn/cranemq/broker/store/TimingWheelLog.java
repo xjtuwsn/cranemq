@@ -289,7 +289,7 @@ public class TimingWheelLog {
                     }
                     // 读取其他信息
                     int type = buffer.getInt();
-
+                    System.out.println(size + ", " + type);
                     int idSize = buffer.getInt();
                     byte[] idData = new byte[idSize];
                     buffer.get(idData);
@@ -415,7 +415,7 @@ public class TimingWheelLog {
             flush(lastIndex);
             lastIndex = index;
             try {
-                // 情况要使用的文件
+                // 清空要使用的文件
                 clear(index);
             } catch (IOException e) {
                 log.error("Clear last file error");
@@ -432,9 +432,17 @@ public class TimingWheelLog {
      * @throws IOException
      */
     private void clear(int index) throws IOException {
-        fileChannels[index].close();
-        files[index].delete();
-        loadFile(index);
+
+        ByteBuffer buffer = ByteBuffer.allocate(1024);
+        for (int i = 0; i < fileSize; i += 1024) {
+            buffer.position(0);
+            fileChannels[index].position(i);
+            fileChannels[index].write(buffer);
+        }
+        fileChannels[index].force(false);
+//        fileChannels[index].close();
+//        files[index].delete();
+//        loadFile(index);
     }
     public void close() {
         flush();

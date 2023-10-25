@@ -1,8 +1,7 @@
 package com.github.xjtuwsn.cranemq.client.consumer.push;
 
-import com.github.xjtuwsn.cranemq.client.WrapperFutureCommand;
+import com.github.xjtuwsn.cranemq.client.remote.WrapperFutureCommand;
 import com.github.xjtuwsn.cranemq.client.consumer.impl.DefaultPushConsumerImpl;
-import com.github.xjtuwsn.cranemq.client.consumer.listener.CommonMessageListener;
 import com.github.xjtuwsn.cranemq.client.consumer.listener.MessageListener;
 import com.github.xjtuwsn.cranemq.client.consumer.listener.OrderedMessageListener;
 import com.github.xjtuwsn.cranemq.client.hook.InnerCallback;
@@ -31,6 +30,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  * @file:OrderedConsumeMessageService
  * @author:wsn
  * @create:2023/10/12-14:36
+ * 顺序消费服务
  */
 public class OrderedConsumeMessageService extends AbstractReputMessageService {
     private static final Logger log = LoggerFactory.getLogger(OrderedConsumeMessageService.class);
@@ -46,7 +46,7 @@ public class OrderedConsumeMessageService extends AbstractReputMessageService {
         this.group = defaultPushConsumer.getDefaultPushConsumer().getConsumerGroup();
         this.listener = (OrderedMessageListener) listener;
         this.asyncDispatchService = new ThreadPoolExecutor(COUSMER_CORE_SIZE, COUSMER_MAX_SIZE, 60L, TimeUnit.SECONDS,
-                new LinkedBlockingDeque<>(2000),
+                new LinkedBlockingDeque<>(5000),
                 new ThreadFactory() {
                     AtomicInteger index = new AtomicInteger(0);
                     @Override
@@ -58,6 +58,7 @@ public class OrderedConsumeMessageService extends AbstractReputMessageService {
     }
     @Override
     public void start() {
+        // 定期续期分布式锁
         this.renewLockTimer.scheduleAtFixedRate(() -> {
             renewLock();
         }, 2 * 1000, 20 * 1000, TimeUnit.MILLISECONDS);
@@ -68,42 +69,60 @@ public class OrderedConsumeMessageService extends AbstractReputMessageService {
 
     }
 
+    /**
+     * 提交顺序消息供消费
+     * @param messageQueue
+     * @param snapShot
+     * @param messages
+     */
     @Override
     public void submit(MessageQueue messageQueue, BrokerQueueSnapShot snapShot, List<ReadyMessage> messages) {
 
         if (messageQueue != null && snapShot != null && messages != null) {
             this.asyncDispatchService.execute(() -> {
                 while (true) {
+                    // 首先获取到该队列的本地锁，只有一个线程能获得锁并跳出循环
                     final Object lock = defaultPushConsumer.getMessageQueueLock().acquireLock(messageQueue);
                     if (lock == null) {
                         log.error("Acquire lock error");
                         return;
                     }
                     synchronized (lock) {
+                        // 获得锁的线程比较当前消息的偏移是否和期望偏移一致
                         long curOffset = messages.get(0).getOffset();
                         long expectOffset = this.defaultPushConsumer.getOffsetManager().readOffset(messageQueue, group);
+                        // 一致的话跳出循环
                         if (curOffset == expectOffset || expectOffset == -1) {
                             break;
                         }
+                        // 不一致就释放锁，等其它线程先消费
                     }
                 }
 
                 boolean result = false;
                 if (listener != null && !snapShot.isExpired()) {
+                    // 获取本地快照的锁，防止被rebalance掉队列
                     snapShot.tryLock();
+                    // 消费
                     result = listener.consume(messages);
                     snapShot.releaseLock();
                 }
+                // 看是否消费成功
                 if (result) {
                     // log.info("Consume message finished");
-                    long lowestOfsset = snapShot.removeMessages(messages);
-                    this.defaultPushConsumer.getOffsetManager().record(messageQueue, lowestOfsset, group);
+                    long lowestOffset = snapShot.removeMessages(messages);
+                    this.defaultPushConsumer.getOffsetManager().record(messageQueue, lowestOffset, group);
+                } else {
+                    this.sendMessageBackToBroker(messages, true);
                 }
             });
         }
     }
 
 
+    /**
+     * 向broker进行锁的续期
+     */
     private void renewLock() {
         ConcurrentHashMap<MessageQueue, BrokerQueueSnapShot> map =
                 this.defaultPushConsumer.getClientInstance().getRebalanceService().getQueueSnap(group);

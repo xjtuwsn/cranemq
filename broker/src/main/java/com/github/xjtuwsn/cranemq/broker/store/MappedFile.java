@@ -33,10 +33,19 @@ import java.util.concurrent.locks.ReentrantLock;
  * @create:2023/10/03-10:20
  */
 
+/**
+ * 一个commitLog分为很多子文件，一个消费队列存储文件也分为很多子文件
+ * mappedFile作为这些子文件的底层实现，实现对文件的读写
+ * @author wsn
+ */
 public class MappedFile {
     private static final Logger log = LoggerFactory.getLogger(MappedFile.class);
+    // 页面大小
     private int OS_PAGE = 4 * 1024; // 4KB
+
+    // 以链表组织，前驱和后继
     public MappedFile next, prev;
+    // 文件索引
     private int index;
     private int fileSize;
     private File file;
@@ -44,6 +53,7 @@ public class MappedFile {
     private FileChannel fileChannel;
     private String fileName;
     private PersistentConfig persistentConfig;
+    // mmap buffer
     private MappedByteBuffer mappedByteBuffer;
     // 可读的范围：
     // 如果没有开启直接内存：是读指针
@@ -51,9 +61,13 @@ public class MappedFile {
     private AtomicInteger writePointer; // 当前写指针
     private AtomicInteger commitPointer; // directBuffer中已经提交，即写到filechannel的指针
     private AtomicInteger flushPointer; // 当前刷盘指针
+    // 堆外内存
     private ByteBuffer directBuffer;
+    // 堆外内存池
     private OutOfHeapMemoryPool memoryPool;
+    // 写锁
     private ReentrantLock writeLock = new ReentrantLock();
+    // 暂存所有未提交的消息
     private UnCommitEntryList unCommitEntryList;
     private Status status;
 
@@ -91,6 +105,7 @@ public class MappedFile {
         this.fileSize = fileSize;
         this.fullPath = fullPath;
 
+        // 读取文件，并从filechannel中映射byteMappedBuffer
         this.file = new File(fullPath);
         try {
             if (!this.file.exists()) {
@@ -116,6 +131,7 @@ public class MappedFile {
         } else {
             this.status = Status.CAN_WRITE;
         }
+        // 如果内存池存在，也就是允许堆外内存，则借用堆外内存
         if (this.memoryPool != null) {
             this.directBuffer = this.memoryPool.borrowMemmory();
         }
@@ -123,10 +139,19 @@ public class MappedFile {
 
     }
 
+    /**
+     * 根据是否开启堆外内存，获取写的buffer
+     * @return 开启的话，就是directBuffe，mappedBuffer只读，做到读写分离
+     */
     public ByteBuffer getWriteBuffer() {
         return this.directBuffer != null ? this.directBuffer : this.mappedByteBuffer;
     }
 
+    /**
+     * 向commitLog中写入消息
+     * @param innerMessage
+     * @return
+     */
     public PutMessageResponse putMessage(StoreInnerMessage innerMessage) {
         if (innerMessage == null) {
             log.error("Get error inner message null");
@@ -135,6 +160,7 @@ public class MappedFile {
         log.info("Begin put message");
         writeLock.lock();
         try {
+            // 总长度int + topic长度int + topic + tag长度int + tag + body长度int + body + id长度int + id + retry + 队列号int
             final byte[] idData = innerMessage.getId().getBytes(MQConstant.CHARSETNAME);
             int idLen = idData.length;
 
@@ -185,23 +211,8 @@ public class MappedFile {
             this.unCommitEntryList.append(pos, total, innerMessage.getTopic(), queueSelected, innerMessage.getTag(),
                     innerMessage.getDelay());
 
-//            writeBuffer.position(pos);
-//            writeBuffer.limit(pos + total);
-//            // TODO 删除同步刷盘，测试异步刷盘和提交
-//            this.fileChannel.write(writeBuffer);
-//            this.fileChannel.force(false);
             return new PutMessageResponse(StoreResponseType.STORE_OK, offset, total, this);
 
-
-//            this.commitPointer.getAndAdd(total);
-//            writeBuffer.position(0);
-//            writeBuffer.limit(total);
-//            this.fileChannel.position(this.commitPointer.get() - total);
-//            this.fileChannel.write(writeBuffer);
-
-            // bufferNew.position(4);
-
-            // this.fileChannel.force(false);
         } catch (IOException e) {
             log.error("UnsupportedEncodingException when decoding");
             return new PutMessageResponse(StoreResponseType.PARAMETER_ERROR);
@@ -209,13 +220,18 @@ public class MappedFile {
             writeLock.unlock();
         }
     }
-    // 总长度int + topic长度int + topic + tag长度int + tag + body长度int + body + id长度int + id + retry + 队列号int
+    /**
+     * 读对应偏移位置的信息
+     * @param start
+     * @return
+     */
     public StoreInnerMessage readSingleMessage(int start) {
+        // 获取当前读指针
         int readPointer = getReadPointer();
         if (start >= readPointer) {
-            // log.error("Out of limit");
             return null;
         }
+        // 定位开始读
         ByteBuffer byteBuffer = this.mappedByteBuffer.slice();
         byteBuffer.position(start);
         StoreInnerMessage message = null;
@@ -253,6 +269,12 @@ public class MappedFile {
         return message;
     }
 
+    /**
+     * 将commitLog中的信息写入到消费队列中
+     * @param offset log中的偏移
+     * @param size 消息长度
+     * @return
+     */
     public PutMessageResponse putOffsetIndex(long offset, int size) {
         if (offset < 0 || size < 0) {
             return new PutMessageResponse(StoreResponseType.PARAMETER_ERROR);
@@ -269,18 +291,29 @@ public class MappedFile {
         writeBuffer.putLong(offset);
         writeBuffer.putInt(size);
 
+        // 更新写指针
         writePointer.getAndAdd(total);
         writeLock.unlock();
-        // this.mappedByteBuffer.force();
+
         return new PutMessageResponse(StoreResponseType.STORE_OK, pos, this);
     }
+
+    /**
+     * 获取读指针
+     * @return 如果开启堆外内存，那么只有提交的消息才能读，没开启的话，写过的就可以读
+     */
     private int getReadPointer() {
         return this.directBuffer == null ? this.writePointer.get() : this.commitPointer.get();
     }
+
+    /**
+     * 读取消费队列中的索引信息
+     * @param start
+     * @return
+     */
     public Pair<Long, Integer> readSingleOffsetIndex(int start) {
         int readPointer = getReadPointer();
         if (start >= readPointer) {
-            // log.error("Canot over the read pointer");
             return null;
         }
         ByteBuffer byteBuffer = this.mappedByteBuffer.slice();
@@ -290,10 +323,15 @@ public class MappedFile {
         return new Pair<>(offset, size);
     }
 
+    /**
+     * 批量读取
+     * @param start
+     * @param number
+     * @return
+     */
     public List<Pair<Long, Integer>> readOffsetIndex(int start, int number) {
         int readPointer = getReadPointer();
         if (start >= readPointer) {
-            // log.error("Canot over the read pointer");
             return null;
         }
         ByteBuffer byteBuffer = this.mappedByteBuffer.slice();
@@ -314,7 +352,13 @@ public class MappedFile {
         // 总长度int + topic长度int + topic + tag长度int + tag + body长度int + body + id长度int + id + retry + 队列号int
     }
 
+    /**
+     * commitLog中进行提交
+     * @param force 是否强制
+     * @return 提交的信息集合
+     */
     public List<CommitEntry> doCommit(boolean force) {
+        // 如果没开启堆外内存就不需要提交
         if (!persistentConfig.isEnableOutOfMemory() || this.directBuffer == null) {
             return null;
         }
@@ -323,9 +367,11 @@ public class MappedFile {
         if (last == write) {
             return null;
         }
+        // 如果消息过少不是强制提交就不需要
         if (write - last < 4 * OS_PAGE && !force) {
             return null;
         }
+        // 拿到当前写指针之前的所有未提交信息
         List<CommitEntry> commitEntries = this.unCommitEntryList.getCommitEntries(write);
         ByteBuffer buffer = directBuffer.slice();
         buffer.position(last);
@@ -334,6 +380,7 @@ public class MappedFile {
             this.fileChannel.position(last);
             this.fileChannel.write(buffer);
             log.info("Finish one commit, commit {} --> {}", last, write);
+            // 更新提交指针
             commitPointer.set(write);
             return commitEntries;
         } catch (IOException e) {
@@ -341,13 +388,16 @@ public class MappedFile {
             return null;
         }
     }
-    // TODO 刷盘测试
+
+    /**
+     * 执行刷盘
+     */
     public void doFlush() {
+        // 确定刷盘到那里为止，开启堆外内存刷到提交，否则，刷到写指针
         if (persistentConfig.isEnableOutOfMemory() && this.directBuffer != null) {
             int last = flushPointer.get();
             int commit = commitPointer.get();
             if (last == commit) {
-                // log.info("Do not need to flush disk because commit the same");
                 return;
             }
             try {
@@ -362,7 +412,6 @@ public class MappedFile {
             int write = writePointer.get();
             int flush = flushPointer.get();
             if (flush == write) {
-                // log.info("Do not need to flush disk because write the same");
                 return;
             }
             log.info("Finish direct buffer flush, flush pointer {} ---> {}", flush, write);
@@ -447,6 +496,9 @@ public class MappedFile {
         return fileName;
     }
 
+    /**
+     * 保存所有未提交的信息
+     */
     class UnCommitEntryList {
         private LinkedBlockingQueue<CommitEntry> commitEntries = new LinkedBlockingQueue<>();
 

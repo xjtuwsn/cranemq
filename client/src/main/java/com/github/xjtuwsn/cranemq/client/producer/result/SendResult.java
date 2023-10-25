@@ -24,4 +24,13 @@ public class SendResult {
         this.resultType = resultType;
         this.correlationID = correlationID;
     }
+
+    @Override
+    public String toString() {
+        return "SendResult{" +
+                "resultType=" + resultType +
+                ", correlationID='" + correlationID + '\'' +
+                ", topic='" + topic + '\'' +
+                '}';
+    }
 }

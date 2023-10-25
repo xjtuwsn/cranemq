@@ -1,7 +1,5 @@
 package com.github.xjtuwsn.cranemq.test.simpletest;
 
-import cn.hutool.core.lang.Pair;
-import com.alibaba.fastjson.JSON;
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.Expiry;
@@ -9,10 +7,8 @@ import com.github.xjtuwsn.cranemq.broker.store.PersistentConfig;
 import com.github.xjtuwsn.cranemq.broker.timer.DelayMessageTask;
 import com.github.xjtuwsn.cranemq.broker.timer.DelayTask;
 import com.github.xjtuwsn.cranemq.broker.timer.TimingWheel;
-import com.github.xjtuwsn.cranemq.client.consumer.offset.LocalOffsetManager;
 import com.github.xjtuwsn.cranemq.common.command.RemoteCommand;
 import com.github.xjtuwsn.cranemq.common.entity.MessageQueue;
-import com.github.xjtuwsn.cranemq.common.remote.RemoteClent;
 import com.github.xjtuwsn.cranemq.common.remote.codec.NettyDecoder;
 import com.github.xjtuwsn.cranemq.common.remote.codec.NettyEncoder;
 import com.github.xjtuwsn.cranemq.common.remote.serialize.impl.Hessian1Serializer;
@@ -292,5 +288,9 @@ public class TestSimple {
         Collections.sort(list);
         System.out.println(list);
 
+    }
+    @Test
+    public void test12() {
+        System.out.println(System.getProperty("user.home"));
     }
 }

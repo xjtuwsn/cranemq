@@ -22,6 +22,7 @@ import java.util.concurrent.TimeUnit;
  * @file:DefaultMQProducer
  * @author:wsn
  * @create:2023/09/27-11:11
+ * 消息生产者
  */
 public class DefaultMQProducer implements MQProducer {
     private static final Logger log = LoggerFactory.getLogger(DefaultMQProducer.class);
@@ -57,7 +58,7 @@ public class DefaultMQProducer implements MQProducer {
     @Override
     public void start() throws CraneClientException {
         if (StrUtil.isEmpty(this.registryAddr)) {
-            throw new CraneClientException("Registery address canot be null or empty");
+            throw new CraneClientException("Registry address can not be null or empty");
         }
         if (this.loadBalanceStrategy != null) {
             this.defaultMQProducerImpl.setLoadBalanceStrategy(this.loadBalanceStrategy);
@@ -168,7 +169,7 @@ public class DefaultMQProducer implements MQProducer {
         return this.defaultMQProducerImpl.sendSync(this.responseTimeoutMills, false, selector, arg, 0, message);
     }
 
-    public void bindRegistery(String registryAddr, RegistryType registryType) {
+    public void bindRegistry(String registryAddr, RegistryType registryType) {
         if (StrUtil.isEmpty(registryAddr)) {
             throw new CraneClientException("Registery address canot be null or empty");
         }

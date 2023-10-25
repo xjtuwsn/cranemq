@@ -32,10 +32,12 @@ import java.util.concurrent.atomic.AtomicLong;
  * @file:ConsumerQueueManager
  * @author:wsn
  * @create:2023/10/04-21:27
+ * 消费队列的管理类
  */
 public class ConsumeQueueManager implements GeneralStoreService {
 
     private static final Logger log = LoggerFactory.getLogger(ConsumeQueueManager.class);
+    // 存放所有队列 topic : [id : queue]
     private ConcurrentHashMap<String, ConcurrentHashMap<Integer, ConsumeQueue>> queueTable = new ConcurrentHashMap<>();
     private BrokerController brokerController;
     private PersistentConfig persistentConfig;
@@ -48,20 +50,6 @@ public class ConsumeQueueManager implements GeneralStoreService {
         this.persistentConfig = persistentConfig;
         this.createQueueService = new CreateQueueService();
     }
-    public PutMessageResponse updateOffset(long offset, String topic, int queueId, int size, long delay) {
-        if (delay == 0) {
-            ConsumeQueue queue = queueTable.get(topic).get(queueId);
-            log.info("Select consume queue {}", queue);
-            return queue.updateQueueOffset(offset, size);
-        }
-        String newTopic = MQConstant.DELAY_TOPIC_NAME;
-        ConsumeQueue queue = queueTable.get(newTopic).get(0);
-        PutMessageResponse response = queue.updateQueueOffset(offset, size);
-        long delayQueueOffset = response.getQueueOffset();
-        this.delayMessageCommitListener.onCommit(offset, delayQueueOffset, topic, queueId, delay);
-        return response;
-
-    }
     @Override
     public void start() {
         File rootDir = new File(persistentConfig.getConsumerqueuePath());
@@ -73,6 +61,7 @@ public class ConsumeQueueManager implements GeneralStoreService {
             loadTopicQueueFile(topicDir);
 
         }
+        // 创建默认队列和延时队列
         if (!queueTable.containsKey(MQConstant.DEFAULT_TOPIC_NAME)) {
             this.createQueue(MQConstant.DEFAULT_TOPIC_NAME, 4, 4);
         }
@@ -82,6 +71,37 @@ public class ConsumeQueueManager implements GeneralStoreService {
         this.createQueueService.start();
         log.info("ConsumeQueue Manager start successfylly");
     }
+
+    /**
+     * 将commitlog信息写入队列
+     * @param offset 原日志偏移
+     * @param topic 主题
+     * @param queueId
+     * @param size
+     * @param delay 延时时间
+     * @return
+     */
+    public PutMessageResponse updateOffset(long offset, String topic, int queueId, int size, long delay) {
+        // 如果不是延时消息，直接调用对应队列写入
+        if (delay == 0) {
+            ConsumeQueue queue = queueTable.get(topic).get(queueId);
+            log.info("Select consume queue {}", queue);
+            return queue.updateQueueOffset(offset, size);
+        }
+        // 延时消息，则将主题改为延时队列，写入到延时队列中，并且通知监听器延时消息存储完毕
+        String newTopic = MQConstant.DELAY_TOPIC_NAME;
+        ConsumeQueue queue = queueTable.get(newTopic).get(0);
+        PutMessageResponse response = queue.updateQueueOffset(offset, size);
+        long delayQueueOffset = response.getQueueOffset();
+        this.delayMessageCommitListener.onCommit(offset, delayQueueOffset, topic, queueId, delay);
+        return response;
+
+    }
+
+    /**
+     * 从磁盘加载队列
+     * @param topicDir
+     */
     private void loadTopicQueueFile(File topicDir) {
         String topic = topicDir.getName();
         ConcurrentHashMap<Integer, ConsumeQueue> queueConcurrentHashMap = new ConcurrentHashMap<>();
@@ -92,6 +112,7 @@ public class ConsumeQueueManager implements GeneralStoreService {
                 int queueId = Integer.parseInt(queueIdStr);
                 ConsumeQueue consumeQueue = new ConsumeQueue(queueId, topic, this.persistentConfig);
                 queueConcurrentHashMap.put(queueId, consumeQueue);
+                // 为每个队列注册监听器
                 consumeQueue.registerCreateListener(new CreateRequestListener() {
                     @Override
                     public MappedFile onRequireCreate(String topic, int queueId, int index) {
@@ -113,7 +134,14 @@ public class ConsumeQueueManager implements GeneralStoreService {
         Iterator<ConcurrentHashMap<Integer, ConsumeQueue>> iterator = queueTable.values().iterator();
         return iterator;
     }
-    // TODO 重构加载start时的方法，完成create，晚上顺序消息
+
+    /**
+     * 创建并加载主题和对应的队列
+     * @param topic
+     * @param writeNumber
+     * @param readNumber
+     * @return
+     */
     public synchronized QueueData createQueue(String topic, int writeNumber, int readNumber) {
         QueueData res = new QueueData(brokerController.getBrokerConfig().getBrokerName());
         if (queueTable.containsKey(topic)) {
@@ -200,6 +228,10 @@ public class ConsumeQueueManager implements GeneralStoreService {
             }
         }
     }
+
+    /**
+     * 创建队列mappedFile 的线程
+     */
     class CreateQueueService extends CreateServiceThread {
         private final Logger log = LoggerFactory.getLogger(CreateQueueService.class);
         private ConcurrentHashMap<String, ConcurrentHashMap<Integer, AtomicLong>> lastCreateOffset =

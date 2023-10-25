@@ -25,6 +25,7 @@ import java.util.concurrent.atomic.AtomicLong;
  * @file:CommitLog
  * @author:wsn
  * @create:2023/10/03-10:19
+ * commitLog主体实现类
  */
 public class CommitLog extends AbstractLinkedListOrganize implements GeneralStoreService {
     private static final Logger log = LoggerFactory.getLogger(CommitLog.class);
@@ -32,7 +33,9 @@ public class CommitLog extends AbstractLinkedListOrganize implements GeneralStor
 
     private OutOfHeapMemoryPool memoryPool;
 
+    // 创建子文件线程
     private CreateMappedFileService createMappedFileService;
+    // 提交线程
     private CommitService commitService;
     private ScheduledExecutorService commitScheduleService;
     private ScheduledExecutorService scanDirectMemoryService;
@@ -102,7 +105,7 @@ public class CommitLog extends AbstractLinkedListOrganize implements GeneralStor
 
 
         }
-        // TODO 目前仅仅创建时用到了堆外内存，应该最后一个能写的文件也用，同时也需要归还，测试commit DONE
+        // 定时扫描进行提交和查询是否需要归还堆外内存
         if (brokerController.getPersistentConfig().isEnableOutOfMemory()) {
             this.commitService.start();
             this.commitScheduleService.scheduleAtFixedRate(() -> {
@@ -116,6 +119,9 @@ public class CommitLog extends AbstractLinkedListOrganize implements GeneralStor
         this.createMappedFileService.start();
     }
 
+    /**
+     * 不需要堆外内存就归还，例如文件已经写满
+     */
     private void scanDirectMemory() {
         Iterator<MappedFile> iterator = this.iterator();
         while (iterator.hasNext()) {
@@ -127,6 +133,11 @@ public class CommitLog extends AbstractLinkedListOrganize implements GeneralStor
         }
     }
 
+    /**
+     * 根据消费队列中记录的最大offset，设置对应文件的写指针
+     * @param offset
+     * @param size
+     */
     public void recoveryFromQueue(long offset, int size) {
         if (offset >= this.recordOffset) {
             this.recordOffset = offset;
@@ -151,51 +162,61 @@ public class CommitLog extends AbstractLinkedListOrganize implements GeneralStor
         lastFile.returnMemory();
     }
 
+    /**
+     * 向mappedfile写入一条消息
+     * @param innerMessage
+     * @return
+     */
     public PutMessageResponse writeMessage(StoreInnerMessage innerMessage) {
 
         MappedFile last = this.getLastFile();
 
-
-//        this.tailLock.lock();
-        long start = System.nanoTime();
-
+        // 先尝试进行写入
         PutMessageResponse response = last.putMessage(innerMessage);
+        // 如果待写入的文件已经满了
         while (response.getResponseType() == StoreResponseType.NO_ENOUGH_SPACE) {
 
+            // 提交当前文件
             commit(true);
 
+            // 进行刷盘
             last.doFlush();
 
+            // 标记为满
             last.markFull();
 
+            // 归还堆外内存
             last.returnMemory();
 
+            // 如果预创建了一个文件，则直接进行切换
             if (last.next != tail) {
                 last = last.next;
             }
             else {
+                // 否则产生创建文件请求
                 last = this.createMappedFileService.putCreateRequest(this.nextIndex());
             }
+            // 对新文件写入
             response = last.putMessage(innerMessage);
         }
         log.info("Put message to commit, response is {}", response);
-        long end = System.nanoTime();
-        double cost = (end - start) / 1e6;
-        log.info("Put cost {} ms", cost);
-//        this.tailLock.unlock();
         return response;
-    }
-    public void writeBatchMessage(RemoteCommand remoteCommand) {
-
     }
 
     public boolean tryLock() {
         this.tailLock.lock();
         return true;
     }
+
+    /**
+     * 进行提交
+     * @param force
+     */
     public void commit(boolean force) {
         MappedFile mappedFile = getLastFile();
+        // 提交指定文件
         List<CommitEntry> list = mappedFile.doCommit(force);
+        // 将提交的信息加入到提交队列中
         if (list != null) {
             this.messageStoreCenter.putEntries(list);
         }
@@ -204,6 +225,9 @@ public class CommitLog extends AbstractLinkedListOrganize implements GeneralStor
         this.tailLock.unlock();
     }
 
+    /**
+     * 提交线程
+     */
     class CommitService extends Thread {
         private final Logger log = LoggerFactory.getLogger(CommitLog.class);
         private boolean isStop = false;
@@ -226,6 +250,9 @@ public class CommitLog extends AbstractLinkedListOrganize implements GeneralStor
         }
     }
 
+    /**
+     * 创建commitLog 的子文件的线程
+     */
     class CreateMappedFileService extends CreateServiceThread {
         private final Logger log = LoggerFactory.getLogger(CreateMappedFileService.class);
         private AtomicLong lastCreateOffset = new AtomicLong(-1);
@@ -236,12 +263,14 @@ public class CommitLog extends AbstractLinkedListOrganize implements GeneralStor
         protected boolean createLoop() {
             try {
 
+                // 不断从队列中取出创建请求
                 AsyncRequest request = this.requestQueue.poll(3000, TimeUnit.MILLISECONDS);
                 if (request == null) {
                     return true;
                 }
                 if (request.getRequestType() == StoreRequestType.CREATE_MAPPED_FILE) {
                     String fileName = request.getFileName();
+                    // 判断是否是原始请求
                     AsyncRequest expect = this.requestTable.get(fileName);
 
                     if (expect == null) {
@@ -253,6 +282,7 @@ public class CommitLog extends AbstractLinkedListOrganize implements GeneralStor
                         return true;
                     }
                     MappedFile mappedFile = null;
+                    // 根据是否允许堆外内存进行创建
                     if (CommitLog.this.brokerController.getPersistentConfig().isEnableOutOfMemory()) {
                         mappedFile = new MappedFile(request.getIndex(), request.getFileSize(), request.getFileName(),
                                 CommitLog.this.brokerController.getPersistentConfig(),
@@ -263,16 +293,19 @@ public class CommitLog extends AbstractLinkedListOrganize implements GeneralStor
                                 CommitLog.this.brokerController.getPersistentConfig());
                         log.info("Create without memory pool");
                     }
+                    // 重置新文件的指针
                     mappedFile.setWritePointer(0);
                     mappedFile.setCommitPointer(0);
                     mappedFile.setFlushPointer(0);
                     tailLock.lock();
+                    // 插入，并对预创建的文件进行标记
                     MappedFile prev = tail.prev;
                     if (prev != head && prev.canWrite()) {
                         mappedFile.markPre();
                     }
                     insertBeforeTail(mappedFile);
                     request.getCount().countDown();
+                    // 更新最新创建的文件
                     lastCreateOffset.getAndSet(request.getIndex() *
                             (long) brokerController.getPersistentConfig().getCommitLogMaxSize());
                     tailLock.unlock();
@@ -284,6 +317,12 @@ public class CommitLog extends AbstractLinkedListOrganize implements GeneralStor
             }
             return true;
         }
+
+        /**
+         * 根据要创建的索引放入请求
+         * @param index
+         * @return
+         */
         @Override
         protected MappedFile putCreateRequest(int index) {
             if (index * (long) brokerController.getPersistentConfig().getCommitLogMaxSize() <= lastCreateOffset.get()) {
@@ -294,12 +333,14 @@ public class CommitLog extends AbstractLinkedListOrganize implements GeneralStor
             int preCreate = 2;
             int fileSize = CommitLog.this.brokerController.getPersistentConfig().getCommitLogMaxSize();
 
+            // 第一个文件
             CountDownLatch count = new CountDownLatch(preCreate);
             String firstFileName = BrokerUtil.makeFileName(index, fileSize);
             AsyncRequest firstFile = new AsyncRequest(index, firstFileName, fileSize);
 
             this.requestTable.put(firstFileName, firstFile);
             int remainSize = Integer.MAX_VALUE;
+            // 如果允许借用内存
             if (CommitLog.this.brokerController.getPersistentConfig().isEnableOutOfMemory()
                     && CommitLog.this.memoryPool != null) {
                 remainSize = CommitLog.this.memoryPool.remainSize();
@@ -315,10 +356,12 @@ public class CommitLog extends AbstractLinkedListOrganize implements GeneralStor
                 }
             }
 
+            // 第二个预创建的文件
             String secondFileName = BrokerUtil.makeFileName(index + 1, fileSize);
             AsyncRequest secondFile = new AsyncRequest(index + 1, secondFileName, fileSize);
             this.requestTable.put(secondFileName, secondFile);
 
+            // 如果没有堆外内存，就不创建了
             if (CommitLog.this.brokerController.getPersistentConfig().isEnableOutOfMemory()
                     && CommitLog.this.memoryPool != null) {
                 if (remainSize >= 1) {
@@ -334,10 +377,12 @@ public class CommitLog extends AbstractLinkedListOrganize implements GeneralStor
             }
 
             try {
+                // 等待创建完成
                 count.await();
                 CommitLog.this.tailLock.lock();
 
                 MappedFile mappedFile = CommitLog.this.tail.prev;
+                // 返回不为预创建的最后一个文件
                 if (mappedFile.isPre()) {
                     mappedFile = mappedFile.prev;
                     this.requestTable.remove(secondFileName);

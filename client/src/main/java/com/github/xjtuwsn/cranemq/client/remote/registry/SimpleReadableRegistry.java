@@ -1,6 +1,6 @@
 package com.github.xjtuwsn.cranemq.client.remote.registry;
 
-import com.github.xjtuwsn.cranemq.client.WrapperFutureCommand;
+import com.github.xjtuwsn.cranemq.client.remote.WrapperFutureCommand;
 import com.github.xjtuwsn.cranemq.client.hook.InnerCallback;
 import com.github.xjtuwsn.cranemq.client.producer.result.SendResult;
 import com.github.xjtuwsn.cranemq.client.producer.result.SendResultType;
@@ -44,7 +44,7 @@ public class SimpleReadableRegistry implements ReadableRegistry {
         FutureCommand futureCommand = new FutureCommand();
         futureCommand.setRequest(remoteCommand);
         WrapperFutureCommand wrappered = new WrapperFutureCommand(futureCommand, topic, -1, null);
-        wrappered.setToRegistery(true);
+        wrappered.setToRegistry(true);
         SendResult result = this.clientInstance.sendMessageSync(wrappered, false);
 
         if (result.getResultType() == SendResultType.SERVER_ERROR || result.getTopicRouteInfo() == null) {
@@ -73,7 +73,7 @@ public class SimpleReadableRegistry implements ReadableRegistry {
                 }
             }
         });
-        wrappered.setToRegistery(true);
+        wrappered.setToRegistry(true);
         this.clientInstance.sendMessageAsync(wrappered);
     }
 

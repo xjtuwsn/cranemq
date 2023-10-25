@@ -2,7 +2,7 @@ package com.github.xjtuwsn.cranemq.client.consumer.impl;
 
 import cn.hutool.core.collection.ConcurrentHashSet;
 import cn.hutool.core.lang.Pair;
-import com.github.xjtuwsn.cranemq.client.WrapperFutureCommand;
+import com.github.xjtuwsn.cranemq.client.remote.WrapperFutureCommand;
 import com.github.xjtuwsn.cranemq.client.consumer.DefaultPushConsumer;
 import com.github.xjtuwsn.cranemq.client.consumer.PullResult;
 import com.github.xjtuwsn.cranemq.client.consumer.listener.CommonMessageListener;
@@ -11,11 +11,10 @@ import com.github.xjtuwsn.cranemq.client.consumer.listener.OrderedMessageListene
 import com.github.xjtuwsn.cranemq.client.consumer.offset.BrokerOffsetManager;
 import com.github.xjtuwsn.cranemq.client.consumer.offset.OffsetManager;
 import com.github.xjtuwsn.cranemq.client.consumer.push.*;
-import com.github.xjtuwsn.cranemq.client.consumer.rebalance.AverageQueueAllocation;
 import com.github.xjtuwsn.cranemq.client.consumer.rebalance.ConsistentHashAllocation;
 import com.github.xjtuwsn.cranemq.client.consumer.rebalance.QueueAllocation;
 import com.github.xjtuwsn.cranemq.client.hook.PullCallback;
-import com.github.xjtuwsn.cranemq.client.remote.ClienFactory;
+import com.github.xjtuwsn.cranemq.client.remote.ClientFactory;
 import com.github.xjtuwsn.cranemq.client.remote.ClientInstance;
 import com.github.xjtuwsn.cranemq.common.command.FutureCommand;
 import com.github.xjtuwsn.cranemq.common.command.Header;
@@ -46,17 +45,18 @@ import java.util.stream.Collectors;
  * @file:DefaultPushConsumerImpl
  * @author:wsn
  * @create:2023/10/08-10:50
+ * 默认的push消费者实现
  */
 public class DefaultPushConsumerImpl {
     private static final Logger log = LoggerFactory.getLogger(DefaultPushConsumerImpl.class);
     private DefaultPushConsumer defaultPushConsumer;
     private String clientId;
-    // topic: subscritions
+    // topic: subscriptions  topic和其订阅关系
     private Map<String, SubscriptionInfo> topicTags = new ConcurrentHashMap<>();
 
     private Set<String> topicSet = new ConcurrentHashSet<>();
     private MessageListener messageListener;
-    private String[] registeryAddress;
+    private String[] registerAddress;
     private RemoteHook hook;
     private ClientInstance clientInstance;
     private QueueAllocation queueAllocation;
@@ -88,10 +88,12 @@ public class DefaultPushConsumerImpl {
     }
     public void start() {
         String retryTopic = MQConstant.RETRY_PREFIX + this.defaultPushConsumer.getConsumerGroup();
+        // 默认订阅重试队列
         this.subscribe(retryTopic, "*");
         this.clientId = TopicUtil.buildClientID("push_consumer") + defaultPushConsumer.getId();
-        this.clientInstance = ClienFactory.newInstance().getOrCreate(clientId, hook);
+        this.clientInstance = ClientFactory.newInstance().getOrCreate(clientId, hook);
         this.messageListener = defaultPushConsumer.getMessageListener();
+        // 普通消息与顺序消息
         if (messageListener instanceof CommonMessageListener) {
             consumeMessageService = new CommonConsumeMessageService(messageListener, this);
         } else if (messageListener instanceof OrderedMessageListener) {
@@ -115,15 +117,20 @@ public class DefaultPushConsumerImpl {
     public void shutdown() {
         this.offsetManager.persistOffset();
 
-        this.clientInstance.unregsiterPushConsumer(defaultPushConsumer.getConsumerGroup());
+        this.clientInstance.unregisterPushConsumer(defaultPushConsumer.getConsumerGroup());
 
     }
-    // TODO 发送拉的请求，broker处理长轮询，这边设置回调处理
+
+    /**
+     * 发送拉的请求，从rebalance服务那里调用
+     * @param request
+     */
     public void pull(PullRequest request) {
         if (request == null) {
             log.warn("Pull Request cannot be null");
             return;
         }
+        // 封装请求
         String group = request.getGroupName();
         MessageQueue queue = request.getMessageQueue();
         BrokerQueueSnapShot snapShot = request.getSnapShot();
@@ -134,6 +141,7 @@ public class DefaultPushConsumerImpl {
         RemoteCommand remoteCommand = new RemoteCommand(header, payLoad);
         FutureCommand futureCommand = new FutureCommand(remoteCommand);
         WrapperFutureCommand wrappered = new WrapperFutureCommand(futureCommand, queue.getTopic());
+        // 拉取结果的回调
         PullCallback pullCallback = new PullCallback() {
             @Override
             public void onSuccess(PullResult pullResult) {
@@ -146,6 +154,7 @@ public class DefaultPushConsumerImpl {
                 }
                 AcquireResultType type = pullResult.getAcquireResultType();
                 switch (type) {
+                    // 拉取成功，更新位移，提交消费，并立刻拉取下一批
                     case DONE:
                         filterTags(pullResult, topicTags.get(queue.getTopic()));
                         long prevOffset = request.getOffset();
@@ -163,6 +172,7 @@ public class DefaultPushConsumerImpl {
                     case NO_MESSAGE:
                     case OFFSET_INVALID:
                     case ERROR:
+                        // 失败的情况，也进行重新拉取
                         clientInstance.getPullMessageService().putRequestNow(request);
                     default:
                         break;
@@ -195,7 +205,7 @@ public class DefaultPushConsumerImpl {
         this.topicSet.add(topic);
     }
     public void bindRegistry(String address, RegistryType registryType) {
-        this.registeryAddress = address.split(";");
+        this.registerAddress = address.split(";");
         this.registryType = registryType;
     }
     private void filterTags(PullResult pullResult, SubscriptionInfo info) {
@@ -220,8 +230,8 @@ public class DefaultPushConsumerImpl {
         this.isGray = isGray;
     }
 
-    public String[] getRegisteryAddress() {
-        return registeryAddress;
+    public String[] getRegisterAddress() {
+        return registerAddress;
     }
 
     public Set<String> getTopicSet() {

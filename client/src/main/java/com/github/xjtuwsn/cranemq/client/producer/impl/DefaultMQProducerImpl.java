@@ -2,7 +2,7 @@ package com.github.xjtuwsn.cranemq.client.producer.impl;
 
 import cn.hutool.core.collection.ConcurrentHashSet;
 import cn.hutool.core.util.StrUtil;
-import com.github.xjtuwsn.cranemq.client.WrapperFutureCommand;
+import com.github.xjtuwsn.cranemq.client.remote.WrapperFutureCommand;
 import com.github.xjtuwsn.cranemq.client.hook.SendCallback;
 import com.github.xjtuwsn.cranemq.client.producer.MQSelector;
 import com.github.xjtuwsn.cranemq.client.producer.balance.LoadBalanceStrategy;
@@ -16,7 +16,7 @@ import org.slf4j.LoggerFactory;
 import com.github.xjtuwsn.cranemq.common.remote.RemoteHook;
 import com.github.xjtuwsn.cranemq.client.producer.DefaultMQProducer;
 import com.github.xjtuwsn.cranemq.client.producer.MQProducerInner;
-import com.github.xjtuwsn.cranemq.client.remote.ClienFactory;
+import com.github.xjtuwsn.cranemq.client.remote.ClientFactory;
 import com.github.xjtuwsn.cranemq.client.remote.ClientInstance;
 import com.github.xjtuwsn.cranemq.common.command.payloads.req.MQProduceRequest;
 import com.github.xjtuwsn.cranemq.common.command.types.RequestType;
@@ -33,6 +33,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  * @file:DefaultMQProducerImpl
  * @author:wsn
  * @create:2023/09/27-14:38
+ * 消息生产者实现
  */
 public class DefaultMQProducerImpl implements MQProducerInner {
 
@@ -82,7 +83,7 @@ public class DefaultMQProducerImpl implements MQProducerInner {
         this.address = this.defaultMQProducer.getBrokerAddress();
         this.clientID = TopicUtil.buildClientID("producer");
 
-        this.clientInstance = ClienFactory.newInstance().getOrCreate(this.clientID, this.hook);
+        this.clientInstance = ClientFactory.newInstance().getOrCreate(this.clientID, this.hook);
         if (this.loadBalanceStrategy != null) {
             this.clientInstance.setLoadBalanceStrategy(this.loadBalanceStrategy);
         }
@@ -92,7 +93,6 @@ public class DefaultMQProducerImpl implements MQProducerInner {
         this.state.set(1);
         this.clientInstance.sendHeartBeatToBroker();
         this.clientInstance.start();
-//        this.remoteClient.start();
 
 
     }
@@ -181,7 +181,7 @@ public class DefaultMQProducerImpl implements MQProducerInner {
 
 
     public void close() throws CraneClientException {
-        this.clientInstance.unregsiterProducer(id);
+        this.clientInstance.unregisterProducer(id);
     }
 
 

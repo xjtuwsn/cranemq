@@ -1,6 +1,6 @@
 package com.github.xjtuwsn.cranemq.client.consumer.push;
 
-import com.github.xjtuwsn.cranemq.client.WrapperFutureCommand;
+import com.github.xjtuwsn.cranemq.client.remote.WrapperFutureCommand;
 import com.github.xjtuwsn.cranemq.client.consumer.impl.DefaultPushConsumerImpl;
 import com.github.xjtuwsn.cranemq.common.command.FutureCommand;
 import com.github.xjtuwsn.cranemq.common.command.Header;
@@ -19,6 +19,7 @@ import java.util.List;
  * @file:AbstractReputMessageService
  * @author:wsn
  * @create:2023/10/21-11:24
+ * 将消息送回给broker
  */
 public abstract class AbstractReputMessageService implements ConsumeMessageService {
 
@@ -29,6 +30,11 @@ public abstract class AbstractReputMessageService implements ConsumeMessageServi
         this.defaultPushConsumer = defaultPushConsumer;
     }
 
+    /**
+     * 如果不是顺序消息，将retry次数+1，如果是，一直重试
+     * @param readyMessages
+     * @param isOrdered
+     */
     protected void sendMessageBackToBroker(List<ReadyMessage> readyMessages, boolean isOrdered) {
         Header header = new Header(RequestType.SEND_MESSAGE_BACK, RpcType.ASYNC, TopicUtil.generateUniqueID());
         String topic = "";

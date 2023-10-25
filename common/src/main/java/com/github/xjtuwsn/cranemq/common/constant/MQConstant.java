@@ -27,6 +27,9 @@ public class MQConstant {
     public static final int MASTER_ID = 0;
 
     public static final String DEFAULT_CONF_PATH = "D:\\code\\opensource\\cranemq\\default.conf";
+
+    public static final String DEFAULT_LOCAL_OFFSET_PATH = System.getProperty("user.home") +  "\\cranemq\\";
+    public static final String LOCAL_OFFSET_SUFFIX = "_offset.json";
     public static final String CHARSETNAME = "UTF-8";
     public static final int COMMITLOG_FILENAME_LENGTH = 20;
 }

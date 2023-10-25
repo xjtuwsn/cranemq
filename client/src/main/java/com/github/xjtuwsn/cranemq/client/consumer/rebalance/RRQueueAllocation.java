@@ -11,6 +11,7 @@ import java.util.Set;
  * @file:RRQueueAllocation
  * @author:wsn
  * @create:2023/10/14-10:19
+ * 轮询策略
  */
 public class RRQueueAllocation implements QueueAllocation {
     @Override

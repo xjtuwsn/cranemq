@@ -1,12 +1,10 @@
 package com.github.xjtuwsn.cranemq.client.consumer;
 
-import com.github.xjtuwsn.cranemq.client.WrapperFutureCommand;
+import com.github.xjtuwsn.cranemq.client.remote.WrapperFutureCommand;
 import com.github.xjtuwsn.cranemq.client.consumer.impl.DefaultPushConsumerImpl;
 import com.github.xjtuwsn.cranemq.client.consumer.push.BrokerQueueSnapShot;
-import com.github.xjtuwsn.cranemq.client.consumer.push.PullMessageService;
 import com.github.xjtuwsn.cranemq.client.consumer.push.PullRequest;
 import com.github.xjtuwsn.cranemq.client.consumer.rebalance.QueueAllocation;
-import com.github.xjtuwsn.cranemq.client.hook.InnerCallback;
 import com.github.xjtuwsn.cranemq.client.producer.result.SendResult;
 import com.github.xjtuwsn.cranemq.client.producer.result.SendResultType;
 import com.github.xjtuwsn.cranemq.client.remote.ClientInstance;
@@ -15,8 +13,6 @@ import com.github.xjtuwsn.cranemq.common.command.Header;
 import com.github.xjtuwsn.cranemq.common.command.PayLoad;
 import com.github.xjtuwsn.cranemq.common.command.RemoteCommand;
 import com.github.xjtuwsn.cranemq.common.command.payloads.req.MQLockRequest;
-import com.github.xjtuwsn.cranemq.common.command.payloads.req.MQReblanceQueryRequest;
-import com.github.xjtuwsn.cranemq.common.command.payloads.resp.MQLockRespnse;
 import com.github.xjtuwsn.cranemq.common.command.payloads.resp.MQNotifyChangedResponse;
 import com.github.xjtuwsn.cranemq.common.command.types.LockType;
 import com.github.xjtuwsn.cranemq.common.command.types.RequestType;
@@ -32,7 +28,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * @project:cranemq
@@ -142,7 +137,7 @@ public class RebalanceService {
                         null, newQueue.getTopic());
                 wrappered.setQueuePicked(newQueue);
                 SendResult result = clientInstance.sendMessageSync(wrappered, false);
-                if (result.getResultType() != SendResultType.SEDN_OK) {
+                if (result.getResultType() != SendResultType.SEND_OK) {
                     log.error("Apply for message queue lock failed after 3 retries");
                     continue;
                 }
@@ -185,7 +180,7 @@ public class RebalanceService {
                         null, removedMq.getTopic());
                 wrappered.setQueuePicked(removedMq);
                 SendResult result = clientInstance.sendMessageSync(wrappered, false);
-                if (result.getResultType() != SendResultType.SEDN_OK) {
+                if (result.getResultType() != SendResultType.SEND_OK) {
                     log.error("Release lock failed");
                     return;
                 }

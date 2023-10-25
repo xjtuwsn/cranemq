@@ -11,6 +11,7 @@ import java.util.concurrent.atomic.AtomicLong;
  * @file:MQSelectorGray
  * @author:wsn
  * @create:2023/10/23-10:12
+ * 灰度队列选择
  */
 public abstract class MQSelectorGray implements MQSelector {
     private int queueNum;
@@ -19,6 +20,13 @@ public abstract class MQSelectorGray implements MQSelector {
         this.queueNum = queueNum;
         this.count = new AtomicLong(0);
     }
+
+    /**
+     * 根据给定的灰度队列数量，轮询队列中的前n个队列
+     * @param queues
+     * @param arg
+     * @return
+     */
     @Override
     public MessageQueue select(List<MessageQueue> queues, Object arg) {
         int size = queues.size();

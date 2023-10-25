@@ -11,10 +11,17 @@ import java.util.concurrent.LinkedBlockingQueue;
  * @author:wsn
  * @create:2023/10/05-11:03
  */
+
+/**
+ * 执行异步创建操作的抽象类
+ * @author wsn
+ */
 public abstract class CreateServiceThread extends Thread {
 
     protected boolean isStop = false;
+    // 存放创建请求
     protected LinkedBlockingQueue<AsyncRequest> requestQueue;
+    // 保存已经发出的请求
     protected ConcurrentHashMap<String, AsyncRequest> requestTable = new ConcurrentHashMap<>();
     public CreateServiceThread() {
         this.requestQueue = new LinkedBlockingQueue<>(1000);

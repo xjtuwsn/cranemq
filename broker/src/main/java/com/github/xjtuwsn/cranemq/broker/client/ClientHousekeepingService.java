@@ -25,6 +25,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  * @file:ClientHousekeepingService
  * @author:wsn
  * @create:2023/10/02-19:51
+ * 进行客户端的管理
  */
 public class ClientHousekeepingService implements ChannelEventListener, ConsumerGroupManager {
     private static final Logger log = LoggerFactory.getLogger(ClientHousekeepingService.class);
@@ -32,18 +33,18 @@ public class ClientHousekeepingService implements ChannelEventListener, Consumer
     private ConcurrentHashMap<String, ClientWrapper> produceTable = new ConcurrentHashMap<>();
     // group: [clientId: client]
     private ConcurrentHashMap<String, ConcurrentHashMap<String, ClientWrapper>> consumerTable = new ConcurrentHashMap<>();
-    private ConcurrentHashMap<String, ConsumerInfo> groupProperity = new ConcurrentHashMap<>();
+    private ConcurrentHashMap<String, ConsumerInfo> groupProperty = new ConcurrentHashMap<>();
 
     private ConcurrentHashMap<String, CopyOnWriteArrayList<ClientWrapper>> channelTable = new ConcurrentHashMap<>();
-    private ScheduledExecutorService scanUnactiveService;
+    private ScheduledExecutorService scanInactiveService;
     private ExecutorService asyncNotifyConsumerService;
     private ExecutorService asyncSweepService;
     private AtomicInteger activeNumber;
     public ClientHousekeepingService(BrokerController brokerController) {
         this.brokerController = brokerController;
         this.activeNumber = new AtomicInteger(0);
-        this.scanUnactiveService = new ScheduledThreadPoolExecutor(2);
-        this.scanUnactiveService.scheduleAtFixedRate(() -> {
+        this.scanInactiveService = new ScheduledThreadPoolExecutor(2);
+        this.scanInactiveService.scheduleAtFixedRate(() -> {
             this.scanInactiveClient();
         }, 500, 30 * 1000, TimeUnit.MILLISECONDS);
         asyncNotifyConsumerService = new ThreadPoolExecutor(6, 12, 60L,
@@ -70,6 +71,10 @@ public class ClientHousekeepingService implements ChannelEventListener, Consumer
         this.activeNumber.incrementAndGet();
     }
 
+    /**
+     * 某个客户端断联时
+     * @param channel
+     */
     @Override
     public void onDisconnect(Channel channel) {
         asyncSweepService.execute(() -> {
@@ -91,7 +96,10 @@ public class ClientHousekeepingService implements ChannelEventListener, Consumer
         log.info("{} channel on Exception", channel);
     }
 
-    // TODO 消费者客户端下线时释放分布式锁
+    /**
+     * 执行某个客户端的下线操作
+     * @param channel
+     */
     private void doCloseChannel(Channel channel) {
         if (channel == null) {
             return;
@@ -129,6 +137,11 @@ public class ClientHousekeepingService implements ChannelEventListener, Consumer
 
     }
 
+    /**
+     * 生产者心跳
+     * @param request
+     * @param channel
+     */
     @Override
     public void onProducerHeartBeat(MQHeartBeatRequest request, Channel channel) {
         Set<String> groups = request.getProducerGroup();
@@ -160,6 +173,11 @@ public class ClientHousekeepingService implements ChannelEventListener, Consumer
         }
     }
 
+    /**
+     * 消费者心跳，更新消费者组信息
+     * @param request
+     * @param channel
+     */
     @Override
     public void onConsumerHeartBeat(MQHeartBeatRequest request, Channel channel) {
         Set<ConsumerInfo> consumerGroup = request.getConsumerGroup();
@@ -173,7 +191,7 @@ public class ClientHousekeepingService implements ChannelEventListener, Consumer
             if (prev == null) {
                 changed = true;
             }
-            groupProperity.put(cg, info);
+            groupProperty.put(cg, info);
             ConcurrentHashMap<String, ClientWrapper> map = consumerTable.get(cg);
 
             ClientWrapper clientWrapper = new ClientWrapper(channel, clientId, info, gray);
@@ -185,11 +203,17 @@ public class ClientHousekeepingService implements ChannelEventListener, Consumer
             ClientWrapper cur = prevWrapper == null ? clientWrapper : prevWrapper;
             cur.updateCommTime(System.currentTimeMillis());
 
+            // 如果消费者组发生变化，就通知同组所有消费者
             if (changed) {
                 consumerGroupChanged(cg);
             }
         }
     }
+
+    /**
+     * 通知消费者组变更
+     * @param groupName
+     */
     private void consumerGroupChanged(String groupName) {
         log.info("Consumer cluster {} has changed", groupName);
         ConcurrentHashMap<String, ClientWrapper> map = consumerTable.get(groupName);
@@ -198,6 +222,7 @@ public class ClientHousekeepingService implements ChannelEventListener, Consumer
         while (iterator.hasNext()) {
             clients.add(iterator.next());
         }
+        // 通知
         for (Map.Entry<String, ClientWrapper> entry : map.entrySet()) {
             asyncNotifyConsumerService.execute(() -> {
                 Header header = new Header(ResponseType.NOTIFY_CHAGED_RESPONSE, RpcType.ONE_WAY,
@@ -208,13 +233,17 @@ public class ClientHousekeepingService implements ChannelEventListener, Consumer
             });
         }
     }
+
+    /**
+     * 扫描长期未通信客户端
+     */
     private void scanInactiveClient() {
         Iterator<Map.Entry<String, ClientWrapper>> iterator = this.produceTable.entrySet().iterator();
         doRemove(iterator);
-        Iterator<Map.Entry<String, ConcurrentHashMap<String, ClientWrapper>>> consumgerIntrator =
+        Iterator<Map.Entry<String, ConcurrentHashMap<String, ClientWrapper>>> consumerIterator =
                 this.consumerTable.entrySet().iterator();
-        while (consumgerIntrator.hasNext()) {
-            Iterator<Map.Entry<String, ClientWrapper>> subiterator = consumgerIntrator.next().getValue().
+        while (consumerIterator.hasNext()) {
+            Iterator<Map.Entry<String, ClientWrapper>> subiterator = consumerIterator.next().getValue().
                     entrySet().iterator();
             doRemove(subiterator);
         }

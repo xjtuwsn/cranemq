@@ -27,9 +27,8 @@ import java.util.concurrent.atomic.AtomicInteger;
  * @author:wsn
  * @create:2023/09/28-19:21
  */
-//TODO 将这一块移动到common模块，解除依赖，通过注册的方式实现
-public class RemoteClent implements RemoteService {
-    private static final Logger log = LoggerFactory.getLogger(RemoteClent.class);
+public class RemoteClient implements RemoteService {
+    private static final Logger log = LoggerFactory.getLogger(RemoteClient.class);
     private ConcurrentHashMap<String, ChannelWrapper> channelTable = new ConcurrentHashMap<>();
     private EventLoopGroup workerGroup;
     private Bootstrap bootstrap;
@@ -39,7 +38,7 @@ public class RemoteClent implements RemoteService {
     private int maxSize = 16;
     private ExecutorService asyncCallBackService;
 
-    public RemoteClent() {
+    public RemoteClient() {
         this.asyncCallBackService = new ThreadPoolExecutor(coreSize,
                 maxSize,
                 60L,

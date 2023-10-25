@@ -33,12 +33,16 @@ import java.util.concurrent.locks.ReentrantLock;
  * @file:HoldRequestService
  * @author:wsn
  * @create:2023/10/10-09:51
+ * 保存消费者长轮询，并在有新消息时返回
+ *
  */
 public class HoldRequestService {
 
     private static final Logger log = LoggerFactory.getLogger(HoldRequestService.class);
+    // 保存消费者组的请求
     // topic@group: [queueId: request]
     private volatile ConcurrentHashMap<String, ConcurrentHashMap<Integer, RequestWrapper>> requestTable = new ConcurrentHashMap<>();
+    // 存储映射关系，方便删除
     // topic: [topic@group]
     private ConcurrentHashMap<String, ConcurrentHashSet<String>> topicQueryTable = new ConcurrentHashMap<>();
     private BrokerController brokerController;
@@ -58,6 +62,13 @@ public class HoldRequestService {
                 });
         scanRequestTableService = new ScheduledThreadPoolExecutor(3);
     }
+
+    /**
+     * 在有新请求时，先尝试有无消息，没有时hold住这个连接
+     * @param pullMessageRequest 拉取消息的请求
+     * @param channel
+     * @param id
+     */
     public void tryHoldRequest(MQPullMessageRequest pullMessageRequest, Channel channel, String id) {
         RequestWrapper requestWrapper = new RequestWrapper(pullMessageRequest, channel, id);
         String topic = requestWrapper.getTopic(), group = requestWrapper.getGroup(), clientId = pullMessageRequest.getClientId();
@@ -79,6 +90,7 @@ public class HoldRequestService {
             sets.add(key);
         }
         long offset = 0L;
+        // 设置拉取的offset
         if (pullMessageRequest.getOffset() == -1) {
             offset = brokerController.getOffsetManager().getOffsetInQueue(topic, group, queueId);
         } else {
@@ -86,12 +98,18 @@ public class HoldRequestService {
         }
         requestWrapper.setOffset(offset);
 
+        // 根据请求的已commit的偏移来更新broker端消费进度
         long commitOffset = pullMessageRequest.getCommitOffset();
         brokerController.getOffsetManager().updateOffset(topic, group, queueId, commitOffset);
+        // 然后尝试读取请求的消息
         this.asyncRead(requestWrapper);
 
     }
 
+    /**
+     * 当commitLog提交时，将提交的队列发到这里，将会唤醒订阅的消费者去读
+     * @param queues
+     */
     public void awakeNow(List<Pair<String, Integer>> queues) {
         if (queues == null || queues.size() == 0) {
             return;
@@ -112,18 +130,27 @@ public class HoldRequestService {
     }
     private void asyncRead(RequestWrapper wrapper) {
         this.asyncReadService.execute(() -> {
-            readAndResopnse(wrapper);
+            readAndResponse(wrapper);
         });
     }
-    private void readAndResopnse(RequestWrapper wrapper) {
+
+    /**
+     * 读取消息并返回
+     * @param wrapper
+     */
+    private void readAndResponse(RequestWrapper wrapper) {
+        // 判断是否超时
         long arriveTime = wrapper.getArriveTime();
         long now = System.currentTimeMillis();
         Header header = new Header(ResponseType.PULL_RESPONSE, RpcType.ONE_WAY, wrapper.getId());
         PayLoad payLoad = null;
+        // 超时
         if (now - arriveTime >= brokerController.getBrokerConfig().getLongPollingTime()) {
             payLoad = new MQPullMessageResponse(AcquireResultType.NO_MESSAGE, wrapper.getGroup(), null, wrapper.getOffset());
         } else {
+            // 读取
             Pair<Pair<List<ReadyMessage>, Long>, AcquireResultType> result = readFromFile(wrapper);
+            // 没读到
             if (result == null || result.getValue() != AcquireResultType.DONE || result.getKey() == null
                     || result.getKey().getKey() == null || result.getKey().getKey().isEmpty()) {
                 return;
@@ -135,18 +162,26 @@ public class HoldRequestService {
         }
         RemoteCommand remoteCommand = new RemoteCommand(header, payLoad);
 
+        // 如果通道还可用，也就是消费者没断开连接
         if (wrapper.isOk() && wrapper.valid.get()) {
             synchronized (wrapper) {
                 if (wrapper.valid.get()) {
                     wrapper.valid.set(false);
+                    // 写入消息
                     wrapper.getChannel().writeAndFlush(remoteCommand);
                 }
             }
 
         }
+        // 删除请求
         remove(wrapper);
     }
 
+    /**
+     * 根据给定的偏移去读
+     * @param wrapper
+     * @return
+     */
     private Pair<Pair<List<ReadyMessage>, Long>, AcquireResultType> readFromFile(RequestWrapper wrapper) {
         String topic = wrapper.getTopic(), group = wrapper.getGroup();
         int queueId = wrapper.getQueueId();
@@ -157,6 +192,9 @@ public class HoldRequestService {
         return result;
     }
 
+    /**
+     * 定时扫描连接，删除超时连接
+     */
     private void scanTable() {
         for (Map.Entry<String, ConcurrentHashMap<Integer, RequestWrapper>> outter : requestTable.entrySet()) {
             ConcurrentHashMap<Integer, RequestWrapper> value = outter.getValue();

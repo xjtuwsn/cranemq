@@ -29,9 +29,9 @@ public class PushConsumerTest {
         DefaultPushConsumer.builder()
                 .consumerId("1")
                 .consumerGroup("group_push")
-                .bindRegistry("192.168.227.137:2181")
+                .bindRegistry("127.0.0.1:8848")
                 .messageModel(MessageModel.CLUSTER)
-                .registryType(RegistryType.ZOOKEEPER)
+                .registryType(RegistryType.NACOS)
                 .startConsume(StartConsume.FROM_FIRST_OFFSET)
                 .subscribe("topic1", "*")
                 .messageListener(new CommonMessageListener() {

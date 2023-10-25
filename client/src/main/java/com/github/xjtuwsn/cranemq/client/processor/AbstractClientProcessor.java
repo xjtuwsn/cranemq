@@ -1,6 +1,6 @@
 package com.github.xjtuwsn.cranemq.client.processor;
 
-import com.github.xjtuwsn.cranemq.client.WrapperFutureCommand;
+import com.github.xjtuwsn.cranemq.client.remote.WrapperFutureCommand;
 import com.github.xjtuwsn.cranemq.client.producer.result.SendResult;
 import com.github.xjtuwsn.cranemq.client.producer.result.SendResultType;
 import com.github.xjtuwsn.cranemq.client.remote.ClientInstance;
@@ -70,7 +70,7 @@ public abstract class AbstractClientProcessor implements BaseProcessor {
             this.clientInstance.removeWrapperFuture(correlationID);
             if (wrappered.getCallback() != null) {
                 asyncHookService.execute(() -> {
-                    SendResult result = new SendResult(SendResultType.SEDN_OK, correlationID);
+                    SendResult result = new SendResult(SendResultType.SEND_OK, correlationID);
                     wrappered.getCallback().onSuccess(result);
                 });
             }

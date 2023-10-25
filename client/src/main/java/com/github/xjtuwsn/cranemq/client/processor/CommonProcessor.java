@@ -1,7 +1,7 @@
 package com.github.xjtuwsn.cranemq.client.processor;
 
 import com.github.xjtuwsn.cranemq.client.hook.InnerCallback;
-import com.github.xjtuwsn.cranemq.client.WrapperFutureCommand;
+import com.github.xjtuwsn.cranemq.client.remote.WrapperFutureCommand;
 import com.github.xjtuwsn.cranemq.client.remote.ClientInstance;
 import com.github.xjtuwsn.cranemq.common.command.RemoteCommand;
 import com.github.xjtuwsn.cranemq.common.command.types.RpcType;

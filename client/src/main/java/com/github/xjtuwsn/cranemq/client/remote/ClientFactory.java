@@ -10,13 +10,14 @@ import java.util.concurrent.ConcurrentHashMap;
  * @file:ClienFactory
  * @author:wsn
  * @create:2023/09/27-15:43
+ * 单例产生客户端实例
  */
-public class ClienFactory {
+public class ClientFactory {
 
-    private static ClienFactory instance = new ClienFactory();
+    private static ClientFactory instance = new ClientFactory();
     private ConcurrentHashMap<String, ClientInstance> cache = new ConcurrentHashMap<>();
 
-    public static ClienFactory newInstance() {
+    public static ClientFactory newInstance() {
         return instance;
     }
 

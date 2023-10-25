@@ -11,8 +11,15 @@ import java.util.concurrent.locks.ReentrantLock;
  * @author:wsn
  * @create:2023/10/05-10:18
  */
+
+/**
+ * 表示commitLog和消费队列对mappedFile 的组织形式
+ * 以链表的形式组织
+ * @author wsn
+ */
 public abstract class AbstractLinkedListOrganize {
 
+    // index：mappedFile
     protected ConcurrentHashMap<Integer, MappedFile> mappedTable = new ConcurrentHashMap<>();
 
     protected ReentrantLock tailLock = new ReentrantLock();
@@ -29,6 +36,10 @@ public abstract class AbstractLinkedListOrganize {
         this.mappedTable.put(this.tailIndex, this.tail);
     }
 
+    /**
+     * 在尾部插入新的文件
+     * @param mappedFile
+     */
     protected void insertBeforeTail(MappedFile mappedFile) {
         this.tailLock.lock();
         this.mappedTable.put(mappedFile.getIndex(), mappedFile);

@@ -9,6 +9,7 @@ import java.util.concurrent.CountDownLatch;
  * @file:AsyncRequest
  * @author:wsn
  * @create:2023/10/04-11:00
+ * 进行文件创建所需要的信息
  */
 @Data
 @Setter

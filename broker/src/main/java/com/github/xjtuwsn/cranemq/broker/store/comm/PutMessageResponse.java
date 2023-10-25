@@ -8,6 +8,7 @@ import lombok.*;
  * @file:PutMessageResponse
  * @author:wsn
  * @create:2023/10/05-16:40
+ * 写入信息的响应
  */
 @Data
 @AllArgsConstructor

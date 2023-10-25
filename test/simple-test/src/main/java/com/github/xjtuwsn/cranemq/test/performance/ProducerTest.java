@@ -1,10 +1,8 @@
 package com.github.xjtuwsn.cranemq.test.performance;
 
 import com.github.xjtuwsn.cranemq.client.producer.balance.RoundRobinStrategy;
-import com.github.xjtuwsn.cranemq.common.remote.RemoteHook;
 import com.github.xjtuwsn.cranemq.client.producer.DefaultMQProducer;
 import com.github.xjtuwsn.cranemq.common.entity.Message;
-import com.github.xjtuwsn.cranemq.common.remote.RemoteAddress;
 import com.github.xjtuwsn.cranemq.common.remote.enums.RegistryType;
 
 import java.util.concurrent.*;
@@ -32,7 +30,7 @@ public class ProducerTest {
         int thread = 1, number = 1;
 
         DefaultMQProducer producer = new DefaultMQProducer("group_push");
-        producer.bindRegistery("192.168.227.137:2181", RegistryType.ZOOKEEPER);
+        producer.bindRegistry("127.0.0.1:8848", RegistryType.NACOS);
         producer.setLoadBalanceStrategy(new RoundRobinStrategy());
         producer.start();
         byte[] data = ("This is as simple message in " + TimeUnit.MILLISECONDS.toSeconds(System.currentTimeMillis())).getBytes();

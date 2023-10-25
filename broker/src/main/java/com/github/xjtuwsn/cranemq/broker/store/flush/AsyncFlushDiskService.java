@@ -18,6 +18,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * @file:AsyncFlushDiskService
  * @author:wsn
  * @create:2023/10/06-11:04
+ * 异步刷盘服务
  */
 public class AsyncFlushDiskService extends Thread implements FlushDiskService {
     private static final Logger log = LoggerFactory.getLogger(AsyncFlushDiskService.class);
@@ -35,6 +36,7 @@ public class AsyncFlushDiskService extends Thread implements FlushDiskService {
     @Override
     public void run() {
         while (!isStop) {
+            // 定时进行刷盘
             flush();
             try {
                 Thread.sleep(persistentConfig.getFlushDiskInterval());
@@ -44,8 +46,12 @@ public class AsyncFlushDiskService extends Thread implements FlushDiskService {
         }
     }
 
+    /**
+     * 执行刷盘
+     */
     @Override
     public void flush() {
+        // 进行commitLog的刷盘
         Iterator<MappedFile> commitLogIterator = commitLog.iterator();
         while (commitLogIterator.hasNext()) {
             MappedFile next = commitLogIterator.next();
@@ -53,6 +59,7 @@ public class AsyncFlushDiskService extends Thread implements FlushDiskService {
                 next.doFlush();
             }
         }
+        // 进行所有消费队列的刷盘
         Iterator<ConcurrentHashMap<Integer, ConsumeQueue>> allQueue = consumeQueueManager.iterator();
         while (allQueue.hasNext()) {
             ConcurrentHashMap<Integer, ConsumeQueue> next = allQueue.next();

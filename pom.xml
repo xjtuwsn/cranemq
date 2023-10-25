@@ -15,6 +15,7 @@
         <module>client</module>
         <module>registry</module>
         <module>extension</module>
+        <module>example</module>
     </modules>
 
     <properties>

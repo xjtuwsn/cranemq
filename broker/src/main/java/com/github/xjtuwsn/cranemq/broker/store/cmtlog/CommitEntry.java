@@ -6,6 +6,11 @@ package com.github.xjtuwsn.cranemq.broker.store.cmtlog;
  * @author:wsn
  * @create:2023/10/09-19:47
  */
+
+/**
+ * 表示待提交的信息
+ * @author wsn
+ */
 public class CommitEntry {
     private String topic;
 

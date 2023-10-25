@@ -1,7 +1,7 @@
 package com.github.xjtuwsn.cranemq.broker;
 
 import com.github.xjtuwsn.cranemq.broker.client.ClientHousekeepingService;
-import com.github.xjtuwsn.cranemq.broker.client.ClientLockMananger;
+import com.github.xjtuwsn.cranemq.broker.client.ClientLockManager;
 import com.github.xjtuwsn.cranemq.broker.client.ConsumerGroupManager;
 import com.github.xjtuwsn.cranemq.broker.offset.ConsumerOffsetManager;
 import com.github.xjtuwsn.cranemq.broker.processors.ServerProcessor;
@@ -19,17 +19,12 @@ import com.github.xjtuwsn.cranemq.common.remote.event.ChannelEventListener;
 import com.github.xjtuwsn.cranemq.common.utils.NetworkUtil;
 import com.github.xjtuwsn.cranemq.extension.impl.NacosWritableRegistry;
 import com.github.xjtuwsn.cranemq.extension.impl.ZkWritableRegistry;
-import org.checkerframework.checker.units.qual.C;
 import org.springframework.beans.BeansException;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.ApplicationContextAware;
-import org.springframework.context.annotation.Lazy;
 
 import javax.annotation.Resource;
 import java.util.concurrent.*;
-import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * @project:cranemq
@@ -60,16 +55,22 @@ public class BrokerController implements GeneralStoreService, ApplicationContext
     // 消费者组管理
     private ConsumerGroupManager consumerGroupManager;
     // 分布式锁管理
-    private ClientLockMananger clientLockMananger;
+    private ClientLockManager clientLockManager;
     // 不同处理器对应的线程池
     @Resource
     private ExecutorService producerMessageService;
+    @Resource
     private ExecutorService createTopicService;
+    @Resource
     private ExecutorService simplePullService;
+    @Resource
     private ExecutorService handleHeartBeatService;
+    @Resource
     private ExecutorService handlePullService;
+    @Resource
     private ExecutorService handleOffsetService;
 
+    @Resource
     private ExecutorService sendBackService;
     // 定时持久化位移
     private ScheduledExecutorService saveOffsetService;
@@ -95,7 +96,7 @@ public class BrokerController implements GeneralStoreService, ApplicationContext
         this.messageStoreCenter = new MessageStoreCenter(this);
         this.offsetManager = new ConsumerOffsetManager(this);
         this.holdRequestService = new HoldRequestService(this);
-        this.clientLockMananger = new ClientLockMananger();
+        this.clientLockManager = new ClientLockManager();
         // 根据注册中心类型判断初始化哪个
         if (this.brokerConfig.getRegistryType() == RegistryType.DEFAULT) {
             this.writableRegistry = new SimpleWritableRegistry(this);
@@ -123,70 +124,6 @@ public class BrokerController implements GeneralStoreService, ApplicationContext
         this.remoteServer.registerThreadPool(HandlerType.SEND_BACK, this.sendBackService);
     }
     private void initThreadPool() {
-//        this.producerMessageService = new ThreadPoolExecutor(coreSize, maxSize,
-//                60L, TimeUnit.SECONDS, new LinkedBlockingDeque<>(10000),
-//                new ThreadFactory() {
-//                    AtomicInteger idx = new AtomicInteger(0);
-//                    @Override
-//                    public Thread newThread(Runnable r) {
-//                        return new Thread(r, "Producer Message Service NO." + idx.getAndIncrement());
-//                    }
-//                });
-        System.out.println("-----------------" + producerMessageService);
-        this.createTopicService = new ThreadPoolExecutor(coreSize / 3, maxSize / 3,
-                60L, TimeUnit.SECONDS, new LinkedBlockingDeque<>(5000),
-                new ThreadFactory() {
-                    AtomicInteger idx = new AtomicInteger(0);
-                    @Override
-                    public Thread newThread(Runnable r) {
-                        return new Thread(r, "Create Topic Thread NO." + idx.getAndIncrement());
-                    }
-                });
-        this.handleHeartBeatService = new ThreadPoolExecutor(coreSize / 3, maxSize / 3,
-                60L, TimeUnit.SECONDS, new LinkedBlockingDeque<>(8000),
-                new ThreadFactory() {
-                    AtomicInteger idx = new AtomicInteger(0);
-                    @Override
-                    public Thread newThread(Runnable r) {
-                        return new Thread(r, "Handle HeartBeat Service NO." + idx.getAndIncrement());
-                    }
-                });
-        this.simplePullService = new ThreadPoolExecutor(coreSize / 2, maxSize / 2,
-                60L, TimeUnit.SECONDS, new LinkedBlockingDeque<>(8000),
-                new ThreadFactory() {
-                    AtomicInteger idx = new AtomicInteger(0);
-                    @Override
-                    public Thread newThread(Runnable r) {
-                        return new Thread(r, "Siple pull Service NO." + idx.getAndIncrement());
-                    }
-                });
-        this.handlePullService = new ThreadPoolExecutor(coreSize / 2, maxSize / 2,
-                60L, TimeUnit.SECONDS, new LinkedBlockingDeque<>(8000),
-                new ThreadFactory() {
-                    AtomicInteger idx = new AtomicInteger(0);
-                    @Override
-                    public Thread newThread(Runnable r) {
-                        return new Thread(r, "Pull Service NO." + idx.getAndIncrement());
-                    }
-                });
-        this.handleOffsetService = new ThreadPoolExecutor(coreSize / 3, maxSize / 3,
-                60L, TimeUnit.SECONDS, new LinkedBlockingDeque<>(3000),
-                new ThreadFactory() {
-                    AtomicInteger idx = new AtomicInteger(0);
-                    @Override
-                    public Thread newThread(Runnable r) {
-                        return new Thread(r, "Record Offset Service NO." + idx.getAndIncrement());
-                    }
-                });
-        this.sendBackService = new ThreadPoolExecutor(coreSize / 3, maxSize / 3,
-                60L, TimeUnit.SECONDS, new LinkedBlockingDeque<>(3000),
-                new ThreadFactory() {
-                    AtomicInteger idx = new AtomicInteger(0);
-                    @Override
-                    public Thread newThread(Runnable r) {
-                        return new Thread(r, "Send Back Service NO." + idx.getAndIncrement());
-                    }
-                });
         this.saveOffsetService = new ScheduledThreadPoolExecutor(1);
         this.heartBeatSendService = new ScheduledThreadPoolExecutor(1);
     }
@@ -256,8 +193,8 @@ public class BrokerController implements GeneralStoreService, ApplicationContext
         return consumerGroupManager;
     }
 
-    public ClientLockMananger getClientLockMananger() {
-        return clientLockMananger;
+    public ClientLockManager getClientLockMananger() {
+        return clientLockManager;
     }
 
     @Override

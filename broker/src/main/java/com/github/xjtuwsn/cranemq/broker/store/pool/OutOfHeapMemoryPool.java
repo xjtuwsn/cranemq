@@ -12,6 +12,7 @@ import java.util.concurrent.LinkedBlockingQueue;
  * @file:OutOfHeapMemoryPool
  * @author:wsn
  * @create:2023/10/04-10:17
+ * 堆外内存池
  */
 public class OutOfHeapMemoryPool {
     private static final Logger log = LoggerFactory.getLogger(OutOfHeapMemoryPool.class);
@@ -28,6 +29,9 @@ public class OutOfHeapMemoryPool {
         log.info("New memory pool, size is {}", this.maxQueueSize);
     }
 
+    /**
+     * 申请堆外内存
+     */
     public void init() {
         for (int i = 0; i < this.maxQueueSize; i++) {
             ByteBuffer byteBuffer = ByteBuffer.allocateDirect(this.persistentConfig.getCommitLogMaxSize());
@@ -35,6 +39,10 @@ public class OutOfHeapMemoryPool {
         }
         log.info("Finish memory pool initialize");
     }
+
+    /**
+     * 销毁内存池
+     */
     public void destory() {
         while (!this.queue.isEmpty()) {
             ByteBuffer byteBuffer = this.queue.poll();
@@ -44,11 +52,21 @@ public class OutOfHeapMemoryPool {
         }
         this.queue.clear();
     }
+
+    /**
+     * 归还
+     * @param byteBuffer
+     */
     public void returnMemory(ByteBuffer byteBuffer) {
         byteBuffer.position(0);
         byteBuffer.limit(this.persistentConfig.getCommitLogMaxSize());
         this.queue.offer(byteBuffer);
     }
+
+    /**
+     * 借用
+     * @return
+     */
     public ByteBuffer borrowMemmory() {
         ByteBuffer poll = this.queue.poll();
         if (poll == null) {

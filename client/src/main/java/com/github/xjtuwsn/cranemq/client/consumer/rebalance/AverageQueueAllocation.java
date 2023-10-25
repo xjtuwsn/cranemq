@@ -12,6 +12,7 @@ import java.util.Set;
  * @file:AverageQueueAllocation
  * @author:wsn
  * @create:2023/10/08-16:17
+ * 平均分配策略
  */
 public class AverageQueueAllocation implements QueueAllocation {
     @Override

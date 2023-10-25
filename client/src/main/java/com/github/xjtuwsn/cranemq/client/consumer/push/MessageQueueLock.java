@@ -13,6 +13,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * @file:MessageQueueLock
  * @author:wsn
  * @create:2023/10/12-14:40
+ * 本地消费队列锁
  */
 public class MessageQueueLock {
 

@@ -1,0 +1,10 @@
+cranemq:
+  producer:
+    group: asd
+  registry:
+    address: 127.0.0.1:8848
+    type: nacos
+  consumer:
+    group: group_push
+    model: cluster
+    start: last

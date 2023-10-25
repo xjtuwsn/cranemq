@@ -3,14 +3,11 @@ package com.github.xjtuwsn.cranemq.test;
 import com.github.xjtuwsn.cranemq.client.consumer.DefaultPushConsumer;
 import com.github.xjtuwsn.cranemq.client.producer.MQSelector;
 import com.github.xjtuwsn.cranemq.common.entity.MessageQueue;
-import com.github.xjtuwsn.cranemq.common.remote.RemoteHook;
 import com.github.xjtuwsn.cranemq.client.producer.DefaultMQProducer;
 import com.github.xjtuwsn.cranemq.client.producer.balance.RoundRobinStrategy;
 import com.github.xjtuwsn.cranemq.common.entity.Message;
-import com.github.xjtuwsn.cranemq.common.remote.RemoteAddress;
 import com.github.xjtuwsn.cranemq.common.remote.enums.RegistryType;
 
-import java.util.Arrays;
 import java.util.List;
 
 /**
@@ -25,7 +22,7 @@ public class TestMain {
         String topic = "topic1";
         Thread t = new Thread(() -> {
             DefaultMQProducer producer = new DefaultMQProducer("group1");
-            producer.bindRegistery("127.0.0.1:11111", RegistryType.DEFAULT);
+            producer.bindRegistry("127.0.0.1:11111", RegistryType.DEFAULT);
             producer.setLoadBalanceStrategy(new RoundRobinStrategy());
             producer.start();
             Message message1 = new Message(topic, "hhhh".getBytes());

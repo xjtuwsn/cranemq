@@ -23,6 +23,7 @@ import com.github.xjtuwsn.cranemq.common.command.payloads.resp.MQSimplePullRespo
 import com.github.xjtuwsn.cranemq.common.command.types.AcquireResultType;
 import com.github.xjtuwsn.cranemq.common.command.types.RequestType;
 import com.github.xjtuwsn.cranemq.common.config.FlushDisk;
+import com.github.xjtuwsn.cranemq.common.constant.MQConstant;
 import com.github.xjtuwsn.cranemq.common.entity.Message;
 import com.github.xjtuwsn.cranemq.common.entity.MessageQueue;
 import com.github.xjtuwsn.cranemq.common.entity.QueueInfo;
@@ -48,17 +49,28 @@ import java.util.concurrent.TimeUnit;
  * @author:wsn
  * @create:2023/10/03-16:35
  */
+
+/**
+ * 消息存储管理中心
+ * @author wsn
+ */
 public class MessageStoreCenter implements GeneralStoreService {
     private static final Logger log = LoggerFactory.getLogger(MessageStoreCenter.class);
     private BrokerController brokerController;
     private PersistentConfig persistentConfig;
+    // commitLog管理类
     private CommitLog commitLog;
+    // 消费队列管理
     private ConsumeQueueManager consumeQueueManager;
+    // 刷盘服务
     private FlushDiskService flushDiskService;
+    // 将提交的commitLog项进行转送到索引文件记录
     private TransmitCommitLogService transmitCommitLogService;
 
+    // 延时消息日志管理
     private TimingWheelLog timingWheelLog;
 
+    // 时间轮
     private TimingWheel<DelayTask> timingWheel;
 
     public MessageStoreCenter(BrokerController brokerController) {
@@ -67,6 +79,7 @@ public class MessageStoreCenter implements GeneralStoreService {
         this.commitLog = new CommitLog(this.brokerController, this);
         this.consumeQueueManager = new ConsumeQueueManager(this.brokerController,
                 this.brokerController.getPersistentConfig());
+        // 根据刷盘策略不同初始化刷盘服务
         if (persistentConfig.getFlushDisk() == FlushDisk.ASYNC) {
             this.flushDiskService = new AsyncFlushDiskService(persistentConfig, commitLog,
                     consumeQueueManager);
@@ -79,11 +92,18 @@ public class MessageStoreCenter implements GeneralStoreService {
         this.timingWheel = new TimingWheel<>();
         this.timingWheelLog = new TimingWheelLog(this.brokerController);
     }
+
+    /**
+     * 批量写入消息
+     * @param innerMessages 待写入消息的内部封装列表
+     * @return
+     */
     public PutMessageResponse putMessage(List<StoreInnerMessage> innerMessages) {
         if (innerMessages == null || innerMessages.isEmpty()) {
             return new PutMessageResponse(StoreResponseType.PARAMETER_ERROR);
         }
         PutMessageResponse response = new PutMessageResponse();
+        // 分别调用putMessage，更新偏移
         for (StoreInnerMessage innerMessage : innerMessages) {
             PutMessageResponse res = this.putMessage(innerMessage);
             if (res.getResponseType() != StoreResponseType.STORE_OK) {
@@ -95,12 +115,19 @@ public class MessageStoreCenter implements GeneralStoreService {
         response.setResponseType(StoreResponseType.STORE_OK);
         return response;
     }
+
+    /**
+     * 单个消息的写入，写入commitLog
+     * @param innerMessage
+     * @return
+     */
     public PutMessageResponse putMessage(StoreInnerMessage innerMessage) {
         if (innerMessage == null) {
             log.error("Null put message request");
             return new PutMessageResponse(StoreResponseType.PARAMETER_ERROR);
         }
         long start = System.nanoTime();
+        // 调用commitlog，写入消息
         PutMessageResponse response = this.commitLog.writeMessage(innerMessage);
         long end1 = System.nanoTime();
 
@@ -108,7 +135,7 @@ public class MessageStoreCenter implements GeneralStoreService {
             log.error("Put message to CommitLog error");
 
         }
-        // 同步刷盘
+        // 同步刷盘，立即刷盘
         if (persistentConfig.getFlushDisk() == FlushDisk.SYNC) {
             this.flushDiskService.flush(response.getMappedFile());
         }
@@ -118,12 +145,14 @@ public class MessageStoreCenter implements GeneralStoreService {
             if (response.getResponseType() == StoreResponseType.STORE_OK) {
                 long offset = response.getOffset();
                 int size = response.getSize();
+                // 将刚写入的信息更新到队列索引中
                 putOffsetResp = this.consumeQueueManager.updateOffset(offset, innerMessage.getTopic(),
                         innerMessage.getQueueId(), size, innerMessage.getDelay());
             }
             if (putOffsetResp == null) {
                 return new PutMessageResponse(StoreResponseType.PARAMETER_ERROR);
             }
+            // 如果这个消息不是延迟消息，需要唤醒监听这个主题的长轮询连接
             if (innerMessage.getDelay() == 0) {
                 this.brokerController.getHoldRequestService().awakeNow(
                         Arrays.asList(new Pair<>(innerMessage.getTopic(), innerMessage.getQueueId())));
@@ -134,9 +163,7 @@ public class MessageStoreCenter implements GeneralStoreService {
                     this.flushDiskService.flush(putOffsetResp.getMappedFile());
                 }
             }
-            /**
-             * 唤醒push请求
-             */
+
             return putOffsetResp;
         }
 
@@ -144,6 +171,10 @@ public class MessageStoreCenter implements GeneralStoreService {
         return response;
     }
 
+    /**
+     * 将CommitEntry，已经提交的信息转写到消费队列中
+     * @param entries
+     */
     private void putOffsetToQueue(List<CommitEntry> entries) {
 
         List<Pair<String, Integer>> queue = new ArrayList<>();
@@ -155,6 +186,7 @@ public class MessageStoreCenter implements GeneralStoreService {
             if (delay == 0) {
                 queue.add(new Pair<>(topic, queueId));
             }
+            // 更新消费队列
             PutMessageResponse response = this.consumeQueueManager.updateOffset(offset, topic, queueId, size, delay);
 
             // 同步刷盘
@@ -163,19 +195,30 @@ public class MessageStoreCenter implements GeneralStoreService {
             }
 
         }
+        // 唤醒push请求
         this.brokerController.getHoldRequestService().awakeNow(queue);
-        /**
-         * 唤醒push请求
-         */
     }
 
+    /**
+     * 创建新的topic
+     * @param mqCreateTopicRequest
+     * @return
+     */
     public QueueData createTopic(MQCreateTopicRequest mqCreateTopicRequest) {
         String topic = mqCreateTopicRequest.getTopic();
         int writeNumber = mqCreateTopicRequest.getWirteNumber();
         int readNumber = mqCreateTopicRequest.getReadNumber();
+        if (topic.startsWith(MQConstant.RETRY_PREFIX)) {
+            writeNumber = 1;
+            readNumber =1;
+        }
         return consumeQueueManager.createQueue(topic, writeNumber, readNumber);
     }
 
+    /**
+     * retry队列和死信队列单独创建
+     * @param topic
+     */
     public void checkDlqAndRetry(String topic) {
         if (!consumeQueueManager.containsTopic(topic)) {
             consumeQueueManager.createQueue(topic, 1, 1);
@@ -198,42 +241,56 @@ public class MessageStoreCenter implements GeneralStoreService {
         return consumeQueueManager.getQueueCurWritePos(topic, queueId);
     }
 
+    /**
+     * 从commitLog中读指定的消息
+     * @param topic 主题
+     * @param queueId 队列id
+     * @param offset 起始队列偏移
+     * @param length 读取消息数
+     * @return 返回消息列表和下一次读的偏移
+     */
     public Pair<Pair<List<ReadyMessage>, Long>, AcquireResultType> read(String topic, int queueId, long offset, int length) {
+        // 从队列中读到的，在commitLog中的偏移
         List<Pair<Long, Integer>> commitLogData = new ArrayList<>();
 
         AcquireResultType result = AcquireResultType.NO_MESSAGE;
 
+        // 获取到主题和id对应的消费队列
         ConsumeQueue consumeQueue = consumeQueueManager.getConsumeQueue(topic, queueId);
         if (consumeQueue == null) {
             log.error("No such consume queue");
             return new Pair<>(null, result);
         }
 
+        // 获得消费队列的第一个mappedfile文件，用于根据偏移计算索引
         MappedFile firstMappedFile = consumeQueue.getFirstMappedFile();
         if (firstMappedFile == null) {
 //            log.error("Consume queue has zero file, {}, {}", topic, queueId);
             return new Pair<>(null, result);
         }
 
+
         String firstName = firstMappedFile.getFileName();
         int queueUnit = persistentConfig.getQueueUnit();
         int maxQueueItemNumber = persistentConfig.getMaxQueueItemNumber();
         int left = length;
         for (int i = 0; i < length;) {
+            // 根据偏移和头文件名计算当前该哪一个文件
             int index = (int) ((offset + i) / maxQueueItemNumber);
             MappedFile current = consumeQueue.getMappedFileByIndex(index);
             if (current == null) {
-//                 log.error("Offset has over the limit");
                 break;
             }
+            // 计算在文件内的偏移
             int start = (int) ((offset + i) % maxQueueItemNumber) * queueUnit;
+            // 批量读取索引信息
             List<Pair<Long, Integer>> list = current.readOffsetIndex(start, left);
             if (list == null || list.size() == 0) {
-//                log.warn("Read zero offset index, prove no more index");
                 break;
             }
             commitLogData.addAll(list);
             int readed = list.size();
+            // 更新剩余数量
             left -= readed;
             if (left == 0) {
                 break;
@@ -245,11 +302,11 @@ public class MessageStoreCenter implements GeneralStoreService {
             return new Pair<>(null, result);
         }
         result = AcquireResultType.ERROR;
+        // 相同的步骤，计算commitLog的索引信息
         MappedFile firstCommit = commitLog.getFirstMappedFile();
 
         long nextOffset = offset + commitLogData.size();
         if (firstCommit == null) {
-//             log.warn("There is no commitLog mapped file");
             return new Pair<>(null, result);
         }
         String firstCommitName = firstCommit.getFileName();
@@ -260,6 +317,7 @@ public class MessageStoreCenter implements GeneralStoreService {
             long curOffset = pair.getKey();
             int curSize = pair.getValue();
 
+            // 根据索引找到偏移对应的mappedFile
             int mappedIndex = BrokerUtil.findMappedIndex(curOffset, firstCommitName,
                     persistentConfig.getCommitLogMaxSize());
             MappedFile mappedFileByIndex = commitLog.getMappedFileByIndex(mappedIndex);
@@ -268,10 +326,11 @@ public class MessageStoreCenter implements GeneralStoreService {
                          "topic {}, queueId {}", topic, queueId);
                 break;
             }
+            // 计算总的偏移在当前页内的偏移
             int offsetInpage = BrokerUtil.offsetInPage(curOffset, persistentConfig.getCommitLogMaxSize());
+            // 读取偏移处对应的消息
             StoreInnerMessage innerMessage = mappedFileByIndex.readSingleMessage(offsetInpage);
             if (innerMessage == null) {
-//                 log.warn("Read null from mappedfile, offset record error");
                 break;
             }
             Message message = innerMessage.getMessage();
@@ -284,6 +343,11 @@ public class MessageStoreCenter implements GeneralStoreService {
 
     }
 
+    /**
+     * 根据commitLog偏移读取单条消息
+     * @param offset
+     * @return
+     */
     public StoreInnerMessage readSingleMessage(long offset) {
         MappedFile firstCommit = commitLog.getFirstMappedFile();
         String firstCommitName = firstCommit.getFileName();
@@ -299,9 +363,15 @@ public class MessageStoreCenter implements GeneralStoreService {
         return message;
     }
 
+    /**
+     * 消费者主动拉取消息
+     * @param mqSimplePullRequest
+     * @return
+     */
     public MQSimplePullResponse simplePullMessage(MQSimplePullRequest mqSimplePullRequest) {
         MessageQueue messageQueue = mqSimplePullRequest.getMessageQueue();
 
+        // 拉取的消息信息，数量、偏移等
         int length = mqSimplePullRequest.getLength(), queueId = messageQueue.getQueueId();
         long offset = mqSimplePullRequest.getOffset();
         String topic = messageQueue.getTopic();
@@ -321,15 +391,27 @@ public class MessageStoreCenter implements GeneralStoreService {
         response.setMessages(readyMessageList);
         return response;
     }
+
+    /**
+     * 延时消息是先写入commitLog，直到提交时才将其写入延时队列，并且开始延时计时
+     * @param commitLogOffset 在commitLog中的偏移
+     * @param queueOffset 延时队列中的偏移
+     * @param topic  延时之后将要投放到的队列
+     * @param queueId 对应队列id
+     * @param delay 延迟时间
+     * @param id 写入到延迟日志中的事务id
+     */
     public void onCommitDelayMessage(long commitLogOffset, long queueOffset, String topic, int queueId, long delay, String id) {
         if (id == null) {
             log.error("Time wheel appendlog error");
             return;
         }
+        // 向延时器中提交任务
         timingWheel.submit(new DelayMessageTask(brokerController, topic, commitLogOffset, queueOffset, queueId, id),
                 delay, TimeUnit.SECONDS);
     }
     public void onCommitDelayMessage(long commitLogOffset, long queueOffset, String topic, int queueId, long delay) {
+        // 向延时日志写入延时任务
         String id = timingWheelLog.appendLog(topic, commitLogOffset, queueOffset, queueId, delay);
         this.onCommitDelayMessage(commitLogOffset, queueOffset, topic, queueId, delay, id);
     }
@@ -343,12 +425,14 @@ public class MessageStoreCenter implements GeneralStoreService {
     }
     @Override
     public void start() {
+        // 向消费队列管理器中注册日志恢复监听器，用于启动时从消费队列中找到最大写入位移，然后将commitLog写指针重置
         this.consumeQueueManager.registerRecoveryListener(new RecoveryListener() {
             @Override
             public void onUpdateOffset(long offset, int size) {
                 commitLog.recoveryFromQueue(offset, size);
             }
         });
+        // 注册延时消息提交的监听器，当延时消息写道延时队列之后触发
         this.consumeQueueManager.registerDelayListener(new DelayMessageCommitListener() {
             @Override
             public void onCommit(long commitLogOffset, long queueOffset, String topic, int queueId, long delay) {
@@ -377,6 +461,10 @@ public class MessageStoreCenter implements GeneralStoreService {
 
     private void createDir() {
         try {
+            File craneFile = new File(persistentConfig.getCranePath());
+            if (!craneFile.exists()) {
+                craneFile.mkdir();
+            }
             File rootFile = new File(persistentConfig.getRootPath());
             if (!rootFile.exists()) {
                 rootFile.mkdir();
@@ -414,6 +502,9 @@ public class MessageStoreCenter implements GeneralStoreService {
         this.transmitCommitLogService.putEntries(entries);
     }
 
+    /**
+     * 负责将已提交的消息转送到对应队列
+     */
     class TransmitCommitLogService extends Thread {
         private final Logger log = LoggerFactory.getLogger(TransmitCommitLogService.class);
 
@@ -424,6 +515,7 @@ public class MessageStoreCenter implements GeneralStoreService {
         public void run() {
             while (!isStop) {
                 try {
+                    // 从阻塞队列中拿到提交的entry，写入
                     List<CommitEntry> entries = queue.take();
                     putOffsetToQueue(entries);
                 } catch (InterruptedException e) {
@@ -432,6 +524,10 @@ public class MessageStoreCenter implements GeneralStoreService {
             }
         }
 
+        /**
+         * 向阻塞队列中放入提交信息
+         * @param entries
+         */
         public void putEntries(List<CommitEntry> entries) {
             if (entries != null) {
                 try {

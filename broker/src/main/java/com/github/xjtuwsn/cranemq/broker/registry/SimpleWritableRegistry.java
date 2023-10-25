@@ -8,11 +8,10 @@ import com.github.xjtuwsn.cranemq.common.command.payloads.req.MQUpdateTopicReque
 import com.github.xjtuwsn.cranemq.common.command.types.RequestType;
 import com.github.xjtuwsn.cranemq.common.command.types.RpcType;
 import com.github.xjtuwsn.cranemq.common.exception.CraneClientException;
-import com.github.xjtuwsn.cranemq.common.remote.RemoteClent;
+import com.github.xjtuwsn.cranemq.common.remote.RemoteClient;
 import com.github.xjtuwsn.cranemq.common.remote.RemoteHook;
 import com.github.xjtuwsn.cranemq.common.remote.WritableRegistry;
 import com.github.xjtuwsn.cranemq.common.route.QueueData;
-import com.github.xjtuwsn.cranemq.common.route.TopicRouteInfo;
 import com.github.xjtuwsn.cranemq.common.utils.TopicUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -24,15 +23,16 @@ import java.util.Map;
  * @file:SimpleWritableRegistry
  * @author:wsn
  * @create:2023/10/16-11:16
+ * 默认的可写注册中心，将路由信息写道注册中心
  */
 public class SimpleWritableRegistry implements WritableRegistry {
     private static final Logger log = LoggerFactory.getLogger(SimpleWritableRegistry.class);
 
-    private RemoteClent remoteClent;
+    private RemoteClient remoteClient;
     private BrokerController brokerController;
 
     public SimpleWritableRegistry(BrokerController brokerController) {
-        this.remoteClent = new RemoteClent();
+        this.remoteClient = new RemoteClient();
         this.brokerController = brokerController;
     }
     @Override
@@ -47,7 +47,7 @@ public class SimpleWritableRegistry implements WritableRegistry {
         }
         String[] registryList = registrys.split(";");
         for (String addr : registryList) {
-            this.remoteClent.invoke(addr, remoteCommand);
+            this.remoteClient.invoke(addr, remoteCommand);
         }
     }
 
@@ -57,12 +57,12 @@ public class SimpleWritableRegistry implements WritableRegistry {
     }
     @Override
     public void start() {
-        this.remoteClent.start();
+        this.remoteClient.start();
     }
 
     @Override
     public void shutdown() {
-        this.remoteClent.shutdown();
+        this.remoteClient.shutdown();
     }
 
     @Override

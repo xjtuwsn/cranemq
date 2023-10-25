@@ -4,8 +4,8 @@ import cn.hutool.core.collection.ConcurrentHashSet;
 import cn.hutool.core.util.StrUtil;
 import com.github.xjtuwsn.cranemq.client.consumer.DefaultPullConsumer;
 import com.github.xjtuwsn.cranemq.client.consumer.PullResult;
-import com.github.xjtuwsn.cranemq.client.WrapperFutureCommand;
-import com.github.xjtuwsn.cranemq.client.remote.ClienFactory;
+import com.github.xjtuwsn.cranemq.client.remote.WrapperFutureCommand;
+import com.github.xjtuwsn.cranemq.client.remote.ClientFactory;
 import com.github.xjtuwsn.cranemq.client.remote.ClientInstance;
 import com.github.xjtuwsn.cranemq.common.command.FutureCommand;
 import com.github.xjtuwsn.cranemq.common.command.Header;
@@ -30,6 +30,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * @file:DefaultPullConsumerImpl
  * @author:wsn
  * @create:2023/10/07-10:44
+ * 拉取消息的消费者实现
  */
 public class DefaultPullConsumerImpl {
     private static final Logger log = LoggerFactory.getLogger(DefaultPullConsumerImpl.class);
@@ -53,7 +54,7 @@ public class DefaultPullConsumerImpl {
         this.defaultPullConsumer = defaultPullConsumer;
         this.hook = hook;
         this.clientId = TopicUtil.buildClientID("pull_consumer");
-        this.clientInstance = ClienFactory.newInstance().getOrCreate(this.clientId, this.hook);
+        this.clientInstance = ClientFactory.newInstance().getOrCreate(this.clientId, this.hook);
 
     }
     public void subscribe(String topic, String tags) {
@@ -61,9 +62,17 @@ public class DefaultPullConsumerImpl {
         this.topicTag.put(topic, tags);
     }
 
+    /**
+     * 根据给定的长度拉取消息
+     * @param messageQueue
+     * @param offset
+     * @param len
+     * @return
+     * @throws CraneClientException
+     */
     public PullResult pull(MessageQueue messageQueue, long offset, int len) throws CraneClientException {
         if (messageQueue == null || offset < 0 || len <= 0) {
-            throw new CraneClientException("Illegal paramaters!");
+            throw new CraneClientException("Illegal parameters!");
         }
         String id = TopicUtil.generateUniqueID();
         Header header = new Header(RequestType.SIMPLE_PULL_MESSAGE_REQUEST, RpcType.SYNC, id);
@@ -99,7 +108,7 @@ public class DefaultPullConsumerImpl {
         this.clientInstance.start();
     }
     public void shutdown() {
-        this.clientInstance.unregsiterPullConsumer(id);
+        this.clientInstance.unregisterPullConsumer(id);
     }
 
     private void checkConfig() throws CraneClientException {

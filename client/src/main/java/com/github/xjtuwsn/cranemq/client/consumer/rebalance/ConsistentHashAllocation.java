@@ -14,6 +14,7 @@ import java.util.*;
  * @file:ConsistentHashAllocation
  * @author:wsn
  * @create:2023/10/14-10:24
+ * 一致性哈希策略
  */
 public class ConsistentHashAllocation implements QueueAllocation {
     private static final Logger log = LoggerFactory.getLogger(ConsistentHashAllocation.class);

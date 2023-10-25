@@ -16,7 +16,6 @@ import com.github.xjtuwsn.cranemq.client.producer.MQSelector;
 import com.github.xjtuwsn.cranemq.client.producer.balance.LoadBalanceStrategy;
 import com.github.xjtuwsn.cranemq.client.producer.balance.RandomStrategy;
 import com.github.xjtuwsn.cranemq.client.producer.impl.DefaultMQProducerImpl;
-import com.github.xjtuwsn.cranemq.client.WrapperFutureCommand;
 import com.github.xjtuwsn.cranemq.client.producer.result.SendResult;
 import com.github.xjtuwsn.cranemq.client.producer.result.SendResultType;
 import com.github.xjtuwsn.cranemq.client.remote.registry.SimpleReadableRegistry;
@@ -31,7 +30,7 @@ import com.github.xjtuwsn.cranemq.common.consumer.ConsumerInfo;
 import com.github.xjtuwsn.cranemq.common.entity.ClientType;
 import com.github.xjtuwsn.cranemq.common.entity.MessageQueue;
 import com.github.xjtuwsn.cranemq.common.remote.RegistryCallback;
-import com.github.xjtuwsn.cranemq.common.remote.RemoteClent;
+import com.github.xjtuwsn.cranemq.common.remote.RemoteClient;
 import com.github.xjtuwsn.cranemq.common.remote.ReadableRegistry;
 import com.github.xjtuwsn.cranemq.common.remote.enums.RegistryType;
 import com.github.xjtuwsn.cranemq.common.route.BrokerData;
@@ -41,6 +40,7 @@ import com.github.xjtuwsn.cranemq.common.command.Header;
 import com.github.xjtuwsn.cranemq.common.command.PayLoad;
 import com.github.xjtuwsn.cranemq.common.exception.CraneClientException;
 import com.github.xjtuwsn.cranemq.common.utils.TopicUtil;
+import com.github.xjtuwsn.cranemq.extension.impl.NacosReadableRegistry;
 import com.github.xjtuwsn.cranemq.extension.impl.ZkReadableRegistry;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -56,62 +56,93 @@ import java.util.concurrent.atomic.AtomicInteger;
  * @file:RemoteClient
  * @author:wsn
  * @create:2023/09/27-14:59
+ * 本地客户端实例，执行大部分逻辑
  */
 public class ClientInstance {
 
     private static final Logger log= LoggerFactory.getLogger(ClientInstance.class);
     private DefaultPullConsumerImpl defaultPullConsumer;
+
+    // 生产者投放队列负载均衡
     private LoadBalanceStrategy loadBalanceStrategy = new RandomStrategy();
 
+    // RPC钩子
     private RemoteHook hook;
-    private RemoteClent remoteClent;
+
+    // netty客户端
+    private RemoteClient remoteClient;
+
+    // 发送线程池
     private ExecutorService asyncSendThreadPool;
+
+    // 顺序发送线程池
     private ExecutorService orderSendThreadPool;
+
+    // 创建线程池
     private ExecutorService parallelCreateService;
+
     private String registryAddress;
+
     private String clientId;
+
     private ScheduledExecutorService retryService;
+
     private ScheduledExecutorService timerService;
+
     private AtomicInteger state;    /** 0:未启动，1:正在启动，2:启动完成**/
 
     private int coreSize = 10;
 
     private int maxSize = 22;
 
+    // topic路由表
     private volatile ConcurrentHashMap<String, TopicRouteInfo> topicTable = new ConcurrentHashMap<>();
+    // broker和address对应表
     // brokerName: [id : address]
     private ConcurrentHashMap<String, Map<Integer, String>> brokerAddressTable = new ConcurrentHashMap<>();
+
     private ConcurrentHashMap<String, DefaultMQProducerImpl> producerRegister = new ConcurrentHashMap<>();
+
     private ConcurrentHashMap<String, DefaultPullConsumerImpl> pullConsumerRegister = new ConcurrentHashMap<>();
+
     // group : push
     private ConcurrentHashMap<String, DefaultPushConsumerImpl> pushConsumerRegister = new ConcurrentHashMap<>();
 
-    private AtomicInteger clinetNumber;
+    private AtomicInteger clientNumber;
+    // 未得到相应的请求
     private static volatile ConcurrentHashMap<String, WrapperFutureCommand> requestTable = new ConcurrentHashMap<>();
-    private volatile Semaphore updateSemphore = new Semaphore(2);
+
+    private volatile Semaphore updateSemaphore = new Semaphore(2);
+
     private Random random = new Random();
 
+    // rebalance服务
     private RebalanceService rebalanceService;
 
+    // 拉取消息服务
     private PullMessageService pullMessageService;
 
+    // 消费位移管理
     private OffsetManager offsetManager;
 
+    // 远程注册中心接口
     private ReadableRegistry readableRegistry;
 
+    // 注册中心类型
     private RegistryType registryType;
     public ClientInstance() {
         this.state = new AtomicInteger(0);
-        this.clinetNumber = new AtomicInteger(0);
-        this.remoteClent = new RemoteClent();
+        this.clientNumber = new AtomicInteger(0);
+        this.remoteClient = new RemoteClient();
         this.rebalanceService = new RebalanceService(this);
         this.pullMessageService = new PullMessageService(this);
         this.offsetManager = new LocalOffsetManager(this);
     }
 
     public void start() {
+        // 启动状态控制
         if (this.state.get() == 2) {
-            log.info("Has alread statrted");
+            log.info("Has already started");
             return;
         }
         if (this.state.get() == 1) {
@@ -122,14 +153,17 @@ public class ClientInstance {
         }
         this.state.set(1);
 
-        this.remoteClent.registerHook(hook);
+        this.remoteClient.registerHook(hook);
         this.registerProcessors();
-        this.remoteClent.start();
+        this.remoteClient.start();
         this.registryAddress = this.pickOneRegistryAddress();
+        // 不同注册中心设置
         if (this.registryType == RegistryType.DEFAULT) {
             this.readableRegistry = new SimpleReadableRegistry(this);
         } else if (this.registryType == RegistryType.ZOOKEEPER) {
             this.readableRegistry = new ZkReadableRegistry(this.registryAddress);
+        } else if (this.registryType == RegistryType.NACOS) {
+            this.readableRegistry = new NacosReadableRegistry(this.registryAddress);
         }
         // 异步发送消息的线程池
         this.asyncSendThreadPool = new ThreadPoolExecutor(coreSize,
@@ -187,24 +221,22 @@ public class ClientInstance {
         this.pullMessageService.start();
         this.readableRegistry.start();
 
-        this.startScheduleTast();
+        this.startScheduleTask();
         this.state.set(2);
         Runtime.getRuntime().addShutdownHook(new Thread(this::shutdown));
     }
 
+    // 注册不同类型的处理器
     private void registerProcessors() {
-//        if (this.producerRegister != null && this.producerRegister.size() != 0) {
-//            this.remoteClent.registerProcessor(ClientType.PRODUCER, new PruducerProcessor(this));
-//        }
-//        if (this.pullConsumerRegister != null && this.pullConsumerRegister.size() != 0
-//                || this.pushConsumerRegister != null && this.pushConsumerRegister.size() != 0) {
-//
-//            this.remoteClent.registerProcessor(ClientType.CONSUMER, new ConsumerProcessor(this));
-//        }
-        this.remoteClent.registerProcessor(ClientType.CONSUMER, new ConsumerProcessor(this));
-        this.remoteClent.registerProcessor(ClientType.PRODUCER, new PruducerProcessor(this));
-        this.remoteClent.registerProcessor(ClientType.BOTH, new CommonProcessor(this));
+        this.remoteClient.registerProcessor(ClientType.CONSUMER, new ConsumerProcessor(this));
+        this.remoteClient.registerProcessor(ClientType.PRODUCER, new PruducerProcessor(this));
+        this.remoteClient.registerProcessor(ClientType.BOTH, new CommonProcessor(this));
     }
+
+    /**
+     * 随机挑选一个注册中心地址
+     * @return
+     */
     private String pickOneRegistryAddress() {
         String address = "";
         List<String> addrs = null;
@@ -225,7 +257,7 @@ public class ClientInstance {
                     });
         } else if (this.pushConsumerRegister.size() != 0) {
             log.info("This is a push consumer client instance");
-            addrs = this.pushConsumerRegister.values().stream().map(DefaultPushConsumerImpl::getRegisteryAddress)
+            addrs = this.pushConsumerRegister.values().stream().map(DefaultPushConsumerImpl::getRegisterAddress)
                     .map(Arrays::asList).reduce(new ArrayList<>(), (a, b) -> {
                         a.addAll(b);
                         return a;
@@ -235,16 +267,18 @@ public class ClientInstance {
         address = addrs.get(this.random.nextInt(size));
         return address;
     }
-    private void startScheduleTast() {
+    private void startScheduleTask() {
         // 每30s向注册中心更新路由
         this.timerService.scheduleAtFixedRate(() -> {
-            log.info("Fetech topic router info from registery");
+            log.info("Fetch topic router info from register");
             this.fetchRouteInfo();
         }, 0, 1000 * 30, TimeUnit.MILLISECONDS);
+        // 每60s清理未响应的broker
         this.timerService.scheduleAtFixedRate(() -> {
             log.info("Clean expired remote broker");
             this.cleanExpired();
         }, 300, 1000 * 60, TimeUnit.MILLISECONDS);
+        // 每20s向所有broker发送心跳
         this.timerService.scheduleAtFixedRate(() -> {
             log.info("Send heartbeat to all brokers");
             this.sendHeartBeatToBroker();
@@ -260,22 +294,22 @@ public class ClientInstance {
     public void invoke(String topic, WrapperFutureCommand wrappered) throws CraneClientException {
         RemoteCommand command = wrappered.getFutureCommand().getRequest();
         String address = "";
-        // 查找路由的信息，地址就是注册中心地址
 
-        if (wrappered.isToRegistery()) {
+        // 查找路由的信息，地址就是注册中心地址
+        if (wrappered.isToRegistry()) {
             address = this.registryAddress;
         } else {
+            // 或者根据队列选择策略选择队列
             address = this.selectProducedQueueAndChangeHeader(wrappered, topic);
 
         }
-        this.remoteClent.invoke(address, command);
+        this.remoteClient.invoke(address, command);
     }
 
     /**
      * 向默认路由包含的集群节点创建当前topic信息
      * @param topicRouteInfo
      */
-    // TODO 当请求集中时，创建topic的请求可能会发送多次，需要broker端做处理
     private void createTopicInCluster(TopicRouteInfo topicRouteInfo, String createTopic) {
         if (topicRouteInfo == null) {
             throw new CraneClientException("Default route info is null!");
@@ -304,9 +338,10 @@ public class ClientInstance {
         }
         try {
             latch.await();
+            // 更新本地路由信息
             TopicRouteInfo newInfo = new TopicRouteInfo(createTopic);
             for (SendResult result : futures) {
-                if (result.getResultType() == SendResultType.SEDN_OK) {
+                if (result.getResultType() == SendResultType.SEND_OK) {
                     newInfo.compact(result.getTopicRouteInfo());
                 }
             }
@@ -322,27 +357,37 @@ public class ClientInstance {
         }
 
     }
-    // TODO 根据负载均衡选出队列，和指定地址，发送消息
-    // TODO 更改路由表和相关逻辑
+
+    /**
+     * 根据负载均衡选出队列，和指定地址，发送消息，更改路由表和相关逻辑
+     * @param wrappered
+     * @param topic
+     * @return
+     */
     private String selectProducedQueueAndChangeHeader(final WrapperFutureCommand wrappered, String topic) {
         MQSelector selector = wrappered.getSelector();
         MessageQueue queue = null;
+        // 如果还没有选择队列
         if (wrappered.getQueuePicked() == null) {
+            // 普通消息
             if (selector == null) {
                 queue = this.loadBalanceStrategy.getNextQueue(topic, this.topicTable.get(topic));
             } else {
+                // 顺序消息
                 TopicRouteInfo info = this.topicTable.get(topic);
                 List<MessageQueue> messageQueues = info.getAllQueueList();
                 Collections.sort(messageQueues);
                 queue = selector.select(messageQueues, wrappered.getArg());
             }
         } else {
+            // 已经选择完队列
             queue = wrappered.getQueuePicked();
         }
 
         if (queue == null) {
             throw new CraneClientException("Queue select error");
         }
+        // 地址
         String address = this.brokerAddressTable.get(queue.getBrokerName()).get(MQConstant.MASTER_ID);
         if (StrUtil.isEmpty(address)) {
             log.error("Cannot find address when getting {} broker", topic);
@@ -350,6 +395,12 @@ public class ClientInstance {
         this.setQueueToRequest(wrappered, queue);
         return address;
     }
+
+    /**
+     * 更改发送消息的队列
+     * @param wrappered
+     * @param queue
+     */
     private void setQueueToRequest(final WrapperFutureCommand wrappered, MessageQueue queue) {
         PayLoad payLoad = wrappered.getFutureCommand().getRequest().getPayLoad();
         if (payLoad instanceof MQProduceRequest) {
@@ -359,6 +410,12 @@ public class ClientInstance {
         }
 
     }
+
+    /**
+     * 向所有broker发送查询的请求
+     * @param topics
+     * @param group
+     */
     public void sendQueryMsgToAllBrokers(Set<String> topics, String group) {
         WrapperFutureCommand wrapperFutureCommand = new WrapperFutureCommand(null, "");
         // 初始化topic路由
@@ -383,7 +440,7 @@ public class ClientInstance {
             FutureCommand futureCommand = new FutureCommand(remoteCommand);
             WrapperFutureCommand wrappered = new WrapperFutureCommand(futureCommand, "");
             requestTable.put(id, wrappered);
-            this.remoteClent.invoke(address, remoteCommand);
+            this.remoteClient.invoke(address, remoteCommand);
             try {
                 futureCommand.get();
             } catch (InterruptedException | ExecutionException e) {
@@ -392,6 +449,12 @@ public class ClientInstance {
         }
 
     }
+
+    /**
+     * 向broker同步位移信息
+     * @param remoteCommand
+     * @param brokerNames
+     */
     public void sendOffsetToBroker(RemoteCommand remoteCommand, Set<String> brokerNames) {
 
         for (String name : brokerNames) {
@@ -399,21 +462,27 @@ public class ClientInstance {
             if (map != null) {
                 String addr = map.get(MQConstant.MASTER_ID);
                 this.asyncSendThreadPool.execute(() -> {
-                    this.remoteClent.invoke(addr, remoteCommand);
+                    this.remoteClient.invoke(addr, remoteCommand);
                 });
             }
         }
     }
+
+    /**
+     * 向所有broker发送心跳
+     */
     public void sendHeartBeatToBroker() {
 
         MQHeartBeatRequest heartBeatRequest = new MQHeartBeatRequest(this.clientId);
         Set<String> producerGroup = new HashSet<>();
         Set<ConsumerInfo> consumerInfos = new HashSet<>();
+        // 生产者信息
         for (Map.Entry<String, DefaultMQProducerImpl> entry : this.producerRegister.entrySet()) {
             DefaultMQProducerImpl value = entry.getValue();
             producerGroup.add(value.getDefaultMQProducer().getGroup());
         }
         heartBeatRequest.setProducerGroup(producerGroup);
+        // 消费者信息
         for (Map.Entry<String, DefaultPushConsumerImpl> entry : this.pushConsumerRegister.entrySet()) {
             DefaultPushConsumerImpl value = entry.getValue();
             ConsumerInfo info = new ConsumerInfo();
@@ -436,11 +505,16 @@ public class ClientInstance {
             Map<Integer, String> addrs = entry.getValue();
             String address = addrs.get(MQConstant.MASTER_ID);
             this.asyncSendThreadPool.execute(() -> {
-                this.remoteClent.invoke(address, remoteCommand);
+                this.remoteClient.invoke(address, remoteCommand);
             });
         }
     }
 
+    /**
+     * 同步拉取消息
+     * @param wrappered
+     * @return
+     */
     public PullResult sendPullSync(final WrapperFutureCommand wrappered) {
         FutureCommand futureCommand = wrappered.getFutureCommand();
         if (this.hook != null) {
@@ -463,12 +537,20 @@ public class ClientInstance {
         return result;
     }
 
+    /**
+     * 发送同步消息
+     * @param wrappered
+     * @param isOneWay
+     * @return
+     */
     public SendResult sendMessageSync(final WrapperFutureCommand wrappered, boolean isOneWay) {
         FutureCommand futureCommand = wrappered.getFutureCommand();
-        if (this.hook != null && !wrappered.isToRegistery()) {
+        // 执行rpc钩子
+        if (this.hook != null && !wrappered.isToRegistry()) {
             this.hook.beforeMessage();
         }
 
+        // 适配地址
         this.sendAdaptor(wrappered, null, true);
         if (isOneWay) {
             return null;
@@ -476,6 +558,7 @@ public class ClientInstance {
         SendResult result = null;
         RemoteCommand response = null;
         try {
+            // 阻塞等待相应
             response = futureCommand.get();
             log.info("Sync method get response: {}", response);
         } catch (InterruptedException | ExecutionException | CraneClientException e) {
@@ -485,23 +568,32 @@ public class ClientInstance {
         if (result == null) {
             result = this.buildSendResult(response, futureCommand.getRequest().getHeader().getCorrelationId());
         }
-        // TODO 返回SendResult根据结果设置 DONE
         return result;
     }
+
+    /**
+     * 异步发送消息
+     * @param wrappered
+     */
     public void sendMessageAsync(final WrapperFutureCommand wrappered) {
-//        this.asyncSendThreadPool.execute(() -> {
-//            sendCore(wrappered, wrappered.getCallback());
-//        });
 
         this.sendAdaptor(wrappered, wrappered.getCallback(), true);
     }
+
+    /**
+     * 构建消息响应结果
+     * @param response
+     * @param correlationID
+     * @return
+     */
     private SendResult buildSendResult(RemoteCommand response, String correlationID) {
         if (response == null) {
             log.error("Receive empty response, id is {}", correlationID);
             return new SendResult(SendResultType.SERVER_ERROR, correlationID);
         }
-        SendResult result = new SendResult(SendResultType.SEDN_OK, correlationID);
+        SendResult result = new SendResult(SendResultType.SEND_OK, correlationID);
         if (response.getHeader().getCommandType() == ResponseType.QUERY_TOPIC_RESPONSE) {
+            // 查询注册中心相应，更新路由
             MQQueryTopicResponse mqQueryTopicResponse = (MQQueryTopicResponse) response.getPayLoad();
             if (mqQueryTopicResponse == null) {
                 result.setResultType(SendResultType.SERVER_ERROR);
@@ -511,6 +603,7 @@ public class ClientInstance {
                 result.setTopicRouteInfo(mqQueryTopicResponse.getRouteInfo());
             }
         } else if (response.getHeader().getCommandType() == ResponseType.CREATE_TOPIC_RESPONSE) {
+            // 创建topic相应，更新路由
             MQCreateTopicResponse mqCreateTopicResponse = (MQCreateTopicResponse) response.getPayLoad();
             if (mqCreateTopicResponse == null || response.getHeader().getStatus() != ResponseCode.SUCCESS) {
                 result.setResultType(SendResultType.SERVER_ERROR);
@@ -525,12 +618,19 @@ public class ClientInstance {
         }
         return result;
     }
+
+    /**
+     * 适配消息地址，用于查询路由信息，查注册中心等
+     * @param wrappered
+     * @param callback
+     * @param proceed
+     */
     private void sendAdaptor(final WrapperFutureCommand wrappered, SendCallback callback, boolean proceed) {
         String topic = wrappered.getTopic();
         String address = "";
         // 查找路由的信息，地址就是注册中心地址
 
-        if (wrappered.isToRegistery()) {
+        if (wrappered.isToRegistry()) {
             address = this.registryAddress;
 
         } else {
@@ -538,11 +638,11 @@ public class ClientInstance {
                 TopicRouteInfo routeInfo = this.topicTable.get(topic);
                 // 不包含路由，去注册中心找
                 if (routeInfo == null) {
-                    this.updateSemphore.acquire();
+                    this.updateSemaphore.acquire();
                     if (!this.topicTable.containsKey(topic)) {
                         this.getTopicInfoSync(topic);
                     }
-                    this.updateSemphore.release();
+                    this.updateSemaphore.release();
                     routeInfo = this.topicTable.get(topic);
                 }
                 // 如果注册中心也没有，先查找默认路由，根据默认路由信息，向集群中所有节点创建topic
@@ -550,19 +650,17 @@ public class ClientInstance {
                     String defaultTopic = MQConstant.DEFAULT_TOPIC_NAME;
                     TopicRouteInfo defaultInfo = this.topicTable.get(defaultTopic);
                     if (defaultInfo == null) {
-                        this.updateSemphore.acquire();
+                        this.updateSemaphore.acquire();
                         if (!this.topicTable.containsKey(topic)) {
                             this.getTopicInfoSync(defaultTopic);
                         }
-                        this.updateSemphore.release();
+                        this.updateSemaphore.release();
                         defaultInfo = this.topicTable.get(defaultTopic);
                     }
                     if (!this.topicTable.containsKey(topic)) {
                         this.createTopicInCluster(defaultInfo, topic);
                     }
                 }
-                // 根据路由选择一个队列地址
-                // address = this.selectProducedQueueAndChangeHeader(wrappered, topic);
             } catch (InterruptedException e) {
                 throw new CraneClientException("Semaphore has error");
             }
@@ -571,7 +669,9 @@ public class ClientInstance {
         if (!proceed) {
             return;
         }
+        // 根据发送消息类型，选择不同线程池
         if (wrappered.getSelector() == null) {
+            // 顺序消息单线程发送
             this.asyncSendThreadPool.execute(() -> {
                 this.sendCore(wrappered, callback, this.asyncSendThreadPool);
             });
@@ -583,6 +683,13 @@ public class ClientInstance {
         }
 
     }
+
+    /**
+     * 发送消息，并进行超时检查和失败重试
+     * @param wrappered
+     * @param callback
+     * @param executorService
+     */
     private void sendCore(final WrapperFutureCommand wrappered, SendCallback callback, ExecutorService executorService) {
         RemoteCommand remoteCommand = wrappered.getFutureCommand().getRequest();
         RpcType rpcType = remoteCommand.getHeader().getRpcType();
@@ -594,12 +701,12 @@ public class ClientInstance {
                     WrapperFutureCommand newWrappered = requestTable.get(correlationID);
                     // 已经被删除了
                     if (newWrappered == null) {
-                        log.info("{} has aready been deleted, wont do timeout", correlationID);
+                        log.info("{} has already been deleted, wont do timeout", correlationID);
                         return;
                     }
                     // 被设置了完成标识但未删除
                     if (newWrappered.isDone()) {
-                        log.info("{} has aready done, wont do timeout", correlationID);
+                        log.info("{} has already done, wont do timeout", correlationID);
                         requestTable.remove(correlationID);
                         return;
                     }
@@ -667,7 +774,6 @@ public class ClientInstance {
             this.updateTopicInfo(topic);
         }
     }
-    // TODO 检查发往注册中心更新路由的逻辑，启动一个简单注册中心验证
     /**
      * 缺少当前topic数据时，同步的从注册中心取得数据
      * @param topic
@@ -684,18 +790,23 @@ public class ClientInstance {
             brokerAddressTable.put(brokerData.getBrokerName(), brokerData.getBrokerAddressMap());
         }
     }
+
+    /**
+     * 根据新的路由信息，剔除过期的broker
+     * @param newInfo
+     * @param oldInfo
+     */
     private void markExpiredBroker(TopicRouteInfo newInfo, TopicRouteInfo oldInfo) {
         if (oldInfo == null) {
             return;
         }
         List<String> expired = oldInfo.getExpiredBrokerAddress(newInfo);
-        this.remoteClent.markExpired(expired);
+        this.remoteClient.markExpired(expired);
     }
     private void cleanExpired() {
-        this.remoteClent.cleanExpired();
+        this.remoteClient.cleanExpired();
     }
 
-    // TODO 更新topic信息，从注册中心，创建响应信息，设置回调，更新结果
     private void updateTopicInfo(String topic) {
         this.readableRegistry.fetchRouteInfo(topic, new RegistryCallback() {
             @Override
@@ -715,7 +826,7 @@ public class ClientInstance {
         });
     }
     public void shutdown() {
-        this.remoteClent.shutdown();
+        this.remoteClient.shutdown();
         if (this.asyncSendThreadPool != null) {
             this.asyncSendThreadPool.shutdown();
         }
@@ -735,28 +846,28 @@ public class ClientInstance {
         this.hook = hook;
     }
     public String registerProducer(DefaultMQProducerImpl defaultMQProducer) {
-        int order = this.clinetNumber.getAndIncrement();
+        int order = this.clientNumber.getAndIncrement();
 
-        this.producerRegister.put("produer-" + order, defaultMQProducer);
-        return "produer-" + order;
+        this.producerRegister.put("producer-" + order, defaultMQProducer);
+        return "producer-" + order;
     }
     public String registerPullConsumer(DefaultPullConsumerImpl defaultPullConsumer) {
-        int order = this.clinetNumber.getAndIncrement();
-        this.pullConsumerRegister.put("pullconsumer-" + order, defaultPullConsumer);
-        return "pullconsumer-" + order;
+        int order = this.clientNumber.getAndIncrement();
+        this.pullConsumerRegister.put("pull consumer-" + order, defaultPullConsumer);
+        return "pull consumer-" + order;
     }
     public void registerPushConsumer(String group, DefaultPushConsumerImpl defaultPushConsumer) {
-        int order = this.clinetNumber.getAndIncrement();
+        int order = this.clientNumber.getAndIncrement();
         this.pushConsumerRegister.put(group, defaultPushConsumer);
     }
 
-    public void unregsiterProducer(String id) {
+    public void unregisterProducer(String id) {
         this.producerRegister.remove(id);
     }
-    public void unregsiterPullConsumer(String id) {
+    public void unregisterPullConsumer(String id) {
         this.pullConsumerRegister.remove(id);
     }
-    public void unregsiterPushConsumer(String group) {
+    public void unregisterPushConsumer(String group) {
         this.pushConsumerRegister.remove(group);
     }
     public void setLoadBalanceStrategy(LoadBalanceStrategy loadBalanceStrategy) {

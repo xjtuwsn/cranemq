@@ -122,7 +122,7 @@ public class RemoteServer implements RemoteService {
         protected void channelRead0(ChannelHandlerContext channelHandlerContext, RemoteCommand request)
                 throws Exception {
             if (request == null) {
-                log.error("Receve null request from client");
+                log.error("Receive null request from client");
                 return;
             }
             RequestType type = (RequestType) request.getHeader().getCommandType();
@@ -142,7 +142,7 @@ public class RemoteServer implements RemoteService {
                     doSimplePullProcess(channelHandlerContext, request);
                     break;
                 case PULL_MESSAGE:
-                    doPullMesageProcess(channelHandlerContext, request);
+                    doPullMessageProcess(channelHandlerContext, request);
                     break;
                 case QUERY_INFO:
                     doQueryInfoProcess(channelHandlerContext, request);
@@ -160,7 +160,7 @@ public class RemoteServer implements RemoteService {
                     doUpdateTopicProcess(channelHandlerContext, request);
                     break;
                 case SEND_MESSAGE_BACK:
-                    doSednBackProcess(channelHandlerContext, request);
+                    doSendBackProcess(channelHandlerContext, request);
                 default:
                     break;
             }
@@ -198,7 +198,7 @@ public class RemoteServer implements RemoteService {
                 });
             }
         }
-        private void doPullMesageProcess(ChannelHandlerContext ctx, RemoteCommand remoteCommand) {
+        private void doPullMessageProcess(ChannelHandlerContext ctx, RemoteCommand remoteCommand) {
             ExecutorService pool = getThreadPool(HandlerType.PULL);
             if (pool != null) {
                 pool.execute(() -> {
@@ -249,7 +249,7 @@ public class RemoteServer implements RemoteService {
             }
         }
 
-        private void doSednBackProcess(ChannelHandlerContext ctx, RemoteCommand remoteCommand) {
+        private void doSendBackProcess(ChannelHandlerContext ctx, RemoteCommand remoteCommand) {
             ExecutorService pool = getThreadPool(HandlerType.SEND_BACK);
             if (pool != null) {
                 pool.execute(() -> {
@@ -266,7 +266,7 @@ public class RemoteServer implements RemoteService {
         public void publish(ConnectionEvent event) {
             int size = queue.size();
             if (size > 20000) {
-                log.warn("Too much event, connot been handled, number is {}", size);
+                log.warn("Too much event, connote been handled, number is {}", size);
             } else {
                 queue.add(event);
             }

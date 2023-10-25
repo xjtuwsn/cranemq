@@ -9,6 +9,7 @@ import org.slf4j.LoggerFactory;
  * @file:SyncFlushDiskService
  * @author:wsn
  * @create:2023/10/06-11:01
+ * 同步刷盘服务
  */
 public class SyncFlushDiskService implements FlushDiskService {
     private static final Logger log = LoggerFactory.getLogger(SyncFlushDiskService.class);

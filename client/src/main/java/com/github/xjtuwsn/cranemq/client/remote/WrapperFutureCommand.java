@@ -1,4 +1,4 @@
-package com.github.xjtuwsn.cranemq.client;
+package com.github.xjtuwsn.cranemq.client.remote;
 
 import com.github.xjtuwsn.cranemq.client.hook.PullCallback;
 import com.github.xjtuwsn.cranemq.client.hook.SendCallback;
@@ -16,22 +16,48 @@ import java.util.concurrent.atomic.AtomicLong;
  * @file:WrapperFutureCommand
  * @author:wsn
  * @create:2023/09/27-21:06
+ * 请求的最终包装类
  */
 @ToString
 public class WrapperFutureCommand {
 
+    // future包装的请求
     private FutureCommand futureCommand;
+
+    // 消息发往的主题
     private String topic;
-    private boolean toRegistery;
+
+    // 是否发往注册中心
+    private boolean toRegistry;
+
+    // 最大重试次数
     private int maxRetryTime;
+
+    // 最大超时时间
     private long timeout;
+
+    // 消息发送时间
     private AtomicLong startTime;
+
+    // 重试次数
     private AtomicInteger currentRetryTime;
+
+    // 异步发送回调
     private SendCallback callback;
+
+    // 拉取消息回调
     private PullCallback pullCallback;
+
+    // 队列选择器
     private MQSelector selector;
+
+    // 选择器参数
     private Object arg;
+
+    // 已经选择的队列
     private MessageQueue queuePicked;
+
+    // 已经选择的远程地址
     private String address;
 
     public WrapperFutureCommand(FutureCommand futureCommand, String topic, long timeout, SendCallback callback) {
@@ -87,12 +113,12 @@ public class WrapperFutureCommand {
         return topic;
     }
 
-    public boolean isToRegistery() {
-        return toRegistery;
+    public boolean isToRegistry() {
+        return toRegistry;
     }
 
-    public void setToRegistery(boolean toRegistery) {
-        this.toRegistery = toRegistery;
+    public void setToRegistry(boolean toRegistry) {
+        this.toRegistry = toRegistry;
     }
 
     public MQSelector getSelector() {

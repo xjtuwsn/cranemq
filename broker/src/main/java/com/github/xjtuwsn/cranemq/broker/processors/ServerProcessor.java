@@ -36,6 +36,7 @@ import java.util.Set;
  * @file:BrokerProcessor
  * @author:wsn
  * @create:2023/10/02-16:07
+ * broker的processor，根据不同请求类型执行
  */
 public class ServerProcessor implements BaseProcessor {
 
@@ -50,6 +51,12 @@ public class ServerProcessor implements BaseProcessor {
         this.brokerController = brokerController;
         this.remoteServer = remoteServer;
     }
+
+    /**
+     * 处理消费者生产消息的请求
+     * @param ctx
+     * @param remoteCommand
+     */
     @Override
     public void processProduceMessage(ChannelHandlerContext ctx, RemoteCommand remoteCommand) {
         Header header = remoteCommand.getHeader();
@@ -58,16 +65,11 @@ public class ServerProcessor implements BaseProcessor {
             MQProduceRequest messageProduceRequest = (MQProduceRequest) remoteCommand.getPayLoad();
             StoreInnerMessage storeInnerMessage = new StoreInnerMessage(messageProduceRequest.getMessage(),
                     messageProduceRequest.getWriteQueue(), header.getCorrelationId(), 0);
-            log.info("Broker receve produce message: {}", messageProduceRequest);
-            long start = System.nanoTime();
+            // log.info("Broker receive produce message: {}", messageProduceRequest);
             putResp = this.brokerController.getMessageStoreCenter().putMessage(storeInnerMessage);
-            long end = System.nanoTime();
-
-            double cost = (end - start) / 1e6;
-            log.warn("Cost {} ms", cost);
 
         } else if (header.getCommandType() == RequestType.MESSAGE_BATCH_PRODUCE_REAUEST) {
-            // todo 批量消息
+            // 批量消息
             MQBachProduceRequest mqBachProduceRequest = (MQBachProduceRequest) remoteCommand.getPayLoad();
             List<Message> messages = mqBachProduceRequest.getMessages();
             MessageQueue writeQueue = mqBachProduceRequest.getWriteQueue();
@@ -82,6 +84,7 @@ public class ServerProcessor implements BaseProcessor {
 
             putResp = this.brokerController.getMessageStoreCenter().putMessage(list);
         } else {
+            // 延时消息
             MQProduceRequest messageProduceRequest = (MQProduceRequest) remoteCommand.getPayLoad();
             StoreInnerMessage storeInnerMessage = new StoreInnerMessage(messageProduceRequest.getMessage(),
                     messageProduceRequest.getWriteQueue(), header.getCorrelationId(), messageProduceRequest.getDelay());
@@ -100,6 +103,12 @@ public class ServerProcessor implements BaseProcessor {
 
         ctx.writeAndFlush(response);
     }
+
+    /**
+     * 创建主题
+     * @param ctx
+     * @param remoteCommand
+     */
     @Override
     public void processCreateTopic(ChannelHandlerContext ctx, RemoteCommand remoteCommand) {
         log.info("------------Create Topic Request----------------");
@@ -130,10 +139,17 @@ public class ServerProcessor implements BaseProcessor {
         log.info("----------------Create Topic Finished-------------");
         ctx.writeAndFlush(response);
     }
+
+    /**
+     * 处理生产者和消费者这心跳
+     * @param ctx
+     * @param remoteCommand
+     */
     @Override
     public void processHeartBeat(ChannelHandlerContext ctx, RemoteCommand remoteCommand) {
         Header header = remoteCommand.getHeader();
         MQHeartBeatRequest heartBeatRequest = (MQHeartBeatRequest) remoteCommand.getPayLoad();
+        // 以事件的形式发布
         if (heartBeatRequest.getProducerGroup() != null && heartBeatRequest.getProducerGroup().size() != 0) {
             this.remoteServer.publishEvent(new ConnectionEvent(ConnectionEventType.PRODUCER_HEARTBEAT, ctx.channel(),
                     heartBeatRequest));
@@ -141,29 +157,34 @@ public class ServerProcessor implements BaseProcessor {
             this.remoteServer.publishEvent(new ConnectionEvent(ConnectionEventType.CONSUMER_HEARTBEAT, ctx.channel(),
                     heartBeatRequest));
         }
-//        System.out.println(remoteCommand);
     }
-    // TODO 测试读取的对不对
+
+    /**
+     * 处理客户端的拉消息请求
+     * @param ctx
+     * @param remoteCommand
+     */
     @Override
     public void processSimplePull(ChannelHandlerContext ctx, RemoteCommand remoteCommand) {
         Header header = remoteCommand.getHeader();
         MQSimplePullRequest pullRequest = (MQSimplePullRequest) remoteCommand.getPayLoad();
 
-        long start = System.nanoTime();
-        MQSimplePullResponse response = brokerController.getMessageStoreCenter().simplePullMessage(pullRequest);
-        long end = System.nanoTime();
-        double cost = (end - start) / 1e6;
-        log.warn("Pull {} message cost {} ms", pullRequest.getLength(), cost);
+        MQSimplePullResponse pullResponse = brokerController.getMessageStoreCenter().simplePullMessage(pullRequest);
 
         Header responseHeader = new Header(ResponseType.SIMPLE_PULL_RESPONSE, header.getRpcType(),
                 header.getCorrelationId());
-        if (response.getResultType() != AcquireResultType.DONE) {
+        if (pullResponse.getResultType() != AcquireResultType.DONE) {
             responseHeader.onFailure(ResponseCode.SERVER_ERROR);
         }
-        RemoteCommand resopnse = new RemoteCommand(responseHeader, response);
-        ctx.writeAndFlush(resopnse);
+        RemoteCommand response = new RemoteCommand(responseHeader, pullResponse);
+        ctx.writeAndFlush(response);
     }
 
+    /**
+     * 处理push请求的拉消息
+     * @param ctx
+     * @param remoteCommand
+     */
     @Override
     public void processPullRequest(ChannelHandlerContext ctx, RemoteCommand remoteCommand) {
         MQPullMessageRequest mqPullMessageRequest = (MQPullMessageRequest) remoteCommand.getPayLoad();
@@ -172,6 +193,11 @@ public class ServerProcessor implements BaseProcessor {
                 header.getCorrelationId());
     }
 
+    /**
+     * 处理消费者rebalance时进行的查询
+     * @param ctx
+     * @param remoteCommand
+     */
     @Override
     public void processQueryRequest(ChannelHandlerContext ctx, RemoteCommand remoteCommand) {
         Header header = remoteCommand.getHeader();
@@ -190,6 +216,11 @@ public class ServerProcessor implements BaseProcessor {
 
     }
 
+    /**
+     * 进行消费者便宜量记录
+     * @param ctx
+     * @param remoteCommand
+     */
     @Override
     public void processRecordOffsetRequest(ChannelHandlerContext ctx, RemoteCommand remoteCommand) {
 
@@ -202,6 +233,11 @@ public class ServerProcessor implements BaseProcessor {
         this.brokerController.getOffsetManager().updateOffsets(offsets, group);
     }
 
+    /**
+     * 进行分布式锁相关操作
+     * @param ctx
+     * @param remoteCommand
+     */
     @Override
     public void processLockRequest(ChannelHandlerContext ctx, RemoteCommand remoteCommand) {
         Header header = remoteCommand.getHeader();
@@ -230,6 +266,11 @@ public class ServerProcessor implements BaseProcessor {
         ctx.writeAndFlush(response);
     }
 
+    /**
+     * 当消费者消费失败时将失败消息返回
+     * @param ctx
+     * @param remoteCommand
+     */
     @Override
     public void processSendBackRequest(ChannelHandlerContext ctx, RemoteCommand remoteCommand) {
         Header header = remoteCommand.getHeader();

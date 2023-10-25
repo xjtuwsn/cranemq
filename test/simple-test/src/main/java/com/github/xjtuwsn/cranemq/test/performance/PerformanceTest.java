@@ -1,6 +1,5 @@
 package com.github.xjtuwsn.cranemq.test.performance;
 
-import com.github.xjtuwsn.cranemq.common.remote.RemoteHook;
 import com.github.xjtuwsn.cranemq.client.producer.DefaultMQProducer;
 import com.github.xjtuwsn.cranemq.client.producer.balance.RoundRobinStrategy;
 import com.github.xjtuwsn.cranemq.common.entity.Message;
@@ -32,7 +31,7 @@ public class PerformanceTest {
                     }
                 }, new ThreadPoolExecutor.AbortPolicy());
         DefaultMQProducer producer = new DefaultMQProducer("group1");
-        producer.bindRegistery("127.0.0.1:11111", RegistryType.DEFAULT);
+        producer.bindRegistry("127.0.0.1:11111", RegistryType.DEFAULT);
         producer.setLoadBalanceStrategy(new RoundRobinStrategy());
         producer.start();
         byte[] data = new byte[1024];

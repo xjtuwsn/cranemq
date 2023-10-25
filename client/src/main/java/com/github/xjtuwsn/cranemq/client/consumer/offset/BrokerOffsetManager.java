@@ -1,8 +1,6 @@
 package com.github.xjtuwsn.cranemq.client.consumer.offset;
 
-import com.github.xjtuwsn.cranemq.client.WrapperFutureCommand;
 import com.github.xjtuwsn.cranemq.client.remote.ClientInstance;
-import com.github.xjtuwsn.cranemq.common.command.FutureCommand;
 import com.github.xjtuwsn.cranemq.common.command.Header;
 import com.github.xjtuwsn.cranemq.common.command.PayLoad;
 import com.github.xjtuwsn.cranemq.common.command.RemoteCommand;
@@ -15,7 +13,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.Map;
-import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledExecutorService;
@@ -29,6 +26,7 @@ import java.util.stream.Collectors;
  * @file:BrokerOffsetManager
  * @author:wsn
  * @create:2023/10/10-15:12
+ * 让broker进行消费者组位移管理，本地向服务器提交位移
  */
 public class BrokerOffsetManager implements OffsetManager {
 

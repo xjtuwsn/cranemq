@@ -28,6 +28,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * @file:DefaultPushConsumer
  * @author:wsn
  * @create:2023/10/08-10:49
+ * 以push方式消费的消费者
  */
 public class DefaultPushConsumer implements MQPushConsumer {
     private static final Logger log = LoggerFactory.getLogger(DefaultPushConsumer.class);
@@ -59,7 +60,7 @@ public class DefaultPushConsumer implements MQPushConsumer {
                                QueueAllocation queueAllocation) {
         if (StrUtil.isEmpty(consumerGroup) || messageModel == null || startConsume == null
                 || messageListener == null || StrUtil.isEmpty(id) || StrUtil.isEmpty(address)) {
-            throw new CraneClientException("Paramters error");
+            throw new CraneClientException("Parameters error");
         }
         this.consumerGroup = consumerGroup;
         this.messageModel = messageModel;
