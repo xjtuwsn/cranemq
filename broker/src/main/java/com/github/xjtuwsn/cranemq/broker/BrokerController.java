@@ -19,9 +19,6 @@ import com.github.xjtuwsn.cranemq.common.remote.event.ChannelEventListener;
 import com.github.xjtuwsn.cranemq.common.utils.NetworkUtil;
 import com.github.xjtuwsn.cranemq.extension.impl.NacosWritableRegistry;
 import com.github.xjtuwsn.cranemq.extension.impl.ZkWritableRegistry;
-import org.springframework.beans.BeansException;
-import org.springframework.context.ApplicationContext;
-import org.springframework.context.ApplicationContextAware;
 
 import javax.annotation.Resource;
 import java.util.concurrent.*;
@@ -101,9 +98,9 @@ public class BrokerController implements GeneralStoreService {
         if (this.brokerConfig.getRegistryType() == RegistryType.DEFAULT) {
             this.writableRegistry = new SimpleWritableRegistry(this);
         } else if (this.brokerConfig.getRegistryType() == RegistryType.ZOOKEEPER) {
-            this.writableRegistry = new ZkWritableRegistry(this.brokerConfig.getRegistrys());
+            this.writableRegistry = new ZkWritableRegistry(this.brokerConfig.getRegistry());
         } else if (this.brokerConfig.getRegistryType() == RegistryType.NACOS) {
-            this.writableRegistry = new NacosWritableRegistry(this.brokerConfig.getRegistrys());
+            this.writableRegistry = new NacosWritableRegistry(this.brokerConfig.getRegistry());
         }
         this.brokerConfig.initRetry();
         this.initThreadPool();

@@ -28,7 +28,7 @@ public class BrokerConfig {
 
     private int port;
 
-    private String registrys;
+    private String registry;
 
     private long keepAliveTime = 1000 * 120;
 

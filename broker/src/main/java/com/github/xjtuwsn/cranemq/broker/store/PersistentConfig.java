@@ -47,7 +47,7 @@ public class PersistentConfig {
     private String defaultName = "dummy";
 
     // 最大堆外借用内存数
-    private int maxOutOfMemoryPoolSize = 3;
+    private int maxOutOfMemoryPoolSize = 2;
 
     // 允许堆外内存
     private boolean enableOutOfMemory = true;

@@ -217,11 +217,12 @@ public class ClientHousekeepingService implements ChannelEventListener, Consumer
     private void consumerGroupChanged(String groupName) {
         log.info("Consumer cluster {} has changed", groupName);
         ConcurrentHashMap<String, ClientWrapper> map = consumerTable.get(groupName);
-        Iterator<String> iterator = map.keys().asIterator();
+
         Set<String> clients = new HashSet<>();
-        while (iterator.hasNext()) {
-            clients.add(iterator.next());
+        for (Map.Entry<String, ClientWrapper> entry : map.entrySet()) {
+            clients.add(entry.getKey());
         }
+
         // 通知
         for (Map.Entry<String, ClientWrapper> entry : map.entrySet()) {
             asyncNotifyConsumerService.execute(() -> {
@@ -272,14 +273,13 @@ public class ClientHousekeepingService implements ChannelEventListener, Consumer
     @Override
     public Set<String> getGroupClients(String group) {
         ConcurrentHashMap<String, ClientWrapper> map = consumerTable.get(group);
-        Iterator<String> iterator = map.keys().asIterator();
         Set<String> clients = new HashSet<>();
-
-        while (iterator.hasNext()) {
-            String clientId = iterator.next();
+        for (Map.Entry<String, ClientWrapper> entry : map.entrySet()) {
+            String clientId = entry.getKey();
             boolean gray = map.get(clientId).isGrayConsumer();
             clients.add(clientId + (gray ? MQConstant.GRAY_SUFFIX : ""));
         }
+
         return clients;
     }
 

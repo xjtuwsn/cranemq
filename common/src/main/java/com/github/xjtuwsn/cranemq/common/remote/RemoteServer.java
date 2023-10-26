@@ -14,6 +14,7 @@ import io.netty.bootstrap.ServerBootstrap;
 import io.netty.channel.*;
 import io.netty.channel.epoll.Epoll;
 import io.netty.channel.epoll.EpollEventLoopGroup;
+import io.netty.channel.epoll.EpollServerSocketChannel;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
@@ -41,15 +42,19 @@ public class RemoteServer implements RemoteService {
     private PublishEvent publishEvent;
     private ChannelEventListener channelEventListener;
     private BaseProcessor serverProcessor;
+
+    private Class<? extends ServerChannel> channelClass;
     private ConcurrentHashMap<HandlerType, ExecutorService> threadPoolMap = new ConcurrentHashMap<>();
     public RemoteServer(int listenPort, ChannelEventListener channelEventListener) {
         this.listenPort = listenPort;
         if (useEpoll()) {
             this.bossGroup = new EpollEventLoopGroup(1);
             this.workerGroup = new EpollEventLoopGroup(3);
+            this.channelClass = EpollServerSocketChannel.class;
         } else {
             this.bossGroup = new NioEventLoopGroup(1);
             this.workerGroup = new NioEventLoopGroup(3);
+            this.channelClass = NioServerSocketChannel.class;
         }
         this.channelEventListener = channelEventListener;
         this.serverBootstrap = new ServerBootstrap();
@@ -61,7 +66,7 @@ public class RemoteServer implements RemoteService {
     @Override
     public void start() {
         this.serverBootstrap.group(this.bossGroup, this.workerGroup)
-                .channel(NioServerSocketChannel.class)
+                .channel(this.channelClass)
                 .childOption(ChannelOption.SO_KEEPALIVE, true)
                 .childOption(ChannelOption.TCP_NODELAY, true)
                 .childHandler(new ChannelInitializer<SocketChannel>() {

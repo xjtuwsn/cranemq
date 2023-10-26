@@ -40,7 +40,7 @@ public class SimpleWritableRegistry implements WritableRegistry {
         Header header = new Header(RequestType.UPDATE_TOPIC_REQUEST, RpcType.ONE_WAY, TopicUtil.generateUniqueID());
         MQUpdateTopicRequest mqUpdateTopicRequest = new MQUpdateTopicRequest(brokerName, brokerId, address, queueDatas);
         RemoteCommand remoteCommand = new RemoteCommand(header, mqUpdateTopicRequest);
-        String registrys = this.brokerController.getBrokerConfig().getRegistrys();
+        String registrys = this.brokerController.getBrokerConfig().getRegistry();
         if (StrUtil.isEmpty(registrys)) {
             log.error("No registry to connect");
             throw new CraneClientException("No registry to connect");

@@ -19,7 +19,7 @@ import java.util.UUID;
  */
 public class BrokerUtil {
     private static final Logger log = LoggerFactory.getLogger(BrokerUtil.class);
-    public static void prarseConfigFile(Properties properties, Object object) {
+    public static void parseConfigFile(Properties properties, Object object) {
         Method[] methods = object.getClass().getMethods();
         for (Method method : methods) {
             String name = method.getName();
@@ -75,7 +75,9 @@ public class BrokerUtil {
         StringBuilder sb = new StringBuilder(String.valueOf(offset));
         int left = MQConstant.COMMITLOG_FILENAME_LENGTH - sb.length();
         StringBuilder padding = new StringBuilder();
-        padding.append("0".repeat(Math.max(0, left)));
+        for (int i = 0; i < left; i++) {
+            padding.append("0");
+        }
         return padding.append(sb).toString();
     }
 

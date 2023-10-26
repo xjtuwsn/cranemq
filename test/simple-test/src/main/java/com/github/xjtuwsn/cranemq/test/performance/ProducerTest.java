@@ -27,7 +27,7 @@ public class ProducerTest {
                     }
                 },
                 new ThreadPoolExecutor.AbortPolicy());
-        int thread = 1, number = 1;
+        int thread = 5, number = 100;
 
         DefaultMQProducer producer = new DefaultMQProducer("group_push");
         producer.bindRegistry("127.0.0.1:8848", RegistryType.NACOS);
@@ -41,7 +41,7 @@ public class ProducerTest {
 
                 for (int j = 0; j < number; j++) {
 
-                    producer.send(message1, 5, TimeUnit.SECONDS);
+                    producer.send(message1);
                 }
 
             });

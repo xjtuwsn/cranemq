@@ -6,7 +6,11 @@ import com.github.xjtuwsn.cranemq.common.constant.MQConstant;
 import com.github.xjtuwsn.cranemq.common.utils.BrokerUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.BeansException;
 import org.springframework.boot.ApplicationArguments;
+import org.springframework.boot.SpringApplication;
+import org.springframework.context.ApplicationContext;
+import org.springframework.context.ApplicationContextAware;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.DependsOn;
 import org.springframework.context.annotation.Lazy;
@@ -30,9 +34,10 @@ import java.util.Properties;
  */
 @Component
 @DependsOn(value = "brokerController")
-public class BrokerMainStart {
+public class BrokerMainStart implements ApplicationContextAware {
     private static final Logger log = LoggerFactory.getLogger(BrokerMainStart.class);
 
+    private ApplicationContext applicationContext;
     @Resource
     private BrokerController brokerController;
     @PostConstruct
@@ -40,9 +45,13 @@ public class BrokerMainStart {
         boolean result = brokerController.initialize();
         if (!result) {
             log.error("BrokerController initialize error");
-            System.exit(1);
+            System.exit(SpringApplication.exit(applicationContext));
         }
         brokerController.start();
     }
 
+    @Override
+    public void setApplicationContext(ApplicationContext applicationContext) throws BeansException {
+        this.applicationContext = applicationContext;
+    }
 }

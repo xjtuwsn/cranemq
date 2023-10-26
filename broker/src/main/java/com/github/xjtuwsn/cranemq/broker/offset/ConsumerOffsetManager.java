@@ -80,7 +80,6 @@ public class ConsumerOffsetManager {
             }
 
         }
-        log.warn("Topic: {}, group: {}, key: {}, map: {}", topic, group, key, offsetMap.get(key));
         return offsetMap.get(key).get(queueId);
     }
 
