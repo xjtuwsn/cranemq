@@ -78,7 +78,6 @@ public class GrayQueueAllocation implements QueueAllocation {
      */
     private boolean isGray(String client) {
         int index = client.indexOf(MQConstant.GRAY_SUFFIX);
-        System.out.println(index);
         return index != -1 && index == client.length() - MQConstant.GRAY_SUFFIX.length();
     }
 }

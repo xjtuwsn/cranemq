@@ -159,7 +159,7 @@ public class ConsumeQueueManager implements GeneralStoreService {
             queue.mkdir();
         }
         loadTopicQueueFile(rootDir);
-        log.info("Finish create {} consumequeue, writenumber is {}", topic, writeNumber);
+        log.info("Finish create {} consume queue, write-number is {}", topic, writeNumber);
         return new QueueData(brokerController.getBrokerConfig().getBrokerName(), writeNumber, readNumber);
     }
 

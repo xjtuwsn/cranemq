@@ -33,7 +33,7 @@ public class ConsumerOffsetManager {
     private static final Logger log = LoggerFactory.getLogger(ConsumerOffsetManager.class);
 
     // topic@group: [queueId: offset]
-    private ConcurrentHashMap<String, ConcurrentHashMap<Integer, Long>> offsetMap = new ConcurrentHashMap<>();
+    private volatile ConcurrentHashMap<String, ConcurrentHashMap<Integer, Long>> offsetMap = new ConcurrentHashMap<>();
 
     private BrokerController brokerController;
     private ConsumerGroupManager consumerGroupManager;
@@ -80,6 +80,7 @@ public class ConsumerOffsetManager {
             }
 
         }
+        log.warn("Topic: {}, group: {}, key: {}, map: {}", topic, group, key, offsetMap.get(key));
         return offsetMap.get(key).get(queueId);
     }
 

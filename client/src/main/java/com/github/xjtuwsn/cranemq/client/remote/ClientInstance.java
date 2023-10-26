@@ -224,6 +224,7 @@ public class ClientInstance {
         this.startScheduleTask();
         this.state.set(2);
         Runtime.getRuntime().addShutdownHook(new Thread(this::shutdown));
+        log.info("Client instance start successfully");
     }
 
     // 注册不同类型的处理器
@@ -499,7 +500,8 @@ public class ClientInstance {
         Header header = new Header(RequestType.HEARTBEAT, RpcType.ONE_WAY, TopicUtil.generateUniqueID());
         RemoteCommand remoteCommand = new RemoteCommand(header, heartBeatRequest);
         if (this.brokerAddressTable.isEmpty()) {
-            return;
+            log.info("There is no broker");
+            this.getTopicInfoSync(MQConstant.DEFAULT_TOPIC_NAME);
         }
         for (Map.Entry<String, Map<Integer, String>> entry : this.brokerAddressTable.entrySet()) {
             Map<Integer, String> addrs = entry.getValue();

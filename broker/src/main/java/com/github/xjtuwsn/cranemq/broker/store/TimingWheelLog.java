@@ -289,7 +289,6 @@ public class TimingWheelLog {
                     }
                     // 读取其他信息
                     int type = buffer.getInt();
-                    System.out.println(size + ", " + type);
                     int idSize = buffer.getInt();
                     byte[] idData = new byte[idSize];
                     buffer.get(idData);

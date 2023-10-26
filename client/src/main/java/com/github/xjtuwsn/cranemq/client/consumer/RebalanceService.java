@@ -99,7 +99,7 @@ public class RebalanceService {
         } else if (consumer.getMessageModel() == MessageModel.CLUSTER) {
             allocated = queueAllocation.allocate(queues, groupConsumerTable.get(group), consumer.clientIdWihGray());
         }
-
+        log.info("Got queue {}", allocated);
         // 重新设置队列的锁
         this.clientInstance.getPushConsumerByGroup(group).getMessageQueueLock().resetLock(allocated);
 

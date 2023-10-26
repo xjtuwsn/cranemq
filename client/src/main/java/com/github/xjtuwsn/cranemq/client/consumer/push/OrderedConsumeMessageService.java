@@ -105,16 +105,18 @@ public class OrderedConsumeMessageService extends AbstractReputMessageService {
                     snapShot.tryLock();
                     // 消费
                     result = listener.consume(messages);
-                    snapShot.releaseLock();
                 }
                 // 看是否消费成功
                 if (result) {
-                    // log.info("Consume message finished");
+
                     long lowestOffset = snapShot.removeMessages(messages);
+                    log.info("Consume message finished, will record offset {}", lowestOffset);
                     this.defaultPushConsumer.getOffsetManager().record(messageQueue, lowestOffset, group);
                 } else {
                     this.sendMessageBackToBroker(messages, true);
                 }
+                snapShot.releaseLock();
+
             });
         }
     }

@@ -56,6 +56,7 @@ public class BrokerOffsetManager implements OffsetManager {
             localOff = new AtomicLong(offset);
             offsetTable.put(messageQueue, localOff);
         }
+        log.info("Local offset is {}, will be set in {}", localOff.get(), offset);
         localOff.set(offset);
     }
     @Override
@@ -76,7 +77,10 @@ public class BrokerOffsetManager implements OffsetManager {
                 origin = new AtomicLong(offset);
                 offsetTable.put(queue, origin);
             } else {
-                origin.set(offset);
+                if (origin.get() < offset) {
+                    origin.set(offset);
+
+                }
             }
         }
 

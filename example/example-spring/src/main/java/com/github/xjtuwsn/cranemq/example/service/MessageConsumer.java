@@ -13,8 +13,13 @@ import org.springframework.stereotype.Service;
 @Service
 public class MessageConsumer {
 
-    @CraneMQListener(id = "0", topic = "testTopic", tag = "*", ordered = false, dataType = User.class)
+    @CraneMQListener(id = "0", topic = "springTopic", tag = "*", ordered = false, dataType = User.class)
     public void receiver(User message) {
+        System.out.println(message);
+    }
+
+    @CraneMQListener(id = "1", topic = "springTopic", tag = "*", ordered = true, dataType = User.class)
+    public void orderedReceiver(User message) {
         System.out.println(message);
     }
 }

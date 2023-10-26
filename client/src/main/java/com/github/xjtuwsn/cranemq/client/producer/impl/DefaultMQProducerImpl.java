@@ -91,7 +91,6 @@ public class DefaultMQProducerImpl implements MQProducerInner {
         this.clientInstance.registerHook(hook);
         id = this.clientInstance.registerProducer(this);
         this.state.set(1);
-        this.clientInstance.sendHeartBeatToBroker();
         this.clientInstance.start();
 
 

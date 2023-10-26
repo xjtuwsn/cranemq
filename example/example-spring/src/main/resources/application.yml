@@ -5,6 +5,8 @@ cranemq:
     address: 127.0.0.1:8848
     type: nacos
   consumer:
-    group: group_push
+    group: group_test_spring
     model: cluster
     start: last
+server:
+  port: 7777

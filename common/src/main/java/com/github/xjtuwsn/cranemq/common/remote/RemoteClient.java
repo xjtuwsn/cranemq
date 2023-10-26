@@ -63,7 +63,6 @@ public class RemoteClient implements RemoteService {
             return cw.getChannelFuture();
         }
         String[] hostAndPort = address.split(":");
-        System.out.println(address);
         try {
             Bootstrap bootstrap1 = new Bootstrap();
             ChannelFuture cf = bootstrap1.group(workerGroup)

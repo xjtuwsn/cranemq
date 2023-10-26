@@ -112,6 +112,7 @@ public class DefaultPushConsumerImpl {
         if (this.offsetManager != null) {
             this.offsetManager.start();
         }
+        log.info("Default push consumer start successfully");
 
     }
     public void shutdown() {

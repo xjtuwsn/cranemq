@@ -37,7 +37,7 @@ import java.util.concurrent.*;
  * broker主体，包含大部分服务
  * @author wsn
  */
-public class BrokerController implements GeneralStoreService, ApplicationContextAware {
+public class BrokerController implements GeneralStoreService {
     // broker配置
     private BrokerConfig brokerConfig;
     // 持久化配置
@@ -197,11 +197,4 @@ public class BrokerController implements GeneralStoreService, ApplicationContext
         return clientLockManager;
     }
 
-    @Override
-    public void setApplicationContext(ApplicationContext applicationContext) throws BeansException {
-        System.out.println("-------------");
-        Object bean = applicationContext.getBean("producerMessageService");
-        System.out.println(bean);
-        System.out.println("------------");
-    }
 }
