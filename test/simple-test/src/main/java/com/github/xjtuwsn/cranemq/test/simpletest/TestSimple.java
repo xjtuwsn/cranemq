@@ -3,10 +3,6 @@ package com.github.xjtuwsn.cranemq.test.simpletest;
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.Expiry;
-import com.github.xjtuwsn.cranemq.broker.store.PersistentConfig;
-import com.github.xjtuwsn.cranemq.broker.timer.DelayMessageTask;
-import com.github.xjtuwsn.cranemq.broker.timer.DelayTask;
-import com.github.xjtuwsn.cranemq.broker.timer.TimingWheel;
 import com.github.xjtuwsn.cranemq.common.command.RemoteCommand;
 import com.github.xjtuwsn.cranemq.common.entity.MessageQueue;
 import com.github.xjtuwsn.cranemq.common.remote.codec.NettyDecoder;
@@ -35,21 +31,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  * @create:2023/10/06-10:42
  */
 public class TestSimple {
-    @Test
-    public void test1() {
-        PersistentConfig persistentConfig = new PersistentConfig();
-        Method[] methods = persistentConfig.getClass().getMethods();
-        for (Method method : methods) {
-            Class<?>[] parameterTypes = method.getParameterTypes();
-            System.out.println("-----------");
-            for (Class<?> type : parameterTypes) {
-                String simpleName = type.getSimpleName();
-                System.out.println(simpleName);
-            }
 
-            System.out.println("-------------");
-        }
-    }
     AtomicInteger elem = new AtomicInteger(0);
     @Test
     public void test2() {
@@ -254,31 +236,7 @@ public class TestSimple {
     // 10   ----- 1KB
     // 1w   ----- 1MB
     // 100W ----- 100MB
-    @Test
-    public void test10() {
-        TimingWheel<DelayTask> timingWheel = new TimingWheel<>();
-        System.out.println(TimeUnit.MILLISECONDS.toSeconds(System.currentTimeMillis()));
-        timingWheel.submit(new DelayMessageTask(null), 3, TimeUnit.SECONDS);
-        try {
-            Thread.sleep(5 * 1000);
-        } catch (InterruptedException e) {
-            throw new RuntimeException(e);
-        }
-        System.out.println(TimeUnit.MILLISECONDS.toSeconds(System.currentTimeMillis()));
-        timingWheel.submit(new DelayMessageTask(null), 33, TimeUnit.SECONDS);
-        System.out.println(TimeUnit.MILLISECONDS.toSeconds(System.currentTimeMillis()));
-        timingWheel.submit(new DelayMessageTask(null), 3, TimeUnit.SECONDS);
-//        Pair<Pair<Integer, Integer>, Long> compute = timingWheel.compute(63, TimeUnit.SECONDS);
-//
-//        System.out.println(compute);
-        for (int i = 0; i < 20; i++) {
-            System.out.println(TimeUnit.MILLISECONDS.toSeconds(System.currentTimeMillis()));
-            timingWheel.submit(new DelayMessageTask(null), 12, TimeUnit.SECONDS);
-        }
-        while (true) {
 
-        }
-    }
     @Test
     public void test11() {
         MessageQueue messageQueue1 = new MessageQueue("asas1", "topic1", 2);
